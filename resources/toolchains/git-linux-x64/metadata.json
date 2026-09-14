@@ -1,0 +1,17 @@
+{
+  "name": "Git",
+  "target": "linux-x64",
+  "status": "awaiting-verified-toolchain",
+  "version": null,
+  "source": null,
+  "gitSha256": null,
+  "licenseFile": null,
+  "requiredFiles": [
+    "bin/git",
+    "libexec/git-core",
+    "share/git-core/templates"
+  ],
+  "linkage": null,
+  "verifiedAt": null,
+  "certifiedSystem": null
+}

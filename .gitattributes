@@ -1,0 +1,23 @@
+* text=auto
+*.js text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+*.exe binary
+*.dll binary
+*.wasm binary
+*.zip binary
+*.room binary
+*.zroom binary
+*.zdata binary
+resources/toolchains/mingit/** -text
+resources/room-modules/** -text -whitespace
+resources/compliance/licenses/** -text -whitespace conflict-marker-size=128
+scripts/license-evidence/*-LICENSE -text -whitespace
+/LICENSE text eol=lf
+/NOTICE text eol=lf

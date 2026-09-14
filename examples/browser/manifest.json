@@ -1,0 +1,15 @@
+{
+  "formatVersion": "0.1",
+  "id": "cn.zhibian.example.browser",
+  "name": "千万间浏览器",
+  "version": "1.0.0",
+  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
+  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.3.0-alpha.25" },
+  "entry": "app/index.html",
+  "permissions": {
+    "database": "private",
+    "browser": ["navigate", "download"],
+    "network": []
+  },
+  "hostModules": []
+}

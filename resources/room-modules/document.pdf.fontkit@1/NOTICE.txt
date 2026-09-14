@@ -1,0 +1,3 @@
+@pdf-lib/fontkit@1.1.1
+Declared license: MIT
+The source package omits a standalone full license. LICENSE-EVIDENCE.md is the upstream README, not a replacement license. See resources/compliance/LICENSE-REVIEW.md before public redistribution. The unrelated pdf-lib copyright notice must not be substituted for this component.

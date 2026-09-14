@@ -1,0 +1,25 @@
+name: 问题反馈
+description: 提交可复现的问题（安全漏洞请参阅 SECURITY.md）
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传密钥、真实数据库或未经脱敏的诊断日志。
+  - type: input
+    id: version
+    attributes:
+      label: 工作台版本与操作系统
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请使用虚构数据，并注明房间名称及版本。
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期结果与实际结果
+    validations:
+      required: true

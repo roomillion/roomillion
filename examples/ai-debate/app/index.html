@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 辩论场</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="appShell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brandMark">辩</span>
+        <div><p class="eyebrow">ROOMILLION AI DEBATE</p><h1>AI 辩论场</h1><p>让不同模型围绕同一命题交锋，再由独立裁判给出结构化评判。</p></div>
+      </div>
+      <div class="topStatus"><span id="connectionDot"></span><strong id="connectionLabel">正在读取工作台模型</strong><small>凭据由主工作台托管</small></div>
+    </header>
+
+    <section class="workspace">
+      <aside class="setupPanel panel">
+        <div class="panelTitle"><div><p class="eyebrow">SETUP</p><h2>辩论设置</h2></div><button id="randomTopicButton" class="textButton" type="button">灵感命题</button></div>
+        <label>辩论主题<textarea id="topicInput" maxlength="600" placeholder="例如：在基础教育中，AI 助手利大于弊" required></textarea></label>
+
+        <section class="roleConfig positiveConfig">
+          <div class="roleHeading"><span>正</span><div><strong>正方辩手</strong><small>支持命题并回应反驳</small></div></div>
+          <label>辩手类型<select id="positiveType"><option value="ai">AI 辩手</option><option value="human">人类辩手</option></select></label>
+          <label id="positiveModelField">使用模型<select id="positiveModel"></select></label>
+        </section>
+
+        <section class="roleConfig negativeConfig">
+          <div class="roleHeading"><span>反</span><div><strong>反方辩手</strong><small>质疑命题并提出反例</small></div></div>
+          <label>辩手类型<select id="negativeType"><option value="ai">AI 辩手</option><option value="human">人类辩手</option></select></label>
+          <label id="negativeModelField">使用模型<select id="negativeModel"></select></label>
+        </section>
+
+        <section class="roleConfig judgeConfig">
+          <div class="roleHeading"><span>裁</span><div><strong>中立裁判</strong><small>评分、总结并判定胜方</small></div></div>
+          <label>使用模型<select id="judgeModel"></select></label>
+        </section>
+
+        <div class="settingsRow">
+          <label>总发言次数<select id="maxTurns"><option value="2">2 次</option><option value="4">4 次</option><option value="6" selected>6 次</option><option value="8">8 次</option><option value="10">10 次</option></select></label>
+          <label>每次篇幅<select id="speechLength"><option value="200">约 200 字</option><option value="350" selected>约 350 字</option><option value="500">约 500 字</option><option value="700">约 700 字</option></select></label>
+        </div>
+        <button id="startButton" class="primaryButton" type="button" disabled>开始辩论</button>
+        <p id="setupHint" class="hint">至少配置一个可用模型后才能开始。</p>
+      </aside>
+
+      <section class="debatePanel panel">
+        <div class="debateHeader">
+          <div><p class="eyebrow">LIVE DEBATE</p><h2 id="topicTitle">请先设置一个辩论主题</h2></div>
+          <span id="debateBadge" class="statusBadge idle">未开始</span>
+        </div>
+        <div id="messages" class="messages" aria-live="polite">
+          <div id="emptyState" class="emptyState"><span>正</span><i></i><span>反</span><h3>观点尚未交锋</h3><p>选择辩手和裁判模型，然后开始一场有结构的辩论。</p></div>
+        </div>
+        <section id="humanComposer" class="humanComposer" hidden>
+          <div><strong id="humanTurnTitle">轮到你发言</strong><small>你的内容会作为辩论记录交给后续辩手和裁判</small></div>
+          <textarea id="humanMessage" maxlength="3000" placeholder="输入你的观点、论据或反驳……"></textarea>
+          <div><button id="skipHumanButton" class="secondaryButton" type="button">跳过本轮</button><button id="submitHumanButton" class="primaryButton compact" type="button">提交发言</button></div>
+        </section>
+        <footer class="debateControls">
+          <div class="progressBlock"><div><span>辩论进度</span><strong id="progressText">0 / 0</strong></div><div class="progressTrack"><i id="progressFill"></i></div></div>
+          <div class="controlButtons"><button id="pauseButton" type="button" disabled>暂停</button><button id="resumeButton" type="button" disabled>继续</button><button id="resetButton" type="button">重置</button><button id="exportButton" type="button">导出记录</button></div>
+        </footer>
+      </section>
+
+      <aside class="insightPanel">
+        <section class="panel participants">
+          <div class="panelTitle"><div><p class="eyebrow">PARTICIPANTS</p><h2>本场阵容</h2></div></div>
+          <article class="participant positive"><span>正</span><div><strong>正方</strong><small id="positiveModelLabel">等待配置</small></div><i id="positiveState"></i></article>
+          <article class="participant negative"><span>反</span><div><strong>反方</strong><small id="negativeModelLabel">等待配置</small></div><i id="negativeState"></i></article>
+          <article class="participant judge"><span>裁</span><div><strong>裁判</strong><small id="judgeModelLabel">等待配置</small></div><i id="judgeState"></i></article>
+        </section>
+        <section class="panel historyPanel">
+          <div class="panelTitle"><div><p class="eyebrow">HISTORY</p><h2>最近辩论</h2></div><button id="refreshHistoryButton" class="textButton" type="button">刷新</button></div>
+          <div id="historyList" class="historyList"><p class="hint">尚无记录</p></div>
+        </section>
+        <section class="privacyNote"><strong>密钥不进入房间</strong><p>本房间只保存模型配置 ID、主题和辩论记录。API Key 与服务地址始终由主工作台 AiService 托管。</p></section>
+      </aside>
+    </section>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

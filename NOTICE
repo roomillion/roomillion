@@ -1,0 +1,22 @@
+千万间（Roomillion）
+Copyright 2026 千万间 Roomillion 项目及贡献者
+Copyright 2026 Roomillion project and contributors
+
+Except where a file or component states a different license, the original
+source code and documentation of this project are licensed under the Apache
+License, Version 2.0. See LICENSE for the full terms.
+
+This distribution includes third-party software and resources. Their
+copyrights remain with their respective owners and their original licenses
+continue to apply. The project license does not replace or supersede them.
+See THIRD-PARTY-NOTICES.md and resources/compliance/THIRD-PARTY-NOTICES.md
+for the component declarations, original license texts, and source records.
+
+In packaged applications, this information is available under
+resources/compliance/. Electron/Chromium notices are also supplied by the
+Electron distribution. Git/MinGit and its bundled components retain their
+own licenses. Separately licensed vendor modules retain their stated terms.
+
+User data, API credentials, imported rooms, and user-generated content are
+not relicensed by this notice. This notice is for attribution and scope only;
+it does not modify the Apache License or add restrictions to it.

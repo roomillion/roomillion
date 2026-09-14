@@ -1,0 +1,151 @@
+{
+  "name": "roomillion",
+  "version": "0.3.0-alpha.41",
+  "desktopName": "roomillion",
+  "private": true,
+  "author": "千万间 Roomillion 项目",
+  "license": "Apache-2.0",
+  "description": "千万间 Roomillion 跨平台技术预览：离线优先、可分享、可备份、可回退的受控 AI 房间平台",
+  "main": "src/main/index.cjs",
+  "scripts": {
+    "build:example": "node scripts/build-example-room.cjs",
+    "build:room-modules": "node scripts/build-room-modules.cjs",
+    "build:compliance": "node scripts/build-compliance.cjs",
+    "build:splash": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-splash.ps1",
+    "build:resources": "npm run build:room-modules && npm run build:compliance && npm run build:example",
+    "prestart": "npm run build:resources",
+    "start": "electron .",
+    "smoke": "npm run build:resources && electron . --smoke",
+    "smoke:pilot": "electron scripts/smoke-pilot-pages.cjs",
+    "smoke:room-runtime": "node scripts/smoke-room-runtime.cjs",
+    "smoke:safe-storage": "node scripts/smoke-safe-storage-runner.cjs",
+    "smoke:mimo-room": "node scripts/smoke-mimo-room.cjs",
+    "smoke:mimo-agent": "node scripts/smoke-mimo-agent.cjs",
+    "smoke:mimo-custom-room": "node scripts/smoke-mimo-custom-room.cjs",
+    "test": "node --test --test-reporter spec \"test/*.test.cjs\"",
+    "prepackage": "npm run build:splash && npm run build:resources && npm test",
+    "package": "electron-builder --win dir",
+    "predist:portable": "npm run version:next",
+    "build:portable": "electron-builder --win portable",
+    "prebuild:portable": "npm run build:splash",
+    "build:portable-folder": "electron-builder --win zip --config build/electron-builder.portable-folder.cjs",
+    "build:installer": "electron-builder --win nsis --config build/electron-builder.installer.cjs",
+    "prebuild:installer": "npm run build:splash",
+    "dist:portable": "npm run build:resources && npm test && npm run build:portable",
+    "dist:portable-folder": "npm run build:resources && npm test && npm run build:portable-folder",
+    "dist:installer": "npm run build:resources && npm test && npm run build:installer",
+    "version:next": "node scripts/bump-version.cjs",
+    "release:portable": "npm run dist:portable",
+    "verify:linux-toolchain": "node scripts/verify-linux-toolchain.cjs",
+    "dist:linux:dir": "npm run build:resources && npm test && npm run verify:linux-toolchain && electron-builder --linux dir --x64 --config build/electron-builder.linux.cjs",
+    "dist:linux:archive": "npm run build:resources && npm test && npm run verify:linux-toolchain && electron-builder --linux tar.xz --x64 --config build/electron-builder.linux.cjs",
+    "dist:linux:appimage": "npm run build:resources && npm test && npm run verify:linux-toolchain && electron-builder --linux AppImage --x64 --config build/electron-builder.linux.cjs",
+    "migration:create-source": "npm run build:example && node src/main/migration-cli.cjs create-source --room resources/examples/inventory.room --output release/migration/windows-source --label win32-x64",
+    "migration:verify-return": "node src/main/migration-cli.cjs verify-return --source release/migration/windows-source",
+    "pilot:kit": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-pilot-kit.ps1"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.85.1",
+    "@earendil-works/pi-ai": "0.85.1",
+    "iconv-lite": "0.7.3",
+    "sql.js": "1.14.2",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1"
+  },
+  "devDependencies": {
+    "@dimforge/rapier3d-compat": "0.20.0",
+    "@pdf-lib/fontkit": "1.1.1",
+    "chart.js": "4.5.1",
+    "cropperjs": "2.2.0",
+    "cytoscape": "3.34.2",
+    "d3": "7.9.0",
+    "dayjs": "1.11.23",
+    "decimal.js": "10.6.0",
+    "docx": "9.7.1",
+    "docx-preview": "0.4.0",
+    "dompurify": "3.4.14",
+    "echarts": "6.1.0",
+    "electron": "44.0.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "exceljs": "4.4.0",
+    "fuse.js": "7.5.0",
+    "html-to-image": "1.11.13",
+    "jspdf": "4.2.1",
+    "jspdf-autotable": "5.0.8",
+    "jszip": "3.10.1",
+    "konva": "10.3.3",
+    "leaflet": "1.9.4",
+    "mammoth": "1.12.2",
+    "marked": "18.0.11",
+    "mathjs": "15.2.0",
+    "mermaid": "11.17.2",
+    "papaparse": "5.7.0",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
+    "pptxgenjs": "4.0.1",
+    "qrcode": "1.5.4",
+    "quill": "2.0.2",
+    "simple-statistics": "7.11.0",
+    "sortablejs": "1.15.7",
+    "tabulator-tables": "6.5.2",
+    "three": "0.185.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "build": {
+    "appId": "io.roomillion.desktop",
+    "productName": "千万间 Roomillion",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "LICENSE",
+      "NOTICE",
+      "THIRD-PARTY-NOTICES.md"
+    ],
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "extraResources": [
+      {
+        "from": "resources/examples",
+        "to": "examples",
+        "filter": [
+          "*.room"
+        ]
+      },
+      {
+        "from": "resources/toolchains/mingit",
+        "to": "toolchains/mingit"
+      },
+      {
+        "from": "resources/toolchains/mingit-metadata.json",
+        "to": "toolchains/mingit-metadata.json"
+      },
+      {
+        "from": "resources/compliance",
+        "to": "compliance"
+      },
+      {
+        "from": "resources/room-modules",
+        "to": "room-modules"
+      },
+      {
+        "from": "build/generated/room.ico",
+        "to": "room.ico"
+      }
+    ],
+    "win": {
+      "signExecutable": false,
+      "icon": "build/generated/app.ico",
+      "target": [
+        "dir"
+      ]
+    },
+    "portable": {
+      "splashImage": "build/generated/startup.bmp",
+      "artifactName": "Roomillion-${version}-Portable.exe"
+    }
+  }
+}

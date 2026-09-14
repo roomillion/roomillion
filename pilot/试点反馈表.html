@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>千万间 Roomillion 0.2 试点反馈表</title>
+  <style>
+    :root{font-family:"Microsoft YaHei",system-ui,sans-serif;color:#183b31;background:#edf4f0}*{box-sizing:border-box}body{margin:0;padding:32px}.page{max-width:900px;margin:auto}.hero,.card{background:#fff;border:1px solid #d5e3dc;border-radius:18px;padding:24px;margin-bottom:16px;box-shadow:0 10px 28px rgba(28,64,51,.06)}h1{margin:0 0 8px}h2{font-size:18px;margin:0 0 18px}.notice{color:#8a4f2e;background:#fff4e8;border-radius:12px;padding:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:15px}label{display:grid;gap:7px;font-size:13px;font-weight:700}input,select,textarea{width:100%;border:1px solid #bfd0c7;border-radius:9px;padding:10px;font:inherit;background:#fbfdfc}textarea{min-height:78px;resize:vertical}.tasks{display:grid;gap:10px}.task{display:grid;grid-template-columns:1fr 160px;align-items:center;gap:18px;border-bottom:1px solid #edf2ef;padding:9px 0}.actions{display:flex;align-items:center;gap:14px;justify-content:flex-end}button{border:0;border-radius:10px;padding:12px 18px;background:#167556;color:#fff;font-weight:800;cursor:pointer}#status{margin-right:auto;color:#42665a}@media(max-width:600px){body{padding:14px}.task{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero"><h1>千万间 Roomillion 0.2 试点反馈</h1><p>请独立完成任务后如实填写。表单只在本机运行，不会联网或自动上传。</p><p class="notice">不要填写 API Key、密码、真实业务数据、姓名、手机号或内部文件路径。测试人只使用匿名编号。</p></section>
+    <form id="feedbackForm">
+      <section class="card"><h2>基本信息</h2><div class="grid">
+        <label>匿名测试人编号<input name="testerId" pattern="[A-Za-z0-9_-]{1,40}" placeholder="例如 P01" required></label>
+        <label>总耗时（分钟）<input name="durationMinutes" type="number" min="0" max="1440" step="1" required></label>
+        <label>自动验收结果<select name="automaticVerdict"><option value="PASS">PASS</option><option value="FAIL">FAIL</option><option value="NOT_RUN">未运行</option></select></label>
+      </div></section>
+      <section class="card"><h2>任务结果</h2><div id="tasks" class="tasks"></div></section>
+      <section class="card"><h2>环境与理解度</h2><div class="grid" id="observations"></div></section>
+      <section class="card"><h2>问题原话</h2><div class="grid">
+        <label>第一个失败步骤或错误原文<textarea name="firstFailure" maxlength="500"></textarea></label>
+        <label>最难理解的权限或操作文案<textarea name="hardestWording" maxlength="500"></textarea></label>
+        <label>其他建议<textarea name="comment" maxlength="800"></textarea></label>
+      </div></section>
+      <section class="card actions"><span id="status">填写完成后导出 JSON 并交给试点负责人。</span><button type="submit">导出匿名反馈 JSON</button></section>
+    </form>
+  </main>
+  <script src="./pilot-feedback-core.js"></script>
+  <script>
+    const taskLabels={firstLaunch:"首次启动工作台",exampleInstall:"安装示例并确认数据持久化",importPermissions:"看懂导入预检并选择权限",backupRestore:"备份并正确恢复数据",checkpointRestore:"创建检查点并恢复程序",failedModificationRecovery:"失败修改后恢复旧版本",aiGenerate:"配置测试 AI 并生成台账",diagnosticExport:"导出并人工检查脱敏诊断"};
+    const observationLabels={offlineCompleted:"是否全程断网完成本地任务",uacPrompted:"是否出现 UAC 管理员请求",smartScreenOrAntivirus:"是否出现 SmartScreen/杀毒告警",helpNeeded:"是否需要开发者帮助",permissionConfusing:"是否因权限提示看不懂而犹豫或放弃"};
+    const statusOptions='<option value="passed">通过</option><option value="failed">失败</option><option value="skipped">未测试</option>';
+    for(const key of PilotFeedback.TASK_KEYS){const row=document.createElement('label');row.className='task';row.append(document.createTextNode(taskLabels[key]));const select=document.createElement('select');select.name='task_'+key;select.innerHTML=statusOptions;row.append(select);document.getElementById('tasks').append(row)}
+    for(const [key,label] of Object.entries(observationLabels)){const wrapper=document.createElement('label');wrapper.append(document.createTextNode(label));const select=document.createElement('select');select.name='observation_'+key;select.innerHTML='<option value="null">未记录</option><option value="true">是</option><option value="false">否</option>';wrapper.append(select);document.getElementById('observations').append(wrapper)}
+    const boolValue=(value)=>value==='true'?true:value==='false'?false:null;
+    document.getElementById('feedbackForm').addEventListener('submit',(event)=>{event.preventDefault();const form=new FormData(event.currentTarget);try{const tasks={};for(const key of PilotFeedback.TASK_KEYS)tasks[key]=form.get('task_'+key);const observations={};for(const key of Object.keys(observationLabels))observations[key]=boolValue(form.get('observation_'+key));Object.assign(observations,{firstFailure:form.get('firstFailure'),hardestWording:form.get('hardestWording'),comment:form.get('comment')});const feedback=PilotFeedback.validateFeedback({kind:'zhibian-pilot-feedback',formatVersion:'0.1',testerId:form.get('testerId'),createdAt:new Date().toISOString(),durationMinutes:Number(form.get('durationMinutes')),automaticVerdict:form.get('automaticVerdict'),tasks,observations});const blob=new Blob([JSON.stringify(feedback,null,2)+'\n'],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='zhibian-pilot-feedback-'+feedback.testerId+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);document.getElementById('status').textContent='已导出 '+link.download}catch(error){document.getElementById('status').textContent=error.message}});
+  </script>
+</body>
+</html>

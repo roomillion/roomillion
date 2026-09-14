@@ -1,0 +1,22 @@
+node_modules/
+.npm-cache/
+.electron-cache/
+.electron-builder-cache/
+.downloads/
+.linux-build/
+release/
+/release-*/
+coverage/
+build/generated/
+resources/examples/*.room
+*.log
+.DS_Store
+
+# Local secrets and private review/recovery material; never release as source.
+.env
+.env.*
+!.env.example
+!.env.sample
+/permission-backups/
+/user-data/
+/portable-data/

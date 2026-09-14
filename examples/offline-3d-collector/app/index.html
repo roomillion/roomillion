@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>离线 3D 游戏</title><link rel="stylesheet" href="./styles.css"></head>
+<body><main id="game"><div id="viewport"></div><header class="hud"><div><p class="eyebrow">智变 · 离线 3D 房间</p><h1 id="title"></h1></div><div class="stats"><span>晶体 <b id="score">0/0</b></span><span>时间 <b id="time">--</b></span></div></header><p id="message" class="message" role="status"></p><button id="pause" class="pause" type="button">暂停</button><section id="overlay" class="overlay"><div class="panel"><span class="badge" id="genre"></span><h2 id="overlayTitle"></h2><p id="description"></p><p id="instructions" class="instructions"></p><button id="start" type="button">开始游戏</button></div></section><div class="touch" aria-label="触屏方向键"><button data-code="ArrowUp">▲</button><div><button data-code="ArrowLeft">◀</button><button data-code="Space">跳</button><button data-code="ArrowRight">▶</button></div><button data-code="ArrowDown">▼</button></div><pre id="fatal" hidden></pre></main>
+<script src="./definition.js"></script>
+  <script src="/_modules/graphics.three@1/three.min.js"></script>
+  <script src="/_modules/physics.rapier@1/rapier.min.js"></script>
+  <script src="/_modules/game.input@1/input.js"></script>
+  <script src="/_modules/game.audio@1/audio.js"></script>
+  <script src="/_modules/game.assets@1/assets.js"></script>
+<script src="./app.js"></script></body></html>

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>千万间浏览器</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="browserShell">
+    <h1 class="visuallyHidden">千万间浏览器</h1>
+    <section class="tabStrip" aria-label="网页标签">
+      <div id="tabs" class="tabs"></div>
+      <button id="newTabButton" class="iconButton newTabButton" type="button" title="新建标签" aria-label="新建标签">＋</button>
+    </section>
+
+    <form id="addressForm" class="toolbar">
+      <div class="navButtons">
+        <button id="backButton" class="iconButton" type="button" title="后退" aria-label="后退">←</button>
+        <button id="forwardButton" class="iconButton" type="button" title="前进" aria-label="前进">→</button>
+        <button id="reloadButton" class="iconButton" type="button" title="刷新" aria-label="刷新">↻</button>
+        <button id="homeButton" class="iconButton" type="button" title="新标签页" aria-label="新标签页">⌂</button>
+      </div>
+      <div class="addressField">
+        <span id="securityGlyph" class="securityGlyph" aria-hidden="true">搜</span>
+        <input id="addressInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入网址或搜索内容" aria-label="地址或搜索内容">
+        <span id="loadingSpinner" class="loadingSpinner" aria-hidden="true"></span>
+      </div>
+      <button class="goButton" type="submit">前往</button>
+      <button id="bookmarkButton" class="iconButton" type="button" title="收藏当前页面" aria-label="收藏当前页面">☆</button>
+      <button id="libraryButton" class="libraryButton" type="button" aria-expanded="false">收藏与历史</button>
+      <span id="networkBadge" class="networkBadge">离线</span>
+    </form>
+
+    <section id="permissionPrompt" class="permissionPrompt" hidden aria-live="assertive">
+      <div><strong id="permissionTitle">网站请求权限</strong><small id="permissionOrigin"></small></div>
+      <span class="spacer"></span>
+      <button id="denyPermissionButton" type="button" class="quietButton">拒绝</button>
+      <button id="allowPermissionButton" type="button" class="primaryButton">本次允许</button>
+    </section>
+
+    <section id="libraryPanel" class="libraryPanel" hidden>
+      <div class="libraryColumn">
+        <div class="sectionHeading"><strong>收藏夹</strong><button id="clearBookmarksButton" type="button" class="textButton">清空</button></div>
+        <div id="bookmarksList" class="savedList"></div>
+      </div>
+      <div class="libraryColumn">
+        <div class="sectionHeading"><strong>最近历史</strong><button id="clearHistoryButton" type="button" class="textButton">清空</button></div>
+        <div id="historyList" class="savedList"></div>
+      </div>
+      <div class="privacyColumn">
+        <strong>浏览数据</strong>
+        <small>清理此房间独立保存的 Cookie、站点存储和缓存，不影响其他房间。</small>
+        <button id="clearBrowserDataButton" type="button" class="dangerButton">清理浏览数据</button>
+      </div>
+    </section>
+
+    <section id="browserSurface" class="browserSurface" aria-label="网页显示区域">
+      <div id="emptyState" class="emptyState">
+        <div class="brandMark">智</div>
+        <p class="eyebrow">ROOMILLION BROWSER ROOM</p>
+        <h2 id="emptyTitle">在工作台中安全浏览</h2>
+        <p id="emptyDescription">在上方输入网址或搜索内容。网站在独立沙箱中运行，无法读取房间数据和工作台密钥。</p>
+        <div class="privacyBadges"><span>隔离会话</span><span>权限受控</span><span>可独立窗口</span></div>
+      </div>
+    </section>
+
+    <footer class="statusBar">
+      <span id="statusText">就绪</span>
+      <span class="spacer"></span>
+      <span id="tabCount">0 / 12 个标签</span>
+    </footer>
+    <div id="toast" class="toast" hidden></div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

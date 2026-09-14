@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' room: data: blob:; object-src 'none'; base-uri 'none'">
+  <title>千万间 Roomillion</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="windowTitlebar" class="windowTitlebar" aria-label="窗口拖动栏">
+    <button id="sidebarToggle" class="sidebarToggle" type="button" aria-controls="mainSidebar" aria-expanded="true" title="收起为图标栏">
+      <span id="sidebarToggleIcon" class="sidebarToggleIcon" aria-hidden="true"></span>
+      <span class="srOnly">切换栏目宽度</span>
+    </button>
+    <span id="windowTitlebarTitle" class="windowTitlebarTitle">千万间 Roomillion</span>
+  </div>
+  <div id="appShell" class="appShell" data-sidebar-state="full">
+    <aside id="mainSidebar" class="sidebar" aria-label="工作台栏目">
+      <div class="brand">
+        <div class="brandMark" aria-hidden="true">千</div>
+        <div class="brandText"><h1>千万间 <span>Roomillion</span></h1><p id="appVersionLabel">技术预览版 · 房间运行时</p></div>
+      </div>
+
+      <div class="primaryActions">
+        <button id="generateButton" class="primaryButton" title="AI 创建房间"><span class="actionGlyph" aria-hidden="true">✦</span><span class="actionLabel">AI 创建房间</span></button>
+        <div class="splitActions">
+          <button id="importButton" title="导入房间"><span class="actionGlyph" aria-hidden="true">入</span><span class="actionLabel">导入房间</span></button>
+          <button id="exampleButton" title="示例房间"><span class="actionGlyph" aria-hidden="true">例</span><span class="actionLabel">示例房间</span></button>
+        </div>
+      </div>
+
+      <div class="sectionHeader"><span class="sectionTitle">我的房间</span><span id="roomCount" class="countBadge">0</span></div>
+      <div id="roomList" class="roomList"></div>
+
+      <div class="sidebarFooter">
+        <button id="workbenchSettingsButton" class="settingsButton" title="设置"><span class="settingsGlyph" aria-hidden="true">设<span class="statusDot" id="providerDot"></span><span class="statusDot networkDot" id="networkDot"></span></span><span class="settingsLabel"><strong>设置</strong><small id="settingsSummary">外观 · AI · 联网</small></span></button>
+        <p id="environmentSummary"></p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="workspaceHeader">
+        <div id="tabRail" class="tabRail">
+          <button id="tabsScrollBack" class="tabRailButton" type="button" title="向前查看标签" aria-label="向前查看标签" hidden>‹</button>
+          <div id="tabs" class="tabs"></div>
+          <button id="tabsScrollForward" class="tabRailButton" type="button" title="向后查看标签" aria-label="向后查看标签" hidden>›</button>
+          <button id="tabOverviewButton" class="tabOverviewButton" type="button" title="查看全部标签" aria-haspopup="menu" aria-expanded="false" hidden><span id="tabOverviewCount">0</span><span aria-hidden="true">⌄</span></button>
+          <div id="tabOverviewMenu" class="tabOverviewMenu" role="menu" hidden></div>
+        </div>
+        <div class="headerActions">
+          <button id="detachButton" class="iconButton" disabled title="把当前房间移到独立窗口">独立窗口</button>
+          <button id="modifyButton" class="iconButton" disabled title="用 AI 继续修改本机生成或发布者允许修改的房间">AI 修改</button>
+          <button id="detailsButton" class="iconButton" disabled title="查看房间信息并管理权限">房间设置</button>
+          <div id="headerMoreWrap" class="headerMoreWrap">
+            <button id="headerMoreButton" class="iconButton headerMoreButton" type="button" disabled aria-haspopup="menu" aria-expanded="false" title="更多房间操作">更多 <span aria-hidden="true">⌄</span></button>
+            <div id="headerMoreMenu" class="headerMoreMenu" role="menu" hidden>
+              <button id="backupButton" class="headerMenuAction" disabled title="备份当前房间数据">备份数据<span>导出加密 .zdata</span></button>
+              <button id="restoreButton" class="headerMenuAction" disabled title="从 .zdata 恢复当前房间数据">恢复数据<span>从加密备份恢复</span></button>
+              <button id="exportButton" class="headerMenuAction" disabled title="导出当前房间">导出房间<span>可选仅应用或包含数据</span></button>
+              <button id="uninstallButton" class="headerMenuAction dangerText" disabled title="卸载当前房间">卸载房间<span>可选择保留数据</span></button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <section id="roomViewport" class="roomViewport" aria-label="房间运行区域">
+        <div id="roomStandby" class="roomStandby" hidden><strong id="roomStandbyName"></strong><span>房间仍在运行，关闭菜单后继续使用</span></div>
+        <div id="welcome" class="welcome homePage">
+          <div class="homeHero">
+            <div class="welcomeBadge">离线优先 · 受控运行 · 单文件分享</div>
+            <h2>我的工作台</h2>
+            <p>从已安装房间继续工作，或让 AI 在统一规范下创建一个新房间。</p>
+          </div>
+          <div class="welcomeGrid">
+            <button id="welcomeGenerate" class="welcomeCard"><span>AI</span><strong>创建新房间</strong><small>在标签页中持续对话、生成和修改</small></button>
+            <button id="welcomeExample" class="welcomeCard"><span>例</span><strong>体验示例</strong><small>从六个内置房间中选择并安装</small></button>
+            <button id="welcomeImport" class="welcomeCard"><span>入</span><strong>导入房间</strong><small>导入 `.room` 或含数据完整包</small></button>
+          </div>
+          <section class="installedRoomsSection" aria-labelledby="installedRoomsTitle">
+            <button id="exampleUpdateNotice" type="button" class="secondaryButton" hidden></button>
+            <div class="installedRoomsHeader"><div><p class="eyebrow">已安装</p><h3 id="installedRoomsTitle">所有房间</h3></div><span id="homeRoomCount" class="countBadge">0</span></div>
+            <div id="installedRoomsGrid" class="installedRoomsGrid"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="examplesDialog" class="modal examplesModal">
+    <form method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">内置房间库</p><h2>选择一个示例开始</h2></div><button type="button" class="closeButton" data-close="examplesDialog">×</button></div>
+      <p class="modalIntro">所有示例都已随工作台打包，无需联网下载。每个房间使用独立数据库，并只申请完成任务所需的能力。</p>
+      <div id="examplesGrid" class="examplesGrid"></div>
+      <div id="examplesStatus" class="inlineStatus"></div>
+      <div class="modalActions"><span class="spacer"></span><button type="button" class="secondaryButton" data-close="examplesDialog">关闭</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="unlockImportDialog" class="modal dataModal">
+    <form id="unlockImportForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">受密码保护</p><h2>解锁房间包</h2></div><button type="button" id="cancelUnlockImportTopButton" class="closeButton">×</button></div>
+      <div id="unlockImportSummary" class="detailSummary"></div>
+      <label>房间包密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required autofocus></label>
+      <div class="cryptoNote">密码只用于本机解锁；通过验证后才会执行应用、权限和数据完整性预检</div>
+      <div id="unlockImportStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" id="cancelUnlockImportButton" class="secondaryButton">取消</button><span class="spacer"></span><button type="submit" id="submitUnlockImportButton" class="primaryButton compact">解锁并继续</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog" class="modal importModal">
+    <form id="importForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">导入预检</p><h2>确认安装房间</h2></div><button type="button" id="cancelImportTopButton" class="closeButton">×</button></div>
+      <div class="inspectionHero">
+        <div class="inspectionIcon" id="importRoomIcon">房</div>
+        <div><div class="inspectionTitleLine"><strong id="importRoomName"></strong><span id="importRiskBadge" class="riskBadge"></span></div><p id="importRoomIdentity"></p><p id="importPublisher"></p></div>
+      </div>
+      <div id="importVersionNotice" class="noticeBox" hidden></div>
+      <div id="importDataNotice" class="noticeBox transferDataNotice" hidden></div>
+      <section class="inspectionSection"><h3>安全检查</h3><div id="importRisks" class="riskList"></div></section>
+      <section class="inspectionSection"><div class="sectionTitleRow"><h3>请求的能力</h3><small>未知来源的敏感能力默认关闭</small></div><div id="importPermissions" class="permissionList"></div></section>
+      <details class="packageDetails"><summary>包与完整性详情</summary><dl id="importPackageDetails"></dl></details>
+      <div id="importStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" id="cancelImportButton" class="secondaryButton">取消</button><span class="spacer"></span><button type="submit" id="confirmImportButton" class="primaryButton compact">确认并安装</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="exportDialog" class="modal dataModal">
+    <form id="exportForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">分享房间</p><h2>导出房间</h2></div><button type="button" class="closeButton" data-close="exportDialog">×</button></div>
+      <p class="modalIntro">选择要分享的内容。仅应用适合发布模板；应用和数据适合迁移自己的完整工作环境。</p>
+      <div class="exportModeList" role="radiogroup" aria-label="导出内容">
+        <label class="exportModeOption selected"><input type="radio" name="mode" value="app-only" checked><span><strong>只导出应用</strong><small>生成 `.room`，包含程序和资源，不包含业务数据库</small></span><b>推荐分享</b></label>
+        <label class="exportModeOption"><input type="radio" name="mode" value="app-and-data"><span><strong>应用和数据一起导出</strong><small>同样生成 `.room`，包含应用和当前业务数据快照</small></span><b>完整迁移</b></label>
+      </div>
+      <label class="exportProtectionOption" id="exportSharingOption"><input type="checkbox" name="allowAiModify"><span><strong>允许接收方用 AI 修改</strong><small id="exportSharingHint">勾选后，导入此房间的人可以让自己工作台里的 AI 继续修改它；不勾选则只能使用，不能 AI 修改</small></span></label>
+      <label class="exportProtectionOption"><input type="checkbox" name="protect"><span><strong>设置导出密码</strong><small>可选；勾选后加密保护整个 `.room`，两种导出内容都可使用</small></span></label>
+      <section id="exportPasswordFields" class="exportPasswordFields" hidden>
+        <label>导出密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="至少 8 个字符"></label>
+        <label>再次输入<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password"></label>
+        <div class="cryptoNote">整个房间传输载荷使用 scrypt + AES-256-GCM 加密；密码不会保存到工作台或日志</div>
+      </section>
+      <div id="exportStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" class="secondaryButton" data-close="exportDialog">取消</button><span class="spacer"></span><button type="submit" id="submitExportButton" class="primaryButton compact">选择位置并导出</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="detailsDialog" class="modal detailsModal">
+    <form id="detailsForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">房间设置</p><h2 id="detailsRoomName">房间</h2></div><button type="button" class="closeButton" data-close="detailsDialog">×</button></div>
+      <div id="detailsIdentity" class="detailSummary"></div>
+      <section class="inspectionSection">
+        <div class="sectionTitleRow"><h3>房间申请的权限</h3><small>勾选表示保存后授予</small></div>
+        <div id="detailsPermissionSummary" class="permissionOverview" aria-live="polite"></div>
+        <div id="detailsPermissions" class="permissionList"></div>
+      </section>
+      <section class="inspectionSection historySection">
+        <div class="sectionTitleRow"><h3>版本历史</h3><small id="historyGitVersion">内置 MinGit</small></div>
+        <div class="checkpointComposer"><input id="checkpointLabel" type="text" maxlength="120" placeholder="例如：调整表格前"><button id="createCheckpointButton" type="button" class="secondaryButton">创建检查点</button></div>
+        <div id="detailsHistory" class="historyList"></div>
+      </section>
+      <section class="inspectionSection"><h3>数据恢复检查点</h3><p>保留最近 5 个数据替换前的快照，与上方程序版本历史分开管理。</p><div id="dataRecoveryList"></div></section>
+      <p class="modalIntro">上方列出房间 Manifest 声明的全部权限。未列出的受控能力无法调用；取消非必需权限后保存会立即收回。私有数据库是房间正常保存数据所必需，不能撤销。</p>
+      <div id="detailsStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" id="detailsUninstallButton" class="secondaryButton dangerText">卸载房间</button><button type="button" class="secondaryButton" data-close="detailsDialog">取消</button><span class="spacer"></span><button type="submit" id="savePermissionsButton" class="primaryButton compact">保存权限</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="backupDialog" class="modal dataModal">
+    <form id="backupForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">加密数据备份</p><h2>导出 .zdata</h2></div><button type="button" class="closeButton" data-close="backupDialog">×</button></div>
+      <p class="modalIntro">备份只包含当前房间的业务数据库，不包含房间程序。密码不会保存；遗忘密码后工作台也无法解密。</p>
+      <label>备份密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="至少 8 个字符"></label>
+      <label>再次输入<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
+      <div class="cryptoNote">scrypt 密钥派生 · AES-256-GCM 加密与防篡改</div>
+      <div id="backupStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" class="secondaryButton" data-close="backupDialog">取消</button><span class="spacer"></span><button type="submit" id="submitBackupButton" class="primaryButton compact">选择位置并备份</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="restoreDialog" class="modal dataModal">
+    <form id="restoreForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">数据恢复预检</p><h2>恢复 .zdata</h2></div><button type="button" id="cancelRestoreTopButton" class="closeButton">×</button></div>
+      <div id="restoreSummary" class="detailSummary"></div>
+      <div class="noticeBox">恢复前会自动保留当前数据库检查点。只有密码、加密校验、房间 ID 和 SQLite 完整性全部通过后才会替换数据。</div>
+      <label>备份密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required autofocus></label>
+      <div id="restoreStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" id="cancelRestoreButton" class="secondaryButton">取消</button><span class="spacer"></span><button type="submit" id="submitRestoreButton" class="primaryButton compact">验证并恢复</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsHubDialog" class="modal settingsHubModal">
+    <form method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Settings</p><h2>设置</h2></div><button type="button" class="closeButton" data-close="settingsHubDialog">×</button></div>
+      <div class="settingsHubBody">
+        <nav class="settingsHubNav" aria-label="设置分类">
+          <button type="button" class="settingsHubNavItem active" data-settings-section="appearance"><strong>外观</strong><small id="themeSummaryNav">日间主题</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="ai"><strong>AI 能力</strong><small id="providerSummaryNav">尚未配置</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="network"><strong>联网控制</strong><small id="networkSummaryNav">房间联网已关闭</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="diagnostics"><strong>诊断报告</strong><small>导出脱敏报告</small></button>
+        </nav>
+        <div class="settingsHubPanels">
+          <section class="settingsHubPanel active" data-settings-panel="appearance">
+            <div class="settingsHubPanelIntro"><strong>工作台外观</strong><small>主题与字号会立即保存，并同步到 AI 创建房间的独立窗口。</small></div>
+            <button type="button" id="openAppearanceButton" class="settingsHubAction">打开外观设置<span>主题与字号</span></button>
+          </section>
+          <section class="settingsHubPanel" data-settings-panel="ai">
+            <div class="settingsHubPanelIntro"><strong>AI 能力中心</strong><small>连接提供商并启用模型；凭据只保存在本机。</small></div>
+            <button type="button" id="openAiCenterButton" class="settingsHubAction">打开 AI 能力中心<span id="providerSummaryInline">尚未配置</span></button>
+          </section>
+          <section class="settingsHubPanel" data-settings-panel="network">
+            <div class="settingsHubPanelIntro"><strong>联网控制</strong><small>主工作台联网总开关；房间即使申请了联网权限，也只有总开关开启时才能访问。</small></div>
+            <button type="button" id="openNetworkButton" class="settingsHubAction">打开联网控制<span id="networkSummaryInline">房间联网已关闭</span></button>
+          </section>
+          <section class="settingsHubPanel" data-settings-panel="diagnostics">
+            <div class="settingsHubPanelIntro"><strong>诊断报告</strong><small>导出前可预览内容；预览版默认脱敏，不包含密钥和业务数据。</small></div>
+            <button type="button" id="openDiagnosticsButton" class="settingsHubAction">导出诊断报告<span>预览并导出脱敏报告</span></button>
+          </section>
+        </div>
+      </div>
+      <div class="modalActions"><span class="spacer"></span><button type="button" class="primaryButton compact" data-close="settingsHubDialog">完成</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="workbenchSettingsDialog" class="modal themeModal">
+    <form method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Workbench Appearance</p><h2>工作台设置</h2></div><button type="button" class="closeButton" data-close="workbenchSettingsDialog">×</button></div>
+      <p class="modalIntro">选择工作台外观。除配色主题外，风格主题还会改变侧栏明暗、字体、圆角、阴影和页面质感；每个房间仍保留自己的界面主题。</p>
+      <label class="fontSizeSetting">工作台字号<select id="workbenchFontSize"><option value="standard">标准（正文 14px）</option><option value="large">大（正文 16px）</option><option value="extra">特大（正文 18px）</option></select><small>立即生效并自动保存，同步 AI 独立窗口；不改变房间自身的排版。</small></label>
+      <section class="themeGroup featuredThemeGroup" aria-labelledby="styleThemeTitle">
+        <div class="themeGroupHeader"><div><span class="themeModeIcon style" aria-hidden="true">风</span><div><h3 id="styleThemeTitle">风格主题</h3><small>不只是换颜色，整体界面语言也会改变</small></div></div><span>6 套</span></div>
+        <div class="themeGrid">
+          <button type="button" class="themeOption" data-theme-choice="ink-light" data-theme-mode="light" data-theme-style="ink" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>宣纸丹青</strong><small>中国风 · 宣纸墨线 · 浅侧栏</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="celadon-light" data-theme-mode="light" data-theme-style="celadon" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>宋瓷雅白</strong><small>中国风 · 青瓷留白 · 浅侧栏</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="studio-light" data-theme-mode="light" data-theme-style="studio" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>无界白</strong><small>现代极简 · 细线平面 · 浅侧栏</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="editorial-light" data-theme-mode="light" data-theme-style="editorial" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>编辑部</strong><small>报刊网格 · 粗线硬影 · 浅侧栏</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="terminal-dark" data-theme-mode="dark" data-theme-style="terminal" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>复古终端</strong><small>等宽字体 · 像素直角 · 荧光屏</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="prism-dark" data-theme-mode="dark" data-theme-style="prism" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>霓虹玻璃</strong><small>半透明层次 · 大圆角 · 光晕</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+        </div>
+      </section>
+      <section class="themeGroup" aria-labelledby="lightThemeTitle">
+        <div class="themeGroupHeader"><div><span class="themeModeIcon light" aria-hidden="true">日</span><div><h3 id="lightThemeTitle">日间主题</h3><small>明亮、清晰，适合普通办公环境</small></div></div><span>8 套</span></div>
+        <div class="themeGrid">
+          <button type="button" class="themeOption" data-theme-choice="forest-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>林间青</strong><small>清爽自然 · 默认</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="ocean-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>海湾蓝</strong><small>冷静专注 · 办公</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="paper-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>暖纸米</strong><small>温和低刺激 · 阅读</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="lilac-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>晨雾紫</strong><small>柔和雅致 · 创作</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="rose-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>蔷薇粉</strong><small>温柔粉调 · 手帐</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="jade-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>青瓷绿</strong><small>清透水润 · 宁静</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="amber-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>暖阳金</strong><small>明媚金调 · 活力</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="cloud-light" data-theme-mode="light" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>月白灰</strong><small>中性克制 · 极简</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+        </div>
+      </section>
+      <section class="themeGroup" aria-labelledby="darkThemeTitle">
+        <div class="themeGroupHeader"><div><span class="themeModeIcon dark" aria-hidden="true">夜</span><div><h3 id="darkThemeTitle">夜间主题</h3><small>降低亮度，适合暗光和长时间使用</small></div></div><span>8 套</span></div>
+        <div class="themeGrid">
+          <button type="button" class="themeOption" data-theme-choice="forest-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>深林夜</strong><small>墨绿沉静 · 护眼</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="midnight-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>午夜蓝</strong><small>深蓝理性 · 专注</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="violet-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>紫晶夜</strong><small>深紫通透 · 灵感</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="graphite-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>石墨橙</strong><small>中性高对比 · 工具</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="wine-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>酒红夜</strong><small>深红酒韵 · 影院</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="abyss-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>深海青</strong><small>深青静谧 · 沉浸</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="brass-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>鎏金夜</strong><small>暗夜暖金 · 温润</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+          <button type="button" class="themeOption" data-theme-choice="sakura-dark" data-theme-mode="dark" aria-pressed="false"><span class="themeSwatches" aria-hidden="true"><i></i><i></i><i></i></span><span class="themeOptionText"><strong>樱夜粉</strong><small>暗夜樱粉 · 柔光</small></span><span class="themeCheck" aria-hidden="true">✓</span></button>
+        </div>
+      </section>
+      <div id="themeStatus" class="inlineStatus">当前主题会自动保存在本机。</div>
+      <section class="inspectionSection"><h3>本机数据位置</h3><p id="dataLocation" class="detailSummary"></p><p>免安装不等于数据随程序携带。复制 EXE 不会带走房间和数据库；迁移请使用房间“更多 → 导出 → 应用＋数据”。API 密钥由系统加密，换电脑后需要重新配置。</p></section>
+      <div class="modalActions"><button type="button" id="resetThemeButton" class="secondaryButton">恢复默认主题</button><span class="spacer"></span><button type="button" class="primaryButton compact" data-close="workbenchSettingsDialog">完成</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="providerDialog" class="modal providerModal">
+    <form id="providerForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Powered by Pi AI</p><h2>AI 能力中心</h2></div><button type="button" class="closeButton" data-close="providerDialog">×</button></div>
+      <p class="modalIntro">提供商目录直接同步 Pi AI 原生能力。凭据与模型分开管理：连接一次后，可以批量启用该提供商的多个模型。</p>
+      <section class="providerProfiles">
+        <div class="providerProfilesHeader"><div><strong>已连接提供商</strong><small>这里仅显示已经启用的模型；“默认”是新建 AI 对话的初始模型</small></div><button type="button" id="newProviderButton" class="primaryButton compact">＋ 添加提供商</button></div>
+        <div id="providerProfileList" class="providerProfileList"></div>
+      </section>
+      <section id="providerEditorPanel" class="providerEditorPanel" hidden>
+        <div class="providerEditorHeader"><div><strong id="providerEditorTitle">添加提供商</strong><small>连接凭据后，一次选择多个模型</small></div><button type="button" id="cancelProviderEditorButton" class="providerEditorClose">收起</button></div>
+        <div class="providerSteps" aria-label="连接步骤"><span>1 选择提供商</span><span>2 填写凭据</span><span>3 选择模型</span></div>
+        <fieldset id="providerEditorFields" class="providerEditorFields">
+          <label id="providerProfileLabelField">连接显示名称（可选）<input id="providerProfileLabel" name="label" maxlength="100" placeholder="例如：MiMo 工作账号"></label>
+          <label class="providerCatalogSearch">搜索提供商<input id="providerSearch" type="search" placeholder="例如 Kimi、OpenAI、Token Plan、国内"><small id="providerCatalogSummary" class="fieldHint"></small></label>
+          <div id="providerPickerField" class="providerPickerField">
+            <span class="providerPickerLabel">AI 提供商</span>
+            <button type="button" id="providerPickerButton" class="providerPickerButton" aria-expanded="false" aria-controls="providerChoiceList">
+              <span id="providerPickerValue">请选择提供商</span><span class="providerPickerChevron" aria-hidden="true">⌄</span>
+            </button>
+            <select id="providerSelect" name="providerId" class="srOnly" tabindex="-1" aria-hidden="true"></select>
+            <div id="providerChoiceList" class="providerChoiceList" hidden></div>
+            <small class="fieldHint">点击上方整行展开目录；按服务类型分组，暂需 OAuth 或云环境参数的项目也会列出并说明原因。</small>
+          </div>
+          <div id="providerMeta" class="providerMeta"><span id="providerBadge">Pi 内置</span><strong id="providerMetaName"></strong><small id="providerDescription"></small><code id="providerEndpoint"></code></div>
+          <label id="modelSelectField">当前编辑的模型<select id="modelSelect" name="model"></select><small id="modelSummary" class="fieldHint"></small></label>
+          <section id="providerModelPickerField" class="providerModelPicker">
+            <div class="providerModelPickerHeader"><div><strong>选择要启用的模型</strong><small id="providerModelCount">可一次勾选多个模型</small></div><div><button type="button" id="selectAllProviderModels">全选未启用</button><button type="button" id="clearProviderModels">清空</button></div></div>
+            <input id="providerModelSearch" type="search" placeholder="搜索模型名称或 ID">
+            <div id="providerModelList" class="providerModelList"></div>
+          </section>
+          <div id="credentialReuseNotice" class="credentialReuseNotice" hidden><div><strong>沿用现有安全连接</strong><span id="credentialReuseText"></span></div><button id="cancelCredentialReuseButton" type="button">改用新 Key</button></div>
+          <section id="customProviderFields" class="advancedFields" hidden>
+            <div class="advancedHeader"><strong>自定义服务参数</strong><small>适用于内网网关、Ollama、vLLM 等兼容服务</small></div>
+            <label>提供商显示名称<input id="customProviderName" name="name" value="OpenAI-compatible" maxlength="80"></label>
+            <label>API 地址<input id="customBaseUrl" name="baseUrl" placeholder="http://127.0.0.1:8000/v1"></label>
+            <label>模型 ID（每行一个）<textarea id="customModel" name="customModel" rows="3" placeholder="qwen3-coder&#10;deepseek-v3"></textarea><small class="fieldHint">首次连接可填写多个；编辑已有模型时只显示当前模型。</small></label>
+          </section>
+          <label>API Key<input id="providerApiKey" name="apiKey" type="password" autocomplete="off" placeholder="粘贴所选提供商的 API Key"><small id="apiKeyHint" class="fieldHint">只需填写一次，不会写入房间、Git 或普通配置文件</small></label>
+          <label class="checkboxLabel"><input name="rememberKey" type="checkbox" value="true"><span><strong>使用系统安全存储记住密钥</strong><small id="secureStorageSummary">退出后仍可使用</small></span></label>
+        </fieldset>
+        <div class="providerEditorActions"><button type="button" id="clearKeyButton" class="secondaryButton">清除密钥</button><span class="spacer"></span><button type="button" id="saveProviderButton" class="secondaryButton">启用所选模型</button><button type="button" id="testProviderButton" class="primaryButton compact">启用并测试</button></div>
+      </section>
+      <div id="providerStatus" class="inlineStatus"></div>
+      <div class="modalActions providerFooter"><button type="button" id="importProviderButton" class="secondaryButton">导入组织配置</button><span class="spacer"></span><button type="button" class="secondaryButton" data-close="providerDialog">完成</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="networkDialog" class="modal dataModal">
+    <form id="networkForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Workbench Network Policy</p><h2>联网控制</h2></div><button type="button" class="closeButton" data-close="networkDialog">×</button></div>
+      <p class="modalIntro">这里控制房间是否可以访问网络。AI 对话使用你在“AI 能力中心”配置的模型 API，不受房间联网开关影响。</p>
+      <div id="networkPolicySummary" class="networkPolicySummary"><span class="networkPolicyIcon" aria-hidden="true">网</span><div><strong>房间联网已关闭</strong><small>所有房间的普通网络请求都会被工作台拒绝</small></div></div>
+      <label class="checkboxLabel"><input id="roomNetworkEnabled" name="roomNetworkEnabled" type="checkbox" value="true"><span><strong>允许已授权房间联网</strong><small>只有同时声明了精确服务源、并由你授予该服务源权限的房间才能访问。</small></span></label>
+      <div class="noticeBox">房间仍不能直接使用 fetch、XHR、WebSocket，也不能联网下载代码或依赖。请求必须通过工作台受控接口，并受超时与大小限制。</div>
+      <div id="networkStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" class="secondaryButton" data-close="networkDialog">取消</button><span class="spacer"></span><button type="submit" id="saveNetworkButton" class="primaryButton compact">保存设置</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="generateDialog" class="modal agentModal">
+    <section class="agentShell" aria-label="AI 房间开发 Agent">
+      <aside class="agentSidebar">
+        <div class="agentSidebarHeader">
+          <div><p class="eyebrow">Pi Agent Harness</p><strong>房间开发任务</strong></div>
+          <button type="button" id="newAgentSessionButton" class="agentNewButton" title="新建对话">＋</button>
+        </div>
+        <button type="button" id="agentNewTaskButton" class="agentPrimaryAction"><span>＋</span> 新建房间对话</button>
+        <div id="agentSessionList" class="agentSessionList" aria-label="历史对话"></div>
+        <div class="agentSkillCard"><span>默认技能</span><strong>智变房间构建器</strong><small>声明式组件 · 自由代码 · Harness 检查 · 离线打包</small></div>
+      </aside>
+      <div class="agentMain">
+        <header class="agentHeader">
+          <button type="button" id="agentSidebarToggle" class="agentHeaderButton" aria-label="展开历史对话" aria-expanded="false">☰</button>
+          <button type="button" id="agentTopNewButton" class="agentHeaderButton" title="新建房间对话" aria-label="新建房间对话">＋</button>
+          <div class="agentHeaderIdentity">
+            <span class="agentMark">智</span>
+            <div><strong id="agentSessionTitle">新房间对话</strong><button type="button" id="renameAgentSessionButton" class="agentHeaderButton" title="重命名当前对话">✎</button><small><span id="agentProviderLabel">Pi Agent</span> · <span id="agentModelLabel">等待模型</span></small></div>
+          </div>
+          <div class="agentHeaderActions">
+            <label class="agentModelPicker" title="为当前房间开发对话选择编程模型"><span>编程模型</span><select id="agentModelSelect" aria-label="AI 编程模型"></select></label>
+            <span id="agentRunStatus" class="agentRunStatus idle">就绪</span>
+            <button type="button" id="stopAgentButton" class="agentStopButton" hidden>停止</button>
+            <button type="button" id="agentProviderSettingsButton" class="agentHeaderButton" title="AI 能力中心" aria-label="打开 AI 能力中心">AI</button>
+            <button type="button" id="agentWindowButton" class="agentHeaderButton" title="在独立窗口打开" aria-label="切换独立窗口">↗</button>
+            <button type="button" id="deleteAgentSessionButton" class="agentHeaderButton" title="删除当前对话" aria-label="删除当前对话">⌫</button>
+            <button type="button" id="closeAgentWorkspaceButton" class="closeButton" aria-label="关闭 AI 创建标签">×</button>
+          </div>
+        </header>
+        <details class="agentUsagePanel" id="agentUsagePanel"><summary id="agentUsageSummary">本轮用量：尚未调用模型</summary><div id="agentUsageHistory"></div><small>Token 来自接口返回；目录费用仅为估算，不代表实际账单。订阅额度、折扣和未返回字段均无法据此推算。</small></details>
+        <main id="agentConversation" class="agentConversation" aria-live="polite">
+          <section id="agentEmptyState" class="agentEmptyState">
+            <span class="agentEmptyBadge">默认启用 · 智变房间构建技能</span>
+            <h2>描述你想解决的工作，Agent 来完成房间</h2>
+            <p>先用几个简单问题了解场景和功能，再给你一份方案与使用概况。你确认后才开始创建、检查和安装。不懂技术也没关系，不确定时可以说“你来推荐”。</p>
+            <div class="agentSuggestions">
+              <button type="button" data-agent-suggestion="做一个项目问题跟踪中心，要有概览统计、状态图表、问题录入、可搜索表格和 Excel 导出。">项目问题跟踪中心</button>
+              <button type="button" data-agent-suggestion="做一个报价测算工具，可以输入数量、单价、折扣和税率，实时算出未税金额、税额和总价。">报价测算工具</button>
+              <button type="button" data-agent-suggestion="创建一个真正能玩的离线 3D 台球游戏：鼠标瞄准和控制力度，球有碰撞、摩擦和入袋判定，显示回合与得分，并可重新开局。">自由 3D 台球</button>
+            </div>
+          </section>
+          <div id="agentTimeline" class="agentTimeline"></div>
+        </main>
+        <footer class="agentComposerArea">
+          <div id="agentActivity" class="agentActivity">就绪，可以描述你想创建的房间</div>
+          <div class="agentProjectActions"><button type="button" id="agentProjectButton">导入项目</button><span>本地源码 → 评估 → 确认适配或重构 → 新房间</span></div>
+          <details id="agentProjectPanel" class="agentProjectPanel" hidden><summary id="agentProjectSummary"></summary><div id="agentProjectDetails"></div></details>
+          <form id="generateForm" class="agentComposer">
+            <div id="agentAttachmentTray" class="agentAttachmentTray" hidden aria-label="待发送图片"></div>
+            <div id="agentCommandMenu" class="agentCommandMenu" role="listbox" aria-label="Agent 指令" hidden></div>
+            <div class="agentComposerRow">
+              <button type="button" id="agentAttachButton" class="agentAttachButton" title="添加参考图片" aria-label="添加参考图片">＋</button>
+              <textarea id="generatePrompt" name="prompt" rows="3" maxlength="4000" aria-keyshortcuts="Enter Shift+Enter" placeholder="描述需求，或输入 / 查看指令；回车发送，Shift + 回车换行"></textarea>
+              <button type="submit" id="submitGenerateButton" class="agentSendButton" title="发送">↑</button>
+            </div>
+            <input id="agentImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+          </form>
+          <div class="agentComposerMeta"><span id="agentVisionStatus">AI 对话可访问已配置模型 API；房间联网由工作台统一授权</span><span>回车发送 · Shift + 回车换行</span><span id="generateStatus" class="inlineStatus"></span></div>
+        </footer>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="agentImagePreviewDialog" class="modal agentImagePreviewDialog">
+    <div class="agentImagePreviewHeader"><strong id="agentImagePreviewTitle">参考图片</strong><button type="button" class="closeButton" data-close="agentImagePreviewDialog" aria-label="关闭图片预览">×</button></div>
+    <img id="agentImagePreview" alt="参考图片预览">
+  </dialog>
+
+  <dialog id="modifyDialog" class="modal generateModal">
+    <form id="modifyForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Harness 约束下自由修改</p><h2>修改当前房间</h2></div><button type="button" class="closeButton" data-close="modifyDialog">×</button></div>
+      <p class="modalIntro">可修改本机生成房间的页面、数据、交互和游戏玩法。自由代码会在沙箱中经过离线安全检查和契约测试；修改前后由内置 MinGit 创建检查点。</p>
+      <label>你想怎样修改？<textarea name="prompt" rows="6" minlength="4" maxlength="4000" placeholder="例如：增加一个经营概览页面，显示关键指标和状态图表；保留现有录入页面和数据。" required></textarea></label>
+      <div id="modifyStatus" class="inlineStatus"></div>
+      <div class="modalActions"><span class="spacer"></span><button type="button" class="secondaryButton" data-close="modifyDialog">取消</button><button type="submit" id="submitModifyButton" class="primaryButton compact">修改并打开</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="diagnosticsDialog" class="modal dataModal">
+    <form id="diagnosticsForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">隐私确认</p><h2>导出脱敏诊断报告</h2></div><button type="button" class="closeButton" data-close="diagnosticsDialog">×</button></div>
+      <p id="diagnosticsSummary" class="modalIntro"></p>
+      <section class="inspectionSection"><h3>报告将包含</h3><ul id="diagnosticsIncluded" class="diagnosticsFieldList"></ul></section>
+      <section class="inspectionSection"><h3>报告默认排除</h3><ul id="diagnosticsExcluded" class="diagnosticsFieldList excluded"></ul></section>
+      <div class="noticeBox">导出后仍建议在发送给技术支持前用文本编辑器快速检查一次。工作台不会自动上传报告。</div>
+      <div id="diagnosticsStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" class="secondaryButton" data-close="diagnosticsDialog">取消</button><span class="spacer"></span><button type="submit" id="confirmDiagnosticsButton" class="primaryButton compact">确认字段并选择位置</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="roomContextMenu" class="contextMenu" role="menu" aria-label="房间操作" hidden>
+    <button type="button" class="danger" data-room-context-action="uninstall" role="menuitem">卸载房间</button>
+  </div>
+  <div id="dropOverlay" class="dropOverlay"><div><strong>松开即可检查房间</strong><span>应用与应用+数据统一使用 `.room`，导入前不会安装或授予权限</span></div></div>
+  <script src="./agent-rich-text.js"></script>
+  <script src="./workbench-presentation.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

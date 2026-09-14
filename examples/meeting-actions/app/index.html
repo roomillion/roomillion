@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会议行动项</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div><p class="eyebrow">执行力看板</p><h1>会议行动项</h1><p>让每一个决定都有负责人、期限和结果。</p></div>
+      <div class="headerActions"><button id="aiButton" class="secondary">AI 生成简报</button><button id="exportButton">导出 CSV</button></div>
+    </header>
+    <section class="stats">
+      <article><span>全部事项</span><strong id="totalCount">0</strong></article>
+      <article><span>进行中</span><strong id="openCount">0</strong></article>
+      <article><span>已逾期</span><strong id="overdueCount">0</strong></article>
+    </section>
+    <section class="layout">
+      <form id="actionForm" class="card formCard">
+        <div><p class="cardEyebrow">NEW ACTION</p><h2>添加行动项</h2></div>
+        <label>事项<input name="title" maxlength="120" required placeholder="例如：整理试点反馈"></label>
+        <label>负责人<input name="owner" maxlength="60" required placeholder="姓名或小组"></label>
+        <div class="formRow"><label>截止日期<input name="dueDate" type="date" required></label><label>优先级<select name="priority"><option value="高">高</option><option value="中" selected>中</option><option value="低">低</option></select></label></div>
+        <button type="submit">保存行动项</button>
+      </form>
+      <section class="card listCard">
+        <div class="sectionTitle"><div><p class="cardEyebrow">ACTION BOARD</p><h2>推进列表</h2></div><select id="statusFilter" aria-label="筛选状态"><option value="all">全部状态</option><option value="open">只看进行中</option><option value="done">只看已完成</option></select></div>
+        <div id="actions" class="actions"></div>
+      </section>
+    </section>
+    <section id="brief" class="brief" hidden><div class="briefTitle"><strong>AI 会议简报</strong><button id="closeBrief" class="textButton">收起</button></div><div id="briefText"></div></section>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

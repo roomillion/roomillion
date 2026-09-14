@@ -1,0 +1,37 @@
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const { BinaryFileService, MAX_FILE_BYTES, MAX_CHUNK_BYTES } = require("../src/main/binary-file-service.cjs");
+
+test("binary files over 50 MiB use bounded random reads, isolate tokens and reject changed files", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-binary-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const filePath = path.join(root, "large.pdf");
+  const handle = await fsp.open(filePath, "w");
+  await handle.truncate(64 * 1024 * 1024);
+  await handle.write(Buffer.from("TAIL"), 0, 4, 64 * 1024 * 1024 - 4);
+  await handle.close();
+  const service = new BinaryFileService();
+  const file = await service.open("room-a", filePath);
+  assert.equal(file.size, 64 * 1024 * 1024);
+  assert.equal("filePath" in file, false);
+  const tail = await service.read("room-a", file.token, { offset: file.size - 4, length: 4 });
+  assert.equal(Buffer.from(tail.data).toString(), "TAIL");
+  assert.equal(tail.eof, true);
+  await assert.rejects(service.read("room-b", file.token), /令牌/);
+  await assert.rejects(service.read("room-a", file.token, { length: MAX_CHUNK_BYTES + 1 }), /范围/);
+  await assert.rejects(service.read("room-a", file.token, { offset: file.size + 1 }), /范围/);
+  await fsp.appendFile(filePath, "changed");
+  await assert.rejects(service.read("room-a", file.token), /变化/);
+  service.closeRoom("room-a");
+  await assert.rejects(service.read("room-a", file.token), /令牌/);
+  const tooLarge = await fsp.open(path.join(root, "huge.pdf"), "w");
+  await tooLarge.truncate(3 * 1024 ** 3);
+  await tooLarge.close();
+  const huge = await service.open("room-a", path.join(root, "huge.pdf"));
+  assert.equal(huge.size, 3 * 1024 ** 3);
+  service.closeRoom("room-a");
+});

@@ -1,0 +1,18 @@
+{
+  "formatVersion": "0.1",
+  "id": "cn.zhibian.example.offline-3d-collector",
+  "name": "离线 3D 晶体挑战",
+  "version": "1.0.0",
+  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
+  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.3.0-alpha.1" },
+  "entry": "app/index.html",
+  "permissions": { "network": [] },
+  "hostModules": [
+    "graphics.three@1",
+    "physics.rapier@1",
+    "game.input@1",
+    "game.audio@1",
+    "game.assets@1"
+  ],
+  "embeddedDependencies": []
+}

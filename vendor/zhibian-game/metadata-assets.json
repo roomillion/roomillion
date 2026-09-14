@@ -1,0 +1,10 @@
+{
+  "name": "智变程序化游戏素材工具",
+  "packageName": "@zhibian/game-assets",
+  "version": "1.0.0",
+  "declaredLicense": "MIT",
+  "source": "workbench-source:vendor/zhibian-game/assets.js",
+  "file": "assets.js",
+  "bytes": 1628,
+  "sha256": "136ae27e97012c9f251f5bd5e89661b3206e554f51001facf6d093eb772fe9d6"
+}

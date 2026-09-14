@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物资台账</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div><p class="eyebrow">示例房间</p><h1>物资台账</h1><p>数据保存在本房间独立的 SQLite 中。</p></div>
+      <div class="headerActions"><button id="pickButton" class="secondary">读取文本</button><button id="exportButton" class="secondary">导出 CSV</button></div>
+    </header>
+    <section class="stats"><div><strong id="itemCount">0</strong><span>物资种类</span></div><div><strong id="totalQuantity">0</strong><span>库存总数</span></div><div><strong id="roomIdentity">—</strong><span>独立数据空间</span></div></section>
+    <section class="layout">
+      <form id="itemForm" class="card formCard"><h2>新增物资</h2><label>物资名称<input name="name" required maxlength="80"></label><label>数量<input name="quantity" type="number" min="0" value="1" required></label><label>备注<textarea name="note" maxlength="500"></textarea></label><button type="submit">保存</button></form>
+      <section class="card listCard"><div class="sectionTitle"><h2>库存记录</h2><button id="aiButton" class="secondary">AI 分析</button></div><div id="items" class="items"></div></section>
+    </section>
+    <section id="output" class="output" hidden></section>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

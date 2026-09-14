@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI模型能力测试</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="appShell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brandMark">测</span>
+        <div><p class="eyebrow">HARNESS MODEL BENCHMARK</p><h1>AI模型能力测试</h1><p>用房间生成场景，测聊天理解与图片识别的真实适配度。</p></div>
+      </div>
+      <div class="privacy"><span id="connectionDot"></span><div><strong id="connectionLabel">正在读取模型</strong><small>密钥与服务地址始终留在主工作台</small></div></div>
+    </header>
+
+    <section class="scoreStrip">
+      <article><small>当前得分</small><strong id="currentScore">—</strong><span id="currentGrade">尚未评测</span></article>
+      <article><small>聊天能力</small><strong id="chatScore">—</strong><span>指令 · 结构 · 约束</span></article>
+      <article><small>图片识别</small><strong id="visionScore">—</strong><span>OCR · 布局 · 错误定位</span></article>
+      <article><small>本地记录</small><strong id="runCount">0</strong><span>仅保存在本房间数据库</span></article>
+    </section>
+
+    <section class="workspace">
+      <aside class="setupPanel panel">
+        <div class="panelTitle"><div><p class="eyebrow">TEST SETUP</p><h2>评测设置</h2></div><div class="panelActions"><span class="suiteBadge">题库 v1.0</span><button id="manageCustomCases" class="textButton framed" type="button">自定义题目</button></div></div>
+        <label>主工作台模型<select id="benchmarkModel"></select></label>
+        <div id="modelCard" class="modelCard"><strong>等待模型目录</strong><p>请先在 AI 能力中心配置模型。</p></div>
+        <label>评测类别<select id="benchmarkCategory"><option value="comprehensive">综合能力 · 聊天 60% / 图片 40%</option><option value="chat">聊天能力 · 只测文本</option><option value="vision">图片识别 · 只测视觉</option></select></label>
+        <label>评测等级<select id="benchmarkLevel"><option value="quick">快速 · 最低 Token</option><option value="standard" selected>标准 · 推荐</option><option value="deep">深度 · 更稳定</option></select></label>
+        <section class="budgetCard">
+          <div><span>预计消耗</span><strong id="tokenEstimate">约 3,000–7,000 Token</strong></div>
+          <div><span>测试项目</span><strong id="caseEstimate">6 项</strong></div>
+          <p id="budgetNote">实际计费取决于模型分词、图片计价和返回长度，完成后以 Provider 返回值优先记录。</p>
+        </section>
+        <button id="startBenchmark" class="primaryButton" type="button" disabled>开始标准综合评测</button>
+        <button id="stopBenchmark" class="secondaryButton" type="button" hidden>完成当前题后停止</button>
+        <p id="setupHint" class="hint">至少配置一个可用模型后才能开始。</p>
+      </aside>
+
+      <section class="runPanel panel">
+        <div class="panelTitle runTitle"><div><p class="eyebrow">LIVE EVALUATION</p><h2>本次评测</h2></div><span id="benchmarkStatus" class="statusBadge idle">待开始</span></div>
+        <div class="progressBlock"><div><span id="progressLabel">尚未开始</span><strong id="progressText">0 / 0</strong></div><div class="progressTrack"><i id="progressFill"></i></div></div>
+        <div id="caseList" class="caseList" aria-live="polite">
+          <div class="emptyState"><span>AI</span><h3>选择模型与评测档位</h3><p>系统会发送固定题目与程序生成的离线测试图，自动评分并写入排行榜。</p></div>
+        </div>
+        <section class="methodNote"><strong>评分边界</strong><p>固定答案题采用本地确定性规则评分，不让另一个 AI 当裁判。评测完成后可点击任一题目查看原题与原始回答。</p></section>
+      </section>
+
+      <aside class="rankingPanel panel">
+        <div class="panelTitle"><div><p class="eyebrow">LOCAL LEADERBOARD</p><h2>排行榜</h2></div><button id="clearHistory" class="textButton" type="button">清空</button></div>
+        <div class="rankingFilters"><select id="rankingCategory" aria-label="排行榜类别"><option value="comprehensive">综合</option><option value="chat">聊天</option><option value="vision">图片</option></select><select id="rankingLevel" aria-label="排行榜等级"><option value="quick">快速</option><option value="standard" selected>标准</option><option value="deep">深度</option></select></div>
+        <div class="rankingHeader"><span># / 模型</span><span>得分</span></div>
+        <div id="leaderboardBody" class="leaderboard"><p class="hint">暂无同档记录</p></div>
+        <footer class="rankingFooter"><span>点击成绩可查看本次设置、每个问题、模型原始回答与评分</span></footer>
+      </aside>
+    </section>
+    <dialog id="resultDetailDialog" class="modalDialog detailDialog">
+      <header class="modalHeader"><div><p class="eyebrow">EVALUATION TRACE</p><h2 id="resultDetailTitle">评测详情</h2></div><button id="closeResultDetail" class="iconButton" type="button" aria-label="关闭">×</button></header>
+      <section id="resultDetailSummary" class="detailSummary"></section>
+      <section id="resultDetailCases" class="detailCases"></section>
+    </dialog>
+    <dialog id="customCaseDialog" class="modalDialog customDialog">
+      <header class="modalHeader"><div><p class="eyebrow">CUSTOM TEST CASES</p><h2>自定义题目</h2><p>用安全断言规则评分，不执行自定义代码。</p></div><button id="closeCustomCases" class="iconButton" type="button" aria-label="关闭">×</button></header>
+      <div class="customWorkspace">
+        <aside class="customListPane"><div class="subheading"><strong>我的题目</strong><button id="newCustomCase" class="textButton" type="button">＋ 新建</button></div><div id="customCaseList" class="customCaseList"><p class="hint">暂无自定义题目</p></div></aside>
+        <form id="customCaseForm" class="customForm">
+          <input id="customCaseId" type="hidden">
+          <div class="formGrid"><label>题目名称<input id="customTitle" maxlength="80" required placeholder="例如：房间清单权限判断"></label><label>类别<select id="customType"><option value="chat">聊天能力</option><option value="vision">图片识别</option></select></label></div>
+          <div class="formGrid"><label>等级<select id="customLevel"><option value="quick">快速</option><option value="standard" selected>标准</option><option value="deep">深度</option></select></label><label>最大输出 Token<input id="customMaxTokens" type="number" min="16" max="2000" step="1" value="320" required></label></div>
+          <label>问题提示词<textarea id="customPrompt" maxlength="6000" required placeholder="写清任务、允许的输出字段和禁止事项"></textarea></label>
+          <div class="formGrid"><label>回答格式<select id="customResponseFormat"><option value="json">JSON 对象</option><option value="text">纯文本</option></select></label><label id="customImageField" hidden>测试图片<select id="customImageSource"><option value="dashboard">内置：库存仪表盘</option><option value="permission">内置：权限设置</option><option value="error">内置：错误截图</option><option value="uploaded">选择本地图片</option></select></label></div>
+          <div id="customImagePicker" class="imagePicker" hidden><button id="pickCustomImage" class="secondaryButton compact" type="button">选择 PNG / JPEG / WebP</button><span id="customImageLabel">尚未选择；评测时图片会发送给所选 AI API</span></div>
+          <label>评分断言 JSON<textarea id="customAssertions" class="codeInput" spellcheck="false" required></textarea></label>
+          <details class="ruleHelp"><summary>自定义题目书写规则</summary><ol><li>提示词要明确回答格式；JSON 题的断言路径使用点号，如 <code>permissions.database</code>。</li><li>每条断言包含 <code>path</code>、<code>operator</code>、<code>expected</code> 和 <code>weight</code>，所有权重之和必须为100。</li><li>允许的操作符：<code>equals</code>、<code>numberEquals</code>、<code>contains</code>、<code>includesAll</code>、<code>oneOf</code>、<code>exists</code>。</li><li>纯文本使用路径 <code>$text</code>；最多12条断言，不支持正则表达式或 JavaScript。</li></ol></details>
+          <div class="formActions"><button id="loadRuleExample" class="secondaryButton compact" type="button">填入示例规则</button><button class="primaryButton compact" type="submit">保存题目</button></div>
+        </form>
+      </div>
+    </dialog>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

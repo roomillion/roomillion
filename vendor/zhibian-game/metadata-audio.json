@@ -1,0 +1,10 @@
+{
+  "name": "智变游戏音频工具",
+  "packageName": "@zhibian/game-audio",
+  "version": "1.0.0",
+  "declaredLicense": "MIT",
+  "source": "workbench-source:vendor/zhibian-game/audio.js",
+  "file": "audio.js",
+  "bytes": 1417,
+  "sha256": "4b0718394b127cce8351d031ade5ecf1abe6a342e26ac97ce602431a7bc06e9f"
+}

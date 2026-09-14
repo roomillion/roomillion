@@ -1,0 +1,10 @@
+{
+  "name": "智变游戏输入工具",
+  "packageName": "@zhibian/game-input",
+  "version": "1.0.0",
+  "declaredLicense": "MIT",
+  "source": "workbench-source:vendor/zhibian-game/input.js",
+  "file": "input.js",
+  "bytes": 1597,
+  "sha256": "8d4773a64ea75215c4abadacd0defc39ed8482ba14774a69f33b81403b75e96c"
+}
