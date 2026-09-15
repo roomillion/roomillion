@@ -11,6 +11,29 @@ const { extractAndValidate, packDirectory } = require("../src/main/room-package.
 
 const projectRoot = path.resolve(__dirname, "..");
 
+test("public sources and all distribution configs contain only the six approved examples", async () => {
+  const approvedIds = [
+    "ai-debate", "ai-model-benchmark", "browser", "inventory", "meeting-actions", "offline-3d-collector"
+  ];
+  assert.deepEqual(EXAMPLE_CATALOG.map((example) => example.id).sort(), approvedIds);
+  const sourceEntries = await fsp.readdir(path.join(projectRoot, "examples"), { withFileTypes: true });
+  assert.deepEqual(sourceEntries.map((entry) => entry.name).sort(), approvedIds);
+  assert.ok(sourceEntries.every((entry) => entry.isDirectory() && !entry.isSymbolicLink()));
+  const approvedPackages = approvedIds.map((id) => `${id}.room`);
+  const configs = [
+    require("../package.json").build,
+    require("../build/electron-builder.installer.cjs"),
+    require("../build/electron-builder.portable-folder.cjs"),
+    require("../build/electron-builder.linux.cjs")
+  ];
+  for (const config of configs) {
+    const resources = config.extraResources.filter((entry) => entry.to === "examples");
+    assert.equal(resources.length, 1);
+    assert.equal(resources[0].from, "resources/examples");
+    assert.deepEqual([...resources[0].filter].sort(), approvedPackages);
+  }
+});
+
 test("example catalog exposes six unique portable rooms", async () => {
   assert.equal(EXAMPLE_CATALOG.length, 6);
   assert.equal(new Set(EXAMPLE_CATALOG.map((item) => item.id)).size, EXAMPLE_CATALOG.length);

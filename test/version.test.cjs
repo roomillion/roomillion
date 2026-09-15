@@ -12,7 +12,6 @@ test("release version increments deterministically without ad-hoc artifact names
   assert.equal(packageJson.desktopName, "roomillion");
   assert.equal(packageJson.build.appId, "io.roomillion.desktop");
   assert.equal(packageJson.build.productName, "千万间 Roomillion");
-  assert.equal(packageJson.build.extraResources[0].filter[0], "*.room");
   assert.match(packageJson.build.portable.artifactName, /^Roomillion-/);
   assert.equal(nextBuildVersion("0.3.0-alpha.1"), "0.3.0-alpha.2");
   assert.equal(nextBuildVersion("0.3.0-beta.9"), "0.3.0-beta.10");

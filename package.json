@@ -1,6 +1,6 @@
 {
   "name": "roomillion",
-  "version": "0.3.0-alpha.41",
+  "version": "0.3.0-alpha.42",
   "desktopName": "roomillion",
   "private": true,
   "author": "千万间 Roomillion 项目",
@@ -112,7 +112,12 @@
         "from": "resources/examples",
         "to": "examples",
         "filter": [
-          "*.room"
+          "inventory.room",
+          "browser.room",
+          "meeting-actions.room",
+          "ai-debate.room",
+          "ai-model-benchmark.room",
+          "offline-3d-collector.room"
         ]
       },
       {

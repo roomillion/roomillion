@@ -1,5 +1,7 @@
 "use strict";
 
+const { EXAMPLE_CATALOG } = require("../src/main/example-catalog.cjs");
+
 module.exports = {
   appId: "io.roomillion.desktop",
   productName: "千万间 Roomillion",
@@ -20,7 +22,7 @@ module.exports = {
     {
       from: "resources/examples",
       to: "examples",
-      filter: ["*.room"]
+      filter: EXAMPLE_CATALOG.map((example) => example.packageName)
     },
     {
       from: "resources/toolchains/git-linux-x64",

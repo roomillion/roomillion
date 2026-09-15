@@ -12,12 +12,12 @@
 
 ## 立即体验 MVP
 
-当前 Windows 开发版为 **0.3.0-alpha.41**，generic Linux x64 技术预览仍为 **0.3.0-alpha.36**，都不是稳定版。Windows 普通用户推荐安装版；安装到当前用户、不要求管理员权限，并注册 `.room` 文件关联。仍提供目录 ZIP 和单文件免安装版。构建产物采用统一命名：
+当前 Windows 开发版为 **0.3.0-alpha.42**，generic Linux x64 技术预览仍为 **0.3.0-alpha.36**，都不是稳定版。Windows 普通用户推荐安装版；安装到当前用户、不要求管理员权限，并注册 `.room` 文件关联。仍提供目录 ZIP 和单文件免安装版。构建产物采用统一命名：
 
 ```text
-release/Roomillion-0.3.0-alpha.41-Setup.exe
-release/Roomillion-0.3.0-alpha.41-Portable-Folder.zip
-release/Roomillion-0.3.0-alpha.41-Portable.exe
+release/Roomillion-0.3.0-alpha.42-Setup.exe
+release/Roomillion-0.3.0-alpha.42-Portable-Folder.zip
+release/Roomillion-0.3.0-alpha.42-Portable.exe
 release/linux/Roomillion-0.3.0-alpha.36-linux-x64.tar.xz
 release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 ```
@@ -177,11 +177,11 @@ npm run migration:verify-return -- --input "结果目录\migration-return" --rep
 ## 当前状态
 
 - 文档版本：`0.1-mvp`
-- 当前阶段：Windows x64 `0.3.0-alpha.41` 与 generic Linux x64 `0.3.0-alpha.36` 技术预览；指定 UOS 实机认证和 macOS 运行时仍待执行
+- 当前阶段：Windows x64 `0.3.0-alpha.42` 与 generic Linux x64 `0.3.0-alpha.36` 技术预览；指定 UOS 实机认证和 macOS 运行时仍待执行
 - 产品名称：千万间 Roomillion
 - 房间包统一扩展名：`.room`；内容和密码保护状态由包内格式安全识别
 - 版本号以 `package.json` 为准；二进制的大小、校验值和测试结果必须对应该版本，不沿用旧版本数字。
-- 最近人工评审：[alpha.32 Computer Use 报告](docs/45-alpha32发布前Computer-Use验收报告-2026-09-12.md)。本轮修复及验证见 [alpha.33 修复记录](docs/46-alpha33验收问题修复.md)。小样本 AI 分数不是房间生成成功率保证。
+- 历史人工评审报告未包含在公开仓库中；公开的修复及验证说明见 [alpha.33 修复记录](docs/46-alpha33验收问题修复.md)。小样本 AI 分数不是房间生成成功率保证。
 - 剩余阶段门：按“14 验收手册”完成 Windows 干净机与内部用户试点；按“15 技术验证计划”锁定并认证一个精确的统信 UOS x64 版本。
 
 ## 文档维护规则
