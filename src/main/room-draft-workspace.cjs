@@ -32,6 +32,51 @@ function writeFile(workspace, { file, content, expectedRevision, find }) {
   return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
 }
 
+function deleteFile(workspace, { file, expectedRevision }) {
+  if (!workspace) throw new Error("先调用 begin_custom_room 设置房间");
+  file = normalizedFile(file);
+  if (CORE_FILES.has(file)) throw new Error("入口文件不能删除，请直接写入新内容");
+  if (expectedRevision !== workspace.revision) throw new Error(`草稿已更新，当前 revision=${workspace.revision}；请先读取草稿再修改`);
+  if (!Object.hasOwn(workspace.files, file)) throw new Error("要删除的草稿文件不存在");
+  const files = { ...workspace.files };
+  delete files[file];
+  return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
+}
+
+function moveFile(workspace, { from, to, expectedRevision }) {
+  if (!workspace) throw new Error("先调用 begin_custom_room 设置房间");
+  from = normalizedFile(from);
+  to = normalizedFile(to);
+  if (CORE_FILES.has(from) || CORE_FILES.has(to)) throw new Error("入口文件不能移动或重命名");
+  if (expectedRevision !== workspace.revision) throw new Error(`草稿已更新，当前 revision=${workspace.revision}；请先读取草稿再修改`);
+  if (!Object.hasOwn(workspace.files, from)) throw new Error("源草稿文件不存在");
+  if (Object.hasOwn(workspace.files, to)) throw new Error("目标草稿文件已存在");
+  const files = { ...workspace.files, [to]: workspace.files[from] };
+  delete files[from];
+  return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
+}
+
+function searchFiles(workspace, { query, file, limit = 100 }) {
+  if (!workspace) throw new Error("尚无自由房间草稿");
+  query = String(query || "");
+  if (!query || query.length > 500) throw new Error("搜索文本长度必须是 1–500 字");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("搜索结果上限必须是 1–500");
+  const selected = file ? [[normalizedFile(file), workspace.files[normalizedFile(file)]]] : Object.entries(workspace.files);
+  const results = [];
+  for (const [filePath, content] of selected) {
+    if (typeof content !== "string") continue;
+    for (const [index, line] of content.split("\n").entries()) {
+      let offset = 0;
+      while ((offset = line.indexOf(query, offset)) !== -1) {
+        results.push({ file: filePath, line: index + 1, column: offset + 1, preview: line.slice(0, 500) });
+        if (results.length >= limit) return { query, results, truncated: true };
+        offset += Math.max(1, query.length);
+      }
+    }
+  }
+  return { query, results, truncated: false };
+}
+
 function describeWorkspace(workspace, file) {
   if (!workspace) return { exists: false, instruction: "调用 begin_custom_room 开始" };
   if (file !== undefined) file = normalizedFile(file);
@@ -40,4 +85,4 @@ function describeWorkspace(workspace, file) {
     ...(file ? { file, content: workspace.files[file] || "" } : {}) };
 }
 
-module.exports = { createWorkspace, writeFile, describeWorkspace };
+module.exports = { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace };

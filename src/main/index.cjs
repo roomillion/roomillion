@@ -11,6 +11,7 @@ const { RoomAgentService } = require("./room-agent-service.cjs");
 const { DataBackupService } = require("./data-backup-service.cjs");
 const { LargeTextService } = require("./large-text-service.cjs");
 const { NetworkService } = require("./network-service.cjs");
+const { RoomCredentialService } = require("./room-credential-service.cjs");
 const { GitService } = require("./git-service.cjs");
 const { resolveBundledGit } = require("./platform-runtime.cjs");
 const { DiagnosticService } = require("./diagnostic-service.cjs");
@@ -67,6 +68,7 @@ let roomAgent;
 let dataBackups;
 let largeText;
 let networkService;
+let credentialService;
 let gitService;
 let diagnostics;
 let roomViews;
@@ -2199,7 +2201,8 @@ async function bootstrap() {
   await gitService.initializeExistingRooms();
   diagnostics = await new DiagnosticService(dataRoot).init();
   aiService = await new AiService(dataRoot, { secureStorage: safeStorage }).init();
-  networkService = await new NetworkService(dataRoot).init();
+  credentialService = await new RoomCredentialService(dataRoot, { secureStorage: safeStorage }).init();
+  networkService = await new NetworkService(dataRoot, { credentialService }).init();
   const roomProtocolHandler = createRoomProtocolHandler();
   if (!protocol.isProtocolHandled("room")) protocol.handle("room", roomProtocolHandler);
   createMainWindow();
@@ -2253,6 +2256,7 @@ async function bootstrap() {
     roomAgent,
     largeText,
     networkService,
+    credentialService,
     roomViews,
     roomBrowser,
     agentWindows,

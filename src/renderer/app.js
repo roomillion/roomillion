@@ -23,6 +23,7 @@ const state = {
   aiProviders: [],
   aiCapabilities: null,
   networkPolicy: null,
+  credentials: [],
   environment: null,
   roomModules: [],
   examples: [],
@@ -184,6 +185,15 @@ const elements = {
   networkSummary: document.getElementById("networkSummaryInline"),
   networkStatus: document.getElementById("networkStatus"),
   saveNetworkButton: document.getElementById("saveNetworkButton"),
+  credentialAlias: document.getElementById("credentialAlias"),
+  credentialLabel: document.getElementById("credentialLabel"),
+  credentialOrigin: document.getElementById("credentialOrigin"),
+  credentialHeaderName: document.getElementById("credentialHeaderName"),
+  credentialPrefix: document.getElementById("credentialPrefix"),
+  credentialValue: document.getElementById("credentialValue"),
+  credentialRemember: document.getElementById("credentialRemember"),
+  saveCredentialButton: document.getElementById("saveCredentialButton"),
+  credentialList: document.getElementById("credentialList"),
   generateDialog: document.getElementById("generateDialog"),
   generateForm: document.getElementById("generateForm"),
   generatePrompt: document.getElementById("generatePrompt"),
@@ -1640,9 +1650,46 @@ function renderNetworkPolicy() {
     : "所有房间的普通网络请求都会被工作台拒绝";
 }
 
+function renderCredentials() {
+  elements.credentialList.replaceChildren();
+  for (const credential of state.credentials) {
+    const card = document.createElement("div"); card.className = "credentialItem";
+    const text = document.createElement("div");
+    const title = document.createElement("strong"); title.textContent = credential.label || credential.alias;
+    const details = document.createElement("small"); details.textContent = `${credential.alias} · ${credential.origin} · ${credential.headerName} · ${credential.available ? "可用" : "需重新输入"}`;
+    text.append(title, details);
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "danger"; remove.textContent = "删除";
+    remove.addEventListener("click", async () => {
+      remove.disabled = true;
+      try { await window.workbench.deleteCredential(credential.alias); state.credentials = await window.workbench.listCredentials(); renderCredentials(); }
+      catch (error) { setInlineStatus(elements.networkStatus, formatError(error), true); remove.disabled = false; }
+    });
+    card.append(text, remove); elements.credentialList.appendChild(card);
+  }
+  if (!state.credentials.length) {
+    const empty = document.createElement("div"); empty.className = "emptyRooms"; empty.textContent = "尚未配置命名凭据"; elements.credentialList.appendChild(empty);
+  }
+}
+
+async function saveNamedCredential() {
+  elements.saveCredentialButton.disabled = true;
+  try {
+    await window.workbench.saveCredential({ alias: elements.credentialAlias.value.trim(), label: elements.credentialLabel.value.trim(), origin: elements.credentialOrigin.value.trim(), headerName: elements.credentialHeaderName.value.trim(), prefix: elements.credentialPrefix.value, value: elements.credentialValue.value, remember: elements.credentialRemember.checked });
+    elements.credentialValue.value = "";
+    state.credentials = await window.workbench.listCredentials();
+    renderCredentials();
+    setInlineStatus(elements.networkStatus, "凭据已保存；房间仍需同时获得凭据别名和精确服务源权限。", false);
+  } catch (error) { setInlineStatus(elements.networkStatus, formatError(error), true); }
+  finally { elements.saveCredentialButton.disabled = false; }
+}
+
 async function showNetworkDialog() {
   await hideRoomForModal();
   renderNetworkPolicy();
+  state.credentials = await window.workbench.listCredentials();
+  elements.credentialRemember.disabled = state.aiCapabilities?.secureStorageAvailable !== true;
+  elements.credentialRemember.checked = state.aiCapabilities?.secureStorageAvailable === true;
+  renderCredentials();
   setInlineStatus(elements.networkStatus, "AI 模型 API 始终按 AI 能力中心配置连接，不受此开关影响。", false);
   elements.networkDialog.showModal();
 }
@@ -3381,6 +3428,7 @@ async function initialize() {
   state.aiProviders = initial.aiProviders;
   state.aiCapabilities = initial.aiCapabilities;
   state.networkPolicy = initial.networkPolicy;
+  state.credentials = initial.credentials || [];
   state.environment = initial.environment;
   document.getElementById("dataLocation").textContent = initial.dataLocation || "数据路径暂不可用";
   refreshExamples().catch(error => console.warn("读取内置房间更新失败", error.message));
@@ -3498,6 +3546,7 @@ document.getElementById("providerButton")?.addEventListener("click", showProvide
 document.getElementById("networkButton")?.addEventListener("click", () => showNetworkDialog().catch((error) => showToast(formatError(error))));
 document.getElementById("diagnosticsButton")?.addEventListener("click", showDiagnosticsDialog);
 elements.networkForm.addEventListener("submit", saveNetworkPolicy);
+elements.saveCredentialButton.addEventListener("click", saveNamedCredential);
 document.getElementById("importProviderButton").addEventListener("click", importProviderConfig);
 // Put credentials before model selection, matching the visible connection steps.
 const credentialAnchor = document.getElementById("modelSelectField");

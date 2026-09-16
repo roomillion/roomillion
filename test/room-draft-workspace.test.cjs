@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createWorkspace, writeFile, describeWorkspace } = require("../src/main/room-draft-workspace.cjs");
+const { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace } = require("../src/main/room-draft-workspace.cjs");
 const { compare, assertWorkbenchCompatible } = require("../src/main/workbench-compatibility.cjs");
 test("draft files persist independently, reject stale revisions and support exact local patches", () => {
   let draft = createWorkspace({ name: "测试房间", description: "测试分文件保存", hostModules: [], capabilities: {} });
@@ -16,6 +16,13 @@ test("draft files persist independently, reject stale revisions and support exac
   assert.equal(updated.files.javascript, patched.files.javascript);
   assert.equal(describeWorkspace(updated).files.javascript.saved, true);
   assert.equal(describeWorkspace(updated, "javascript").content, patched.files.javascript);
+  let files = writeFile(updated, { file: "modules/old.js", content: "export const page = 12;", expectedRevision: updated.revision });
+  assert.equal(searchFiles(files, { query: "page = 12" }).results[0].file, "modules/old.js");
+  files = moveFile(files, { from: "modules/old.js", to: "services/page.js", expectedRevision: files.revision });
+  assert.equal(files.files["services/page.js"], "export const page = 12;");
+  files = deleteFile(files, { file: "services/page.js", expectedRevision: files.revision });
+  assert.equal(Object.hasOwn(files.files, "services/page.js"), false);
+  assert.throws(() => deleteFile(files, { file: "javascript", expectedRevision: files.revision }), /入口文件/);
 });
 test("workbench versions compare prereleases numerically and reject newer required runtimes", () => {
   assert.equal(compare("0.3.0-alpha.10", "0.3.0-alpha.9"), 1);

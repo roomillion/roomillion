@@ -9,6 +9,11 @@ const { getPublicRoomModuleCatalog } = require("./room-module-catalog.cjs");
 const { applyNativeWorkbenchTheme } = require("./workbench-theme.cjs");
 const { RoomVectorService } = require("./room-vector-service.cjs");
 const { BinaryFileService } = require("./binary-file-service.cjs");
+const { RoomFileAccessService } = require("./room-file-access-service.cjs");
+const { RoomBlobService } = require("./room-blob-service.cjs");
+const { RoomJobService } = require("./room-job-service.cjs");
+const { RoomDocumentService } = require("./room-document-service.cjs");
+const { RoomToolService } = require("./room-tool-service.cjs");
 
 const DEFAULT_BINARY_EXTENSIONS = Object.freeze([
   "pdf", "docx", "xlsx", "xls", "pptx", "zip", "png", "jpg", "jpeg", "webp"
@@ -69,8 +74,11 @@ function hasPermission(room, domain, value) {
   const permission = room.grantedPermissions?.[domain];
   if (domain === "database") return permission === "private";
   if (domain === "files") return Array.isArray(permission) && permission.includes(value);
-  if (domain === "ai") return Boolean(permission && Array.isArray(permission.roles));
+  if (domain === "ai") return Boolean(permission && Array.isArray(permission.roles) && (!value || permission.roles.includes(value)));
   if (domain === "network") return Boolean(Array.isArray(permission) && (!value || permission.includes(value)));
+  if (domain === "credentials") return Boolean(Array.isArray(permission) && (!value || permission.includes(value)));
+  if (domain === "tools") return Boolean(Array.isArray(permission) && (!value || permission.includes(value)));
+  if (domain === "compute") return Boolean(Array.isArray(permission) && (!value || permission.includes(value)));
   if (domain === "browser") return Boolean(Array.isArray(permission) && (!value || permission.includes(value)));
   return false;
 }
@@ -86,16 +94,64 @@ function registerIpcHandlers({
   roomAgent,
   largeText,
   networkService,
+  credentialService,
   roomViews,
   roomBrowser,
   agentWindows,
   examplePackages,
   environment,
   takePendingRoomImports = () => [],
-  dialogApi = dialog
+  dialogApi = dialog,
+  fileAccess,
+  blobService,
+  jobService,
+  documentService,
+  toolService
 }) {
   const vectors = new RoomVectorService(database);
   const binaryFiles = new BinaryFileService();
+  const directoryFiles = fileAccess || new RoomFileAccessService(roomStore.dataRoot || process.cwd());
+  const blobs = blobService || new RoomBlobService(roomStore);
+  const jobs = jobService || new RoomJobService(roomStore);
+  const documents = documentService || new RoomDocumentService({ resourcesPath: process.resourcesPath, blobService: blobs });
+  const roomTools = toolService || new RoomToolService({ documentService: documents, blobService: blobs });
+  const declaredModelSlots = (room) => {
+    const slots = room?.requestedPermissions?.ai?.slots || room?.permissions?.ai?.slots;
+    return slots && typeof slots === "object" && !Array.isArray(slots) ? structuredClone(slots) : {};
+  };
+  const validateAiSlotProfile = async (room, rawSlot, profileId) => {
+    if (rawSlot === undefined || rawSlot === null) return null;
+    const slot = String(rawSlot).trim();
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(slot)) throw new Error("模型槽位名称无效");
+    const definitions = declaredModelSlots(room);
+    const definition = definitions[slot];
+    if (Object.keys(definitions).length && !definition) throw new Error(`房间没有声明模型槽位：${slot}`);
+    if (!definition) return null;
+    if (!hasPermission(room, "ai", definition.role)) throw new Error(`房间没有 ${definition.role} AI 权限`);
+    const capabilities = await aiService.getModelCapabilities(profileId);
+    if (definition.requiresImages && !capabilities.supportsImages) throw new Error(`模型槽位 ${slot} 需要支持图片的模型`);
+    if (definition.minimumContextWindow && (!capabilities.contextWindow || capabilities.contextWindow < definition.minimumContextWindow)) throw new Error(`模型槽位 ${slot} 需要至少 ${definition.minimumContextWindow} Token 上下文`);
+    return definition;
+  };
+  const resolveAiImages = async (room, images) => {
+    if (images === undefined) return [];
+    if (!Array.isArray(images)) throw new Error("AI 图片输入必须是数组");
+    const resolved = [];
+    for (const image of images) {
+      if (image?.data !== undefined) { resolved.push(...normalizeRoomAiImages([image])); continue; }
+      let file;
+      if (image?.blobId) file = await blobs.getFile(room.id, String(image.blobId));
+      else if (image?.directory?.grantId && image.directory.relativePath) file = await directoryFiles.getFile(room.id, image.directory.grantId, image.directory.relativePath);
+      else throw new Error("AI 图片必须提供 data、blobId 或目录文件引用");
+      const stats = await fsp.stat(file.path);
+      if (stats.size > 64 * 1024 ** 2) throw new Error("单张 AI 图片不能超过 64 MiB");
+      const buffer = await fsp.readFile(file.path);
+      const mimeType = detectImageMimeType(buffer);
+      if (!mimeType) throw new Error("AI 图片格式或内容无效");
+      resolved.push({ mimeType, data: buffer.toString("base64") });
+    }
+    return resolved;
+  };
   const exportStreams = new Map();
   const closeExportStreams = async (roomId, { removePartial = true } = {}) => {
     const closing = [];
@@ -166,6 +222,7 @@ function registerIpcHandlers({
       aiProviders: await aiService.getProviderCatalog(),
       aiCapabilities: { secureStorageAvailable: aiService.isSecureStorageAvailable() },
       networkPolicy: networkService.getPublicState(),
+      credentials: credentialService?.list?.() || [],
       roomModules: getPublicRoomModuleCatalog(),
       roomWindows: roomViews.getWindowStates(),
       dataLocation: roomStore.dataRoot,
@@ -179,6 +236,9 @@ function registerIpcHandlers({
       .find((window) => window.webContents?.id === event.sender.id);
     return applyNativeWorkbenchTheme(workbenchWindow, themeId);
   });
+  handle("workbench:listCredentials", async (event) => { requireWorkbench(event); return credentialService?.list?.() || []; });
+  handle("workbench:saveCredential", async (event, input) => { requireWorkbench(event); if (!credentialService) throw new Error("凭据服务不可用"); return credentialService.set(input); });
+  handle("workbench:deleteCredential", async (event, alias) => { requireWorkbench(event); if (!credentialService) throw new Error("凭据服务不可用"); return credentialService.remove(alias); });
   handle("workbench:setRoomNetworkEnabled", async (event, enabled) => {
     requireWorkbench(event);
     const result = await networkService.setRoomNetworkEnabled(enabled);
@@ -707,6 +767,57 @@ function registerIpcHandlers({
       return vectors[method](room.id, ...args);
     });
   }
+  handle("room:filePickMany", async (event, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "pickMany")) throw new Error("房间没有批量选择文件权限");
+    const extensions = normalizeBinaryExtensions(options);
+    const selected = await dialogApi.showOpenDialog(roomViews.getDialogParent(room.id), {
+      title: room.name + "：批量选择文件",
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: "支持的文件", extensions }]
+    });
+    if (selected.canceled || !selected.filePaths?.length) return [];
+    if (selected.filePaths.length > 10_000) throw new Error("一次最多选择 10000 个文件");
+    if (!roomStore.hasPermission(room.id, "files", "pickMany")) throw new Error("批量文件权限已撤销");
+    return Promise.all(selected.filePaths.map((filePath) => binaryFiles.open(room.id, filePath)));
+  });
+  handle("room:directoryOpen", async (event, options = {}) => {
+    const room = requireRoom(event);
+    const mode = ["read", "write", "readwrite"].includes(options.mode) ? options.mode : "read";
+    if (["read", "readwrite"].includes(mode) && !roomStore.hasPermission(room.id, "files", "directoryRead")) throw new Error("房间没有读取文件夹权限");
+    if (["write", "readwrite"].includes(mode) && !roomStore.hasPermission(room.id, "files", "directoryWrite")) throw new Error("房间没有写入文件夹权限");
+    const selected = await dialogApi.showOpenDialog(roomViews.getDialogParent(room.id), {
+      title: `${room.name}：选择${mode === "read" ? "输入" : mode === "write" ? "输出" : "工作"}文件夹`,
+      properties: ["openDirectory", "createDirectory"]
+    });
+    if (selected.canceled || !selected.filePaths?.[0]) return null;
+    return directoryFiles.grant(room.id, selected.filePaths[0], mode);
+  });
+  handle("room:directoryGrants", async (event) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "directoryRead") && !roomStore.hasPermission(room.id, "files", "directoryWrite")) throw new Error("房间没有文件夹权限");
+    return directoryFiles.listGrants(room.id);
+  });
+  handle("room:directoryList", async (event, grantId, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "directoryRead")) throw new Error("房间没有读取文件夹权限");
+    return directoryFiles.list(room.id, grantId, options);
+  });
+  handle("room:directoryRead", async (event, grantId, relativePath, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "directoryRead")) throw new Error("房间没有读取文件夹权限");
+    return directoryFiles.read(room.id, grantId, relativePath, options);
+  });
+  handle("room:directoryWrite", async (event, grantId, relativePath, content) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "directoryWrite")) throw new Error("房间没有写入文件夹权限");
+    return directoryFiles.write(room.id, grantId, relativePath, content);
+  });
+  handle("room:directoryRevoke", async (event, grantId) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "files", "directoryRead") && !roomStore.hasPermission(room.id, "files", "directoryWrite")) throw new Error("房间没有文件夹权限");
+    return directoryFiles.revoke(room.id, grantId);
+  });
   handle("room:binaryOpen", async (event, options = {}) => {
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "files", "pick")) throw new Error("房间没有选择文件权限");
@@ -853,6 +964,10 @@ function registerIpcHandlers({
     await fsp.writeFile(result.filePath, buffer);
     return result.filePath;
   });
+  handle("room:credentialList", async (event) => {
+    const room = requireRoom(event);
+    return credentialService?.listForRoom?.(room) || [];
+  });
   handle("room:networkGetStatus", async (event) => {
     const room = requireRoom(event);
     return networkService.getRoomStatus(room);
@@ -964,6 +1079,84 @@ function registerIpcHandlers({
     await recordEvent("room.browser.site-permission", { roomId: room.id, allowed: allowed === true });
     return result;
   });
+  handle("room:blobList", async (event, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.list(room.id, options);
+  });
+  handle("room:blobBegin", async (event, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.begin(room.id, options);
+  });
+  handle("room:blobWrite", async (event, token, content) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.write(room.id, token, content);
+  });
+  handle("room:blobFinish", async (event, token) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.finish(room.id, token);
+  });
+  handle("room:blobAbort", async (event, token) => blobs.abort(requireRoom(event).id, token));
+  handle("room:blobPut", async (event, options, content) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.put(room.id, options || {}, content);
+  });
+  handle("room:blobRead", async (event, id, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.read(room.id, id, options);
+  });
+  handle("room:blobRemove", async (event, id) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return blobs.remove(room.id, id);
+  });
+  handle("room:artifactExportDirectory", async (event, id, grantId, relativePath) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    if (!roomStore.hasPermission(room.id, "files", "directoryWrite")) throw new Error("房间没有写入文件夹权限");
+    const file = await blobs.getFile(room.id, id);
+    if (file.item.kind !== "artifact") throw new Error("只能把制品导出到文件夹");
+    return directoryFiles.copyInto(room.id, grantId, relativePath || file.item.name, file.path);
+  });
+  handle("room:documentMarkdownToPdf", async (event, source, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    if (typeof source === "string") return documents.renderMarkdown(room.id, source, options);
+    if (source?.artifactId) return documents.renderMarkdownArtifact(room.id, String(source.artifactId), options);
+    throw new Error("PDF 源必须是 Markdown 文本或 Markdown 制品 ID");
+  });
+  handle("room:toolList", async (event) => roomTools.list(requireRoom(event)));
+  handle("room:toolCall", async (event, id, input = null) => roomTools.call(requireRoom(event), id, input));
+  handle("room:jobCreate", async (event, input = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return jobs.create(room.id, input);
+  });
+  handle("room:jobList", async (event, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return jobs.list(room.id, options);
+  });
+  handle("room:jobGet", async (event, id) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return jobs.get(room.id, id);
+  });
+  handle("room:jobTransition", async (event, id, input = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return jobs.transition(room.id, id, input);
+  });
+  handle("room:jobRecover", async (event) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "database")) throw new Error("房间没有私有数据权限");
+    return jobs.recover(room.id);
+  });
   handle("room:aiListModels", async (event) => {
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
@@ -974,6 +1167,27 @@ function registerIpcHandlers({
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     return aiService.getRoomModelSelection(room.id);
   });
+  handle("room:aiGetSlotDefinitions", async (event) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    return declaredModelSlots(room);
+  });
+  handle("room:aiGetSlots", async (event) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    return aiService.getRoomModelSlots(room.id);
+  });
+  handle("room:aiSelectSlot", async (event, slot, profileId) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    await validateAiSlotProfile(room, slot, profileId);
+    return aiService.selectRoomModelSlot(room.id, slot, profileId);
+  });
+  handle("room:aiClearSlot", async (event, slot) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    return aiService.clearRoomModelSlot(room.id, slot);
+  });
   handle("room:aiSelectModel", async (event, profileId) => {
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
@@ -983,7 +1197,7 @@ function registerIpcHandlers({
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("AI 调用选项无效");
-    const images = normalizeRoomAiImages(options.images);
+    const images = await resolveAiImages(room, options.images);
     if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
     const requestedMaxTokens = options.maxTokens === undefined ? 2000 : Number(options.maxTokens);
     if (!Number.isSafeInteger(requestedMaxTokens) || requestedMaxTokens <= 0) {
@@ -991,10 +1205,12 @@ function registerIpcHandlers({
     }
     const temperature = options.temperature === undefined ? undefined : Number(options.temperature);
     if (temperature !== undefined && !Number.isFinite(temperature)) throw new Error("AI temperature 必须是有限数字");
-    const selected = aiService.getRoomModelSelection(room.id);
     const timeoutMs = options.timeoutMs === undefined ? 120_000 : Number(options.timeoutMs);
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("AI 请求超时必须是正整数毫秒");
-    const profileId = options.profileId === undefined ? selected.profileId : String(options.profileId);
+    const profileId = aiService.resolveRoomModelProfile(room.id, { profileId: options.profileId === undefined ? undefined : String(options.profileId), slot: options.slot });
+    await validateAiSlotProfile(room, options.slot, profileId);
+    const maxRetries = options.maxRetries === undefined ? 2 : Number(options.maxRetries);
+    if (!Number.isSafeInteger(maxRetries) || maxRetries < 0 || maxRetries > 5) throw new Error("AI 自动重试次数必须是 0–5 的整数");
     const result = await aiService.complete({
       systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”提供帮助。不要声称能够访问未提供的文件或系统资源。`,
       prompt,
@@ -1003,15 +1219,58 @@ function registerIpcHandlers({
       temperature,
       structuredOutput: options.structuredOutput === true,
       timeoutMs,
+      maxRetries,
       profileId
     });
     return { text: result.text, model: result.model, profileId, usage: result.usage };
+  });
+
+  handle("room:aiBatch", async (event, requests, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    if (!Array.isArray(requests) || requests.length < 1 || requests.length > 500) throw new Error("批量 AI 请求必须包含 1–500 项");
+    const concurrency = Number(options.concurrency || 3);
+    if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error("AI 并发数必须是 1–8");
+    const results = new Array(requests.length);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < requests.length) {
+        const index = cursor++;
+        const request = requests[index];
+        try {
+          if (!request || typeof request.prompt !== "string" || !request.prompt) throw new Error("AI 提示内容不能为空");
+          const images = await resolveAiImages(room, request.images);
+          if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
+          const requestedSlot = request.slot || options.slot;
+          const profileId = aiService.resolveRoomModelProfile(room.id, { profileId: request.profileId, slot: requestedSlot });
+          await validateAiSlotProfile(room, requestedSlot, profileId);
+          const value = await aiService.complete({
+            systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”执行批处理任务。只处理当前项目，不要声称能够访问未提供的资源。`,
+            prompt: request.prompt,
+            images,
+            maxTokens: Number(request.maxTokens || options.maxTokens || 2000),
+            timeoutMs: Number(request.timeoutMs || options.timeoutMs || 120_000),
+            maxRetries: Number(request.maxRetries ?? options.maxRetries ?? 2),
+            structuredOutput: request.structuredOutput === true,
+            temperature: request.temperature,
+            profileId,
+            sessionId: request.idempotencyKey ? `${room.id}:${String(request.idempotencyKey).slice(0, 160)}` : undefined
+          });
+          results[index] = { ok: true, text: value.text, model: value.model, profileId, usage: value.usage };
+        } catch (error) {
+          results[index] = { ok: false, error: String(error.message || error).slice(0, 2000) };
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, requests.length) }, () => worker()));
+    return { results, total: results.length, passed: results.filter((item) => item.ok).length, failed: results.filter((item) => !item.ok).length };
   });
 
   return () => {
     for (const channel of registeredChannels) ipcMain.removeHandler(channel);
     for (const stream of exportStreams.values()) stream.handle.close().catch(() => {});
     exportStreams.clear();
+    blobs.dispose?.().catch(() => {});
   };
 }
 

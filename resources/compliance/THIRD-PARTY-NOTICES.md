@@ -1,6 +1,6 @@
 # 千万间 Roomillion 第三方组件说明
 
-本文件对应千万间 Roomillion `0.3.0-alpha.42`。完整传递依赖清单见同目录 `sbom.cdx.json`；当前清单记录 105 个应用运行依赖组件、317 个官方房间资源来源及其传递组件，另记录 Electron 桌面运行时。模块源码包只在构建期使用，安装包携带的是下方经过哈希校验的离线浏览器资源。
+本文件对应千万间 Roomillion `0.3.0-alpha.43`。完整传递依赖清单见同目录 `sbom.cdx.json`；当前清单记录 111 个应用运行依赖组件、317 个官方房间资源来源及其传递组件，另记录 Electron 桌面运行时。模块源码包只在构建期使用，安装包携带的是下方经过哈希校验的离线浏览器资源。
 
 主项目原创代码采用 Apache-2.0，见同目录 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。第三方组件仍适用各自许可证，其版权归原作者或权利人所有。逐包原始许可、版权及 NOTICE 副本见 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md)；文件哈希与元数据见 [license-inventory.json](license-inventory.json)。缺失原文及源码提供待办见 [LICENSE-REVIEW.md](LICENSE-REVIEW.md)。
 

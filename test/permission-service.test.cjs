@@ -106,3 +106,17 @@ test("network origins are granted individually and cannot exceed the manifest de
   assert.equal(service.has("cn.zhibian.network-permission-test", "network", "http://intranet:8080"), false);
   assert.throws(() => permissionsForKeys(networkRequested, ["network:https://not-declared.example"]), /未申请/);
 });
+
+test("worker, tools and named credentials are independently granted", () => {
+  const capabilities = { compute: ["worker"], tools: ["document.markdown-to-pdf@1"], credentials: ["book-api"] };
+  assert.deepEqual(keysForPermissions(capabilities), ["compute.worker", "credential:book-api", "tool:document.markdown-to-pdf@1"]);
+  assert.deepEqual(permissionsForKeys(capabilities, ["compute.worker", "tool:document.markdown-to-pdf@1"]), { compute: ["worker"], tools: ["document.markdown-to-pdf@1"] });
+  const items = permissionItems(capabilities, { source: "external" });
+  assert.equal(items.find((item) => item.domain === "credentials").risk, "high");
+  assert.equal(items.every((item) => item.defaultGranted === false), true);
+});
+test("AI model slot definitions survive grants and are filtered by granted role", () => {
+  const requestedAi = { ai: { roles: ["vision", "general"], slots: { ocr: { role: "vision", requiresImages: true }, review: { role: "general", minimumContextWindow: 128000 } } } };
+  assert.deepEqual(permissionsForKeys(requestedAi, ["ai.general"]), { ai: { roles: ["general"], slots: { review: { role: "general", minimumContextWindow: 128000 } } } });
+  assert.deepEqual(permissionsForKeys(requestedAi, ["ai.vision", "ai.general"]).ai.slots, requestedAi.ai.slots);
+});

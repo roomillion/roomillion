@@ -16,14 +16,14 @@ Third-party dependencies, fonts, Electron, Git toolchains, and independently lic
 
 ## Try the MVP
 
-The current Windows development release is **0.3.0-alpha.42**. The generic Linux x64 technical preview remains **0.3.0-alpha.36**. Both are prereleases.
+The current Windows development release is **0.3.0-alpha.43**. The generic Linux x64 technical preview remains **0.3.0-alpha.36**. Both are prereleases.
 
 Windows users should normally choose the per-user installer. It does not require administrator privileges and registers the `.room` file association. A portable folder ZIP and a single-file portable executable are also available.
 
 ```text
-release/Roomillion-0.3.0-alpha.42-Setup.exe
-release/Roomillion-0.3.0-alpha.42-Portable-Folder.zip
-release/Roomillion-0.3.0-alpha.42-Portable.exe
+release/Roomillion-0.3.0-alpha.43-Setup.exe
+release/Roomillion-0.3.0-alpha.43-Portable-Folder.zip
+release/Roomillion-0.3.0-alpha.43-Portable.exe
 release/linux/Roomillion-0.3.0-alpha.36-linux-x64.tar.xz
 release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 ```
@@ -68,6 +68,10 @@ Official modules are provided offline by the workbench and shared as read-only r
 
 See the [official module catalog and AI selection rules](docs/18-官方房间模块目录与AI自动选型.md), [Room dependency packaging policy](docs/19-v1房间依赖打包策略.md), and [extended module implementation record](docs/34-P0-P1-P2扩展模块实施记录.md).
 
+## Platform capabilities for batch AI Rooms
+
+The current development branch adds general-purpose runtime support for batch vision and long-document workflows: model roles and slots, bounded AI batches with retries, multi-file and persistent scoped-directory access, chunked Blobs, artifacts, recoverable jobs, Markdown-to-PDF conversion, sandboxed Web Workers, a per-tool authorized host/plugin bridge, and named credentials whose plaintext is never exposed to Room code. Batch-file and vision Rooms can ship `room-tests.json` scenarios that exercise real UI actions with local mocked AI responses. See the [platform capability record](docs/54-批量AI房间平台能力.md) for the API and security boundaries.
+
 ## Validation and builds
 
 ```powershell
@@ -105,7 +109,7 @@ sh scripts/linux/verify-pilot.sh release/linux/linux-unpacked/roomillion
 
 ## Platform status
 
-- **Windows x64:** `0.3.0-alpha.42` development release. Installer, portable folder ZIP, and single-file portable builds are supported.
+- **Windows x64:** `0.3.0-alpha.43` development release. Installer, portable folder ZIP, and single-file portable builds are supported.
 - **Generic Linux x64:** `0.3.0-alpha.36` technical preview. Automated smoke tests passed on WSL2 Ubuntu 24.04 with an empty PATH and no outbound network attempts. This does not replace validation on a specific UnionTech UOS release with real GPU, Chinese input, drag-and-drop, and native file dialogs.
 - **macOS:** no publishable artifact yet. Intel and Apple Silicon Git toolchains, packaging, icons, `.room` document association, signing, and notarization remain to be completed.
 

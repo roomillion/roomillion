@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
     openBinary: (options = {}) => ipcRenderer.invoke("room:binaryOpen", options),
     readBinary: (token, options = {}) => ipcRenderer.invoke("room:binaryRead", token, options),
     closeBinary: (token) => ipcRenderer.invoke("room:binaryClose", token),
+    pickMany: (options = {}) => ipcRenderer.invoke("room:filePickMany", options),
+    openDirectory: (options = {}) => ipcRenderer.invoke("room:directoryOpen", options),
+    listDirectoryGrants: () => ipcRenderer.invoke("room:directoryGrants"),
+    listDirectory: (grantId, options = {}) => ipcRenderer.invoke("room:directoryList", grantId, options),
+    readDirectoryFile: (grantId, relativePath, options = {}) => ipcRenderer.invoke("room:directoryRead", grantId, relativePath, options),
+    writeDirectoryFile: (grantId, relativePath, content) => ipcRenderer.invoke("room:directoryWrite", grantId, relativePath, content),
+    revokeDirectory: (grantId) => ipcRenderer.invoke("room:directoryRevoke", grantId),
     pickText: () => ipcRenderer.invoke("room:pickText"),
     pickBinary: (options = {}) => ipcRenderer.invoke("room:pickBinary", options),
     exportText: (suggestedName, content) => ipcRenderer.invoke("room:exportText", suggestedName, content),
@@ -41,18 +48,61 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
       return () => ipcRenderer.removeListener("room:largeTextTask", listener);
     }
   }),
+  blobs: Object.freeze({
+    list: (options = {}) => ipcRenderer.invoke("room:blobList", options),
+    put: (options, content) => ipcRenderer.invoke("room:blobPut", options, content),
+    begin: (options = {}) => ipcRenderer.invoke("room:blobBegin", options),
+    write: (token, content) => ipcRenderer.invoke("room:blobWrite", token, content),
+    finish: (token) => ipcRenderer.invoke("room:blobFinish", token),
+    abort: (token) => ipcRenderer.invoke("room:blobAbort", token),
+    read: (id, options = {}) => ipcRenderer.invoke("room:blobRead", id, options),
+    remove: (id) => ipcRenderer.invoke("room:blobRemove", id)
+  }),
+  artifacts: Object.freeze({
+    list: () => ipcRenderer.invoke("room:blobList", { kind: "artifact" }),
+    put: (name, content, options = {}) => ipcRenderer.invoke("room:blobPut", { ...options, name, kind: "artifact" }, content),
+    begin: (name, options = {}) => ipcRenderer.invoke("room:blobBegin", { ...options, name, kind: "artifact" }),
+    write: (token, content) => ipcRenderer.invoke("room:blobWrite", token, content),
+    finish: (token) => ipcRenderer.invoke("room:blobFinish", token),
+    abort: (token) => ipcRenderer.invoke("room:blobAbort", token),
+    read: (id, options = {}) => ipcRenderer.invoke("room:blobRead", id, options),
+    remove: (id) => ipcRenderer.invoke("room:blobRemove", id),
+    exportToDirectory: (id, grantId, relativePath) => ipcRenderer.invoke("room:artifactExportDirectory", id, grantId, relativePath)
+  }),
+  tools: Object.freeze({
+    list: () => ipcRenderer.invoke("room:toolList"),
+    call: (id, input = null) => ipcRenderer.invoke("room:toolCall", id, input)
+  }),
+  documents: Object.freeze({
+    markdownToPdf: (source, options = {}) => ipcRenderer.invoke("room:documentMarkdownToPdf", source, options)
+  }),
+  jobs: Object.freeze({
+    create: (input = {}) => ipcRenderer.invoke("room:jobCreate", input),
+    list: (options = {}) => ipcRenderer.invoke("room:jobList", options),
+    get: (id) => ipcRenderer.invoke("room:jobGet", id),
+    transition: (id, input = {}) => ipcRenderer.invoke("room:jobTransition", id, input),
+    recover: () => ipcRenderer.invoke("room:jobRecover")
+  }),
   ai: Object.freeze({
     embed: (texts, options = {}) => ipcRenderer.invoke("room:aiEmbed", texts, options),
     listModels: () => ipcRenderer.invoke("room:aiListModels"),
     getSelection: () => ipcRenderer.invoke("room:aiGetSelection"),
+    getSlotDefinitions: () => ipcRenderer.invoke("room:aiGetSlotDefinitions"),
+    getSlots: () => ipcRenderer.invoke("room:aiGetSlots"),
+    selectSlot: (slot, profileId) => ipcRenderer.invoke("room:aiSelectSlot", slot, profileId),
+    clearSlot: (slot) => ipcRenderer.invoke("room:aiClearSlot", slot),
     selectModel: (profileId) => ipcRenderer.invoke("room:aiSelectModel", profileId),
     generate: (prompt, options = {}) => ipcRenderer.invoke("room:aiGenerate", prompt, options),
+    batch: (requests, options = {}) => ipcRenderer.invoke("room:aiBatch", requests, options),
     onModelsChanged: (callback) => {
       if (typeof callback !== "function") throw new TypeError("模型目录监听器必须是函数");
       const listener = () => callback();
       ipcRenderer.on("room:aiModelsChanged", listener);
       return () => ipcRenderer.removeListener("room:aiModelsChanged", listener);
     }
+  }),
+  credentials: Object.freeze({
+    list: () => ipcRenderer.invoke("room:credentialList")
   }),
   network: Object.freeze({
     getStatus: () => ipcRenderer.invoke("room:networkGetStatus"),

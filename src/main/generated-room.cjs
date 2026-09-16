@@ -415,7 +415,8 @@ async function createGeneratedGame3dRoom({
   roomStore,
   roomId: requestedRoomId = null,
   version = "1.0.0",
-  selectedKeys
+  selectedKeys,
+  validateProgram
 }) {
   const validated = validateGame3dDefinition(definition);
   const token = crypto.randomUUID().replace(/-/g, "");
@@ -443,6 +444,7 @@ async function createGeneratedGame3dRoom({
     await fsp.writeFile(path.join(sourceRoot, "app", "styles.css"), generatedGame3dStyles(), "utf8");
     await fsp.writeFile(path.join(sourceRoot, "app", "definition.js"), `window.GAME_DEFINITION = ${JSON.stringify(validated)};\n`, "utf8");
     await fsp.writeFile(path.join(sourceRoot, "app", "app.js"), generatedGame3dAppJs(), "utf8");
+    if (typeof validateProgram === "function") await validateProgram({ programRoot: sourceRoot });
     await packDirectory(sourceRoot, packagePath);
     return await roomStore.installPackage(packagePath, {
       source: "local-generated",
@@ -463,7 +465,7 @@ function composedRoomPermissions(spec) {
   return permissions;
 }
 
-async function createComposedRoom({ spec, roomStore, roomId: requestedRoomId = null, version = "1.0.0", selectedKeys }) {
+async function createComposedRoom({ spec, roomStore, roomId: requestedRoomId = null, version = "1.0.0", selectedKeys, validateProgram }) {
   const validated = validateComposedRoomSpec(spec);
   const token = crypto.randomUUID().replace(/-/g, "");
   const roomId = requestedRoomId || `local.generated.${token}`;
@@ -490,6 +492,7 @@ async function createComposedRoom({ spec, roomStore, roomId: requestedRoomId = n
     await fsp.writeFile(path.join(sourceRoot, "app", "styles.css"), generatedComposedStyles(), "utf8");
     await fsp.writeFile(path.join(sourceRoot, "app", "definition.js"), `window.ROOM_SPEC = ${JSON.stringify(validated)};\n`, "utf8");
     await fsp.writeFile(path.join(sourceRoot, "app", "app.js"), generatedComposedAppJs(), "utf8");
+    if (typeof validateProgram === "function") await validateProgram({ programRoot: sourceRoot });
     await packDirectory(sourceRoot, packagePath);
     return await roomStore.installPackage(packagePath, {
       source: "local-generated",

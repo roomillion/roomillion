@@ -14,12 +14,12 @@
 
 ## 立即体验 MVP
 
-当前 Windows 开发版为 **0.3.0-alpha.42**，generic Linux x64 技术预览仍为 **0.3.0-alpha.36**，都不是稳定版。Windows 普通用户推荐安装版；安装到当前用户、不要求管理员权限，并注册 `.room` 文件关联。仍提供目录 ZIP 和单文件免安装版。构建产物采用统一命名：
+当前 Windows 开发版为 **0.3.0-alpha.43**，generic Linux x64 技术预览仍为 **0.3.0-alpha.36**，都不是稳定版。Windows 普通用户推荐安装版；安装到当前用户、不要求管理员权限，并注册 `.room` 文件关联。仍提供目录 ZIP 和单文件免安装版。构建产物采用统一命名：
 
 ```text
-release/Roomillion-0.3.0-alpha.42-Setup.exe
-release/Roomillion-0.3.0-alpha.42-Portable-Folder.zip
-release/Roomillion-0.3.0-alpha.42-Portable.exe
+release/Roomillion-0.3.0-alpha.43-Setup.exe
+release/Roomillion-0.3.0-alpha.43-Portable-Folder.zip
+release/Roomillion-0.3.0-alpha.43-Portable.exe
 release/linux/Roomillion-0.3.0-alpha.36-linux-x64.tar.xz
 release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 ```
@@ -53,7 +53,11 @@ AI 现在可以按需求从 39 个固定版本、许可证已登记的官方模�
 
 房间打包采用“公共层优先”：已经由工作台提供的包只记录官方模块能力，不复制进 `.room`；目录外依赖必须连同实际使用的纯 Web 资源、精确版本和许可证进入房间 `embedded/`。完整规则和 v1.0 冻结策略见 [19-v1房间依赖打包策略](docs/19-v1房间依赖打包策略.md)。
 
-验证和构建：
+## 批量 AI 房间平台能力
+
+当前开发分支增加了面向批量视觉与长文档工作的通用平台能力：多模型角色与槽位、1–8 有界并发 AI 批处理和重试、批量文件与持久目录授权、分块 Blob、制品、可恢复任务、Markdown→PDF、沙箱 Web Worker、逐项授权的宿主工具桥，以及不会向房间暴露明文的命名凭据。批量文件或视觉 AI 房间还可携带 `room-tests.json`，用本地 AI 模拟响应执行关键按钮与结果断言。完整接口和边界见 [54-批量AI房间平台能力](docs/54-批量AI房间平台能力.md)。
+
+## 验证和构建
 
 ```powershell
 npm test
@@ -181,7 +185,7 @@ npm run migration:verify-return -- --input "结果目录\migration-return" --rep
 ## 当前状态
 
 - 文档版本：`0.1-mvp`
-- 当前阶段：Windows x64 `0.3.0-alpha.42` 与 generic Linux x64 `0.3.0-alpha.36` 技术预览；指定 UOS 实机认证和 macOS 运行时仍待执行
+- 当前阶段：Windows x64 `0.3.0-alpha.43` 与 generic Linux x64 `0.3.0-alpha.36` 技术预览；指定 UOS 实机认证和 macOS 运行时仍待执行
 - 产品名称：千万间 Roomillion
 - 房间包统一扩展名：`.room`；内容和密码保护状态由包内格式安全识别
 - 版本号以 `package.json` 为准；二进制的大小、校验值和测试结果必须对应该版本，不沿用旧版本数字。

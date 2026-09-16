@@ -127,6 +127,24 @@ test("Pi AI adapter calls an OpenAI-compatible endpoint", async (t) => {
   assert.equal(result.model, "test-model");
 });
 
+test("Agent runtime forwards configurable provider retries and defaults to two", async () => {
+  const service = new AiService(os.tmpdir());
+  const profile = { id: "retry-profile", providerId: "custom-openai-compatible", name: "Retry", protocol: "openai-completions", baseUrl: "http://127.0.0.1:8000/v1", model: "retry-model" };
+  service.profiles.set(profile.id, profile);
+  service.sessionApiKeys.set(profile.id, "test-key");
+  const seen = [];
+  service.createRuntime = async () => ({
+    pi: {},
+    model: { id: profile.model, maxTokens: 8192 },
+    models: { streamSimple: (_model, _context, options) => { seen.push(options.maxRetries); return {}; } }
+  });
+  const defaultRuntime = await service.createAgentRuntime({ profileId: profile.id });
+  defaultRuntime.streamFn(defaultRuntime.model, { messages: [] });
+  const tunedRuntime = await service.createAgentRuntime({ profileId: profile.id, maxRetries: 4 });
+  tunedRuntime.streamFn(tunedRuntime.model, { messages: [] });
+  assert.deepEqual(seen, [2, 4]);
+  await assert.rejects(() => service.createAgentRuntime({ profileId: profile.id, maxRetries: 6 }), /0–5/);
+});
 test("AI completion accepts room token requests above 4000 and follows the selected model limit", async () => {
   const service = new AiService(os.tmpdir());
   const profile = {
@@ -502,6 +520,9 @@ test("multiple model profiles keep separate credentials and expose a sanitized r
   );
 
   await service.selectRoomModel("cn.zhibian.test.room", local.id);
+  await service.selectRoomModelSlot("cn.zhibian.test.room", "vision", daily.id);
+  await service.selectRoomModelSlot("cn.zhibian.test.room", "text-review", pro.id);
+  assert.equal(service.resolveRoomModelProfile("cn.zhibian.test.room", { slot: "vision" }), daily.id);
   const roomModels = await service.listRoomModels("cn.zhibian.test.room");
   assert.equal(roomModels.find((entry) => entry.id === local.id).isSelected, true);
   assert.equal(roomModels.find((entry) => entry.id === daily.id).isDefault, true);
@@ -518,6 +539,7 @@ test("multiple model profiles keep separate credentials and expose a sanitized r
   assert.equal(reloaded.sessionApiKeys.get(pro.id), "daily-key");
   assert.equal(reloaded.sessionApiKeys.has(local.id), false);
   assert.equal(reloaded.getRoomModelSelection("cn.zhibian.test.room").profileId, local.id);
+  assert.deepEqual(reloaded.getRoomModelSlots("cn.zhibian.test.room"), { vision: daily.id, "text-review": pro.id });
 
   await reloaded.deleteProfile(daily.id);
   assert.equal(reloaded.sessionApiKeys.get(pro.id), "daily-key");

@@ -18,8 +18,10 @@ const CUSTOM_ROOM_THEMES = Object.freeze(["emerald", "blue", "violet", "amber", 
 // Kept as a compatibility export. Room source capacity is now governed by disk and
 // package-format technical limits rather than three arbitrary character ceilings.
 const CUSTOM_FILE_LIMITS = Object.freeze({ html: Infinity, css: Infinity, javascript: Infinity, total: Infinity });
-const CUSTOM_FILE_PERMISSIONS = new Set(["pick", "export", "largeText"]);
+const CUSTOM_FILE_PERMISSIONS = new Set(["pick", "pickMany", "directoryRead", "directoryWrite", "export", "largeText"]);
+const CUSTOM_AI_ROLES = new Set(["general", "coding", "vision"]);
 const CUSTOM_BROWSER_PERMISSIONS = new Set(["navigate", "download"]);
+const CUSTOM_COMPUTE_PERMISSIONS = new Set(["worker"]);
 const CUSTOM_RUNTIME_RAPIER_MARKER = "/* zhibian-runtime:rapier-ready@1 */";
 const MODULE_GLOBAL_ALIASES = Object.freeze({
   "data.search@1": "Fuse",
@@ -78,7 +80,7 @@ function analyzeCss(css) {
   return issues;
 }
 
-function analyzeJavascript(javascript, allowedNetworkOrigins = [], browserCapabilities = []) {
+function analyzeJavascript(javascript, allowedNetworkOrigins = [], browserCapabilities = [], computeCapabilities = []) {
   const issues = [];
   try {
     // bootstrap.mjs loads every JavaScript source as an ES module. vm.Script cannot
@@ -101,11 +103,12 @@ function analyzeJavascript(javascript, allowedNetworkOrigins = [], browserCapabi
     ["js.dynamic-import", /\bimport\s*\(/, "app.js 不允许自行动态导入模块；使用 hostModules"],
     ["js.node", /(?:\brequire\s*\(|\bprocess\s*\.|\bBuffer\s*\.|\bmodule\.exports\b|\bnode:|\bchild_process\b|\belectron\b)/, "不允许 Node.js、Electron 或系统命令能力"],
     ["js.network", /(?:\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b|\bnavigator\.sendBeacon\b|\bRTCPeerConnection\b)/, "不允许直接网络 API"],
-    ["js.worker", /(?:\bServiceWorker\b|\bSharedWorker\b|\bWorker\s*\(|\bimportScripts\s*\()/, "不允许创建 Worker 或注册 Service Worker"],
+    ["js.privileged-worker", /(?:\bServiceWorker\b|\bSharedWorker\b|\bserviceWorker\b|\bimportScripts\s*\()/, "不允许 Service Worker、SharedWorker 或 importScripts"],
     ["js.navigation", /(?:\bwindow\.open\s*\(|\blocation\.(?:assign|replace)\s*\(|\blocation\.href\s*=)/, "不允许打开窗口或导航"],
     ["js.html-injection", /(?:\.innerHTML\s*=|\.outerHTML\s*=|insertAdjacentHTML\s*\(|document\.write\s*\()/, "不允许 HTML 字符串注入；请使用 textContent 和 DOM API"],
     ["js.volatile-storage", /\b(?:localStorage|sessionStorage)\s*\.\s*(?:setItem|removeItem|clear)\s*\(/, "房间持久化必须使用 await window.room.storage.get/set 或 room.db，并声明 database:true；浏览器存储不会随房间备份迁移"]
   ];
+  if (!computeCapabilities.includes("worker") && /\bWorker\s*\(/.test(javascript)) issues.push(issue("js.worker-undeclared", "创建 Web Worker 必须声明 capabilities.compute: [\"worker\"]", "app.js"));
   for (const [code, pattern, message] of rules) {
     const match = pattern.exec(javascript);
     if (match) issues.push({ ...issue(code, message, "app.js"), line: javascript.slice(0, match.index).split("\n").length });
@@ -131,9 +134,27 @@ function analyzeJavascript(javascript, allowedNetworkOrigins = [], browserCapabi
   return issues;
 }
 
+function normalizeModelSlots(input) {
+  if (input === undefined) return {};
+  if (!isPlainObject(input) || Object.keys(input).length > 16) throw new Error("capabilities.modelSlots 必须是最多 16 项的对象");
+  const slots = {};
+  for (const [rawName, rawValue] of Object.entries(input)) {
+    const name = String(rawName).trim();
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(name)) throw new Error(`模型槽位名称无效：${name}`);
+    const value = typeof rawValue === "string" ? { role: rawValue } : rawValue;
+    if (!isPlainObject(value) || !CUSTOM_AI_ROLES.has(value.role)) throw new Error(`模型槽位 ${name} 的角色无效`);
+    slots[name] = {
+      role: value.role,
+      requiresImages: value.requiresImages === true || value.role === "vision",
+      minimumContextWindow: Math.max(0, Math.min(10_000_000, Number(value.minimumContextWindow) || 0))
+    };
+  }
+  return slots;
+}
+
 function normalizeCapabilities(input) {
   const source = isPlainObject(input) ? input : {};
-  const files = source.files === undefined ? [] : uniqueStrings(source.files, 3, "capabilities.files");
+  const files = source.files === undefined ? [] : uniqueStrings(source.files, 8, "capabilities.files");
   for (const permission of files) if (!CUSTOM_FILE_PERMISSIONS.has(permission)) throw new Error(`不支持的文件能力：${permission}`);
   const rawNetwork = source.network === undefined ? [] : uniqueStrings(source.network, Number.MAX_SAFE_INTEGER, "capabilities.network");
   const network = rawNetwork.map(normalizeNetworkOrigin);
@@ -141,12 +162,29 @@ function normalizeCapabilities(input) {
   const browser = source.browser === undefined ? [] : uniqueStrings(source.browser, 2, "capabilities.browser");
   for (const permission of browser) if (!CUSTOM_BROWSER_PERMISSIONS.has(permission)) throw new Error(`不支持的浏览器能力：${permission}`);
   if (browser.includes("download") && !browser.includes("navigate")) throw new Error("浏览器下载能力需要同时声明 navigate");
+  const credentials = source.credentials === undefined ? [] : uniqueStrings(source.credentials, 32, "capabilities.credentials");
+  for (const alias of credentials) if (!/^[a-z][a-z0-9-]{0,31}$/.test(alias)) throw new Error(`凭据别名无效：${alias}`);
+  const tools = source.tools === undefined ? [] : uniqueStrings(source.tools, 64, "capabilities.tools");
+  for (const toolId of tools) if (!/^[a-z][a-z0-9.-]{1,79}@\d+$/.test(toolId)) throw new Error(`房间工具 ID 无效：${toolId}`);
+  const compute = source.compute === undefined ? [] : uniqueStrings(source.compute, 1, "capabilities.compute");
+  for (const permission of compute) if (!CUSTOM_COMPUTE_PERMISSIONS.has(permission)) throw new Error(`不支持的计算能力：${permission}`);
+  const aiInput = isPlainObject(source.ai) ? source.ai : null;
+  const requestedRoles = aiInput?.roles ?? source.aiRoles ?? (source.ai === true ? ["general"] : []);
+  const aiRoles = uniqueStrings(requestedRoles, 3, "capabilities.ai.roles");
+  for (const role of aiRoles) if (!CUSTOM_AI_ROLES.has(role)) throw new Error(`不支持的 AI 角色：${role}`);
+  const modelSlots = normalizeModelSlots(aiInput?.slots ?? source.modelSlots);
+  for (const slot of Object.values(modelSlots)) if (!aiRoles.includes(slot.role)) aiRoles.push(slot.role);
   return {
     database: source.database === true,
     files,
-    ai: source.ai === true,
+    ai: aiRoles.length > 0,
+    aiRoles,
+    modelSlots,
     network,
-    browser
+    browser,
+    compute,
+    tools,
+    credentials
   };
 }
 
@@ -194,11 +232,11 @@ function inspectCustomRoomSpec(input) {
   const findings = [
     ...analyzeHtml(spec.files.html),
     ...analyzeCss(spec.files.css),
-    ...analyzeJavascript(spec.files.javascript, spec.capabilities.network, spec.capabilities.browser),
+    ...analyzeJavascript(spec.files.javascript, spec.capabilities.network, spec.capabilities.browser, spec.capabilities.compute),
     ...Object.entries(spec.files).flatMap(([filePath, content]) => {
       if (["html", "css", "javascript"].includes(filePath)) return [];
       const extension = path.posix.extname(filePath).toLowerCase();
-      if ([".js", ".mjs"].includes(extension)) return analyzeJavascript(content, spec.capabilities.network, spec.capabilities.browser).map((item) => ({ ...item, file: filePath }));
+      if ([".js", ".mjs"].includes(extension)) return analyzeJavascript(content, spec.capabilities.network, spec.capabilities.browser, spec.capabilities.compute).map((item) => ({ ...item, file: filePath }));
       if (extension === ".css") return analyzeCss(content).map((item) => ({ ...item, file: filePath }));
       if (extension === ".html") return analyzeHtml(content).map((item) => ({ ...item, file: filePath }));
       return [];
@@ -264,8 +302,11 @@ function customRoomPermissions(spec) {
   const permissions = { network: [...spec.capabilities.network] };
   if (spec.capabilities.database) permissions.database = "private";
   if (spec.capabilities.files.length) permissions.files = [...spec.capabilities.files];
-  if (spec.capabilities.ai) permissions.ai = { roles: ["general"], capabilities: ["text"] };
+  if (spec.capabilities.ai) permissions.ai = { roles: [...spec.capabilities.aiRoles], ...(Object.keys(spec.capabilities.modelSlots).length ? { slots: structuredClone(spec.capabilities.modelSlots) } : {}) };
   if (spec.capabilities.browser.length) permissions.browser = [...spec.capabilities.browser];
+  if (spec.capabilities.compute.length) permissions.compute = [...spec.capabilities.compute];
+  if (spec.capabilities.tools.length) permissions.tools = [...spec.capabilities.tools];
+  if (spec.capabilities.credentials.length) permissions.credentials = [...spec.capabilities.credentials];
   return permissions;
 }
 

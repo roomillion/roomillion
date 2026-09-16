@@ -152,3 +152,20 @@ test("manifest validates sharing options for AI modification", () => {
   nonObject.sharing = true;
   assert.throws(() => validateManifest(nonObject), /sharing 必须是对象/);
 });
+
+test("manifest validates worker, host tool and named credential capabilities", () => {
+  const manifest = validManifest();
+  manifest.permissions.compute = ["worker"];
+  manifest.permissions.tools = ["document.markdown-to-pdf@1"];
+  manifest.permissions.credentials = ["book-api"];
+  const checked = validateManifest(manifest);
+  assert.deepEqual(checked.permissions.compute, ["worker"]);
+  assert.deepEqual(checked.permissions.tools, ["document.markdown-to-pdf@1"]);
+  assert.deepEqual(checked.permissions.credentials, ["book-api"]);
+  const invalidTool = validManifest(); invalidTool.permissions.tools = ["shell"];
+  assert.throws(() => validateManifest(invalidTool), /工具 ID/);
+  const invalidCredential = validManifest(); invalidCredential.permissions.credentials = ["Book Key"];
+  assert.throws(() => validateManifest(invalidCredential), /凭据别名/);
+  const invalidCompute = validManifest(); invalidCompute.permissions.compute = ["native"];
+  assert.throws(() => validateManifest(invalidCompute), /计算权限/);
+});

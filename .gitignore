@@ -20,3 +20,4 @@ resources/examples/*.room
 /permission-backups/
 /user-data/
 /portable-data/
+/.codex-remote-attachments/

@@ -23,6 +23,33 @@ const PERMISSION_DEFINITIONS = Object.freeze({
     risk: "medium",
     required: false
   }),
+  "files.pickMany": Object.freeze({
+    key: "files.pickMany",
+    domain: "files",
+    value: "pickMany",
+    title: "一次读取多个所选文件",
+    description: "由你在系统窗口中批量选择文件；房间只获得临时文件令牌。",
+    risk: "medium",
+    required: false
+  }),
+  "files.directoryRead": Object.freeze({
+    key: "files.directoryRead",
+    domain: "files",
+    value: "directoryRead",
+    title: "读取所选文件夹",
+    description: "由你选择一个文件夹；房间可以通过不含真实路径的授权句柄分页读取其中的文件。",
+    risk: "medium",
+    required: false
+  }),
+  "files.directoryWrite": Object.freeze({
+    key: "files.directoryWrite",
+    domain: "files",
+    value: "directoryWrite",
+    title: "写入所选输出文件夹",
+    description: "由你选择一个输出文件夹；房间可以在该范围内连续创建制品，不会访问其他路径。",
+    risk: "medium",
+    required: false
+  }),
   "files.export": Object.freeze({
     key: "files.export",
     domain: "files",
@@ -68,6 +95,15 @@ const PERMISSION_DEFINITIONS = Object.freeze({
     risk: "high",
     required: false
   }),
+  "compute.worker": Object.freeze({
+    key: "compute.worker",
+    domain: "compute",
+    value: "worker",
+    title: "运行沙箱计算 Worker",
+    description: "允许房间用同源 Web Worker 处理批量排序、合并和计算任务；Worker 不能访问 Node.js 或 Electron。",
+    risk: "low",
+    required: false
+  }),
   "browser.navigate": Object.freeze({
     key: "browser.navigate",
     domain: "browser",
@@ -89,6 +125,20 @@ const PERMISSION_DEFINITIONS = Object.freeze({
 });
 
 const NETWORK_PERMISSION_PREFIX = "network:";
+const TOOL_PERMISSION_PREFIX = "tool:";
+const CREDENTIAL_PERMISSION_PREFIX = "credential:";
+
+function credentialPermissionKey(alias) {
+  const value = String(alias || "").trim();
+  if (!/^[a-z][a-z0-9-]{0,31}$/.test(value)) throw new Error(`凭据别名无效：${value || "(空)"}`);
+  return `${CREDENTIAL_PERMISSION_PREFIX}${value}`;
+}
+
+function toolPermissionKey(toolId) {
+  const id = String(toolId || "").trim();
+  if (!/^[a-z][a-z0-9.-]{1,79}@\d+$/.test(id)) throw new Error(`房间工具 ID 无效：${id || "(空)"}`);
+  return `${TOOL_PERMISSION_PREFIX}${id}`;
+}
 
 function networkPermissionKey(origin) {
   return `${NETWORK_PERMISSION_PREFIX}${normalizeNetworkOrigin(origin)}`;
@@ -96,6 +146,14 @@ function networkPermissionKey(origin) {
 
 function permissionDefinition(key) {
   if (PERMISSION_DEFINITIONS[key]) return PERMISSION_DEFINITIONS[key];
+  if (typeof key === "string" && key.startsWith(CREDENTIAL_PERMISSION_PREFIX)) {
+    const alias = credentialPermissionKey(key.slice(CREDENTIAL_PERMISSION_PREFIX.length)).slice(CREDENTIAL_PERMISSION_PREFIX.length);
+    return Object.freeze({ key: credentialPermissionKey(alias), domain: "credentials", value: alias, title: `使用本机凭据 ${alias}`, description: "允许房间在匹配的受控网络请求中引用这个凭据；明文不会返回给房间。", risk: "high", required: false });
+  }
+  if (typeof key === "string" && key.startsWith(TOOL_PERMISSION_PREFIX)) {
+    const toolId = toolPermissionKey(key.slice(TOOL_PERMISSION_PREFIX.length)).slice(TOOL_PERMISSION_PREFIX.length);
+    return Object.freeze({ key: toolPermissionKey(toolId), domain: "tools", value: toolId, title: `使用宿主工具 ${toolId}`, description: "允许房间把明确的结构化输入交给这个本机工具；工具返回结构化结果，不向房间开放系统权限。", risk: "medium", required: false });
+  }
   if (typeof key === "string" && key.startsWith(NETWORK_PERMISSION_PREFIX)) {
     const origin = normalizeNetworkOrigin(key.slice(NETWORK_PERMISSION_PREFIX.length));
     return Object.freeze({
@@ -130,12 +188,20 @@ function keysForPermissions(permissions = {}) {
       if (PERMISSION_DEFINITIONS[key]) keys.push(key);
     }
   }
+  if (Array.isArray(permissions.compute)) {
+    for (const value of permissions.compute) {
+      const key = `compute.${value}`;
+      if (PERMISSION_DEFINITIONS[key]) keys.push(key);
+    }
+  }
   if (Array.isArray(permissions.browser)) {
     for (const value of permissions.browser) {
       const key = `browser.${value}`;
       if (PERMISSION_DEFINITIONS[key]) keys.push(key);
     }
   }
+  if (Array.isArray(permissions.credentials)) for (const alias of permissions.credentials) keys.push(credentialPermissionKey(alias));
+  if (Array.isArray(permissions.tools)) for (const toolId of permissions.tools) keys.push(toolPermissionKey(toolId));
   if (Array.isArray(permissions.network)) {
     for (const origin of permissions.network) keys.push(networkPermissionKey(origin));
   }
@@ -163,7 +229,16 @@ function permissionsForKeys(requestedPermissions, selectedKeys) {
   const roles = [...selected]
     .filter((key) => key.startsWith("ai."))
     .map((key) => key.slice("ai.".length));
-  if (roles.length) granted.ai = { roles };
+  if (roles.length) {
+    const slots = requestedPermissions.ai?.slots && typeof requestedPermissions.ai.slots === "object"
+      ? Object.fromEntries(Object.entries(requestedPermissions.ai.slots).filter(([, slot]) => roles.includes(slot.role)))
+      : null;
+    granted.ai = { roles, ...(slots && Object.keys(slots).length ? { slots: clone(slots) } : {}) };
+  }
+  const compute = [...selected]
+    .filter((key) => key.startsWith("compute."))
+    .map((key) => key.slice("compute.".length));
+  if (compute.length) granted.compute = compute;
   const browser = [...selected]
     .filter((key) => key.startsWith("browser."))
     .map((key) => key.slice("browser.".length));
@@ -171,6 +246,14 @@ function permissionsForKeys(requestedPermissions, selectedKeys) {
     throw new Error("浏览器下载权限需要同时授予浏览网页权限");
   }
   if (browser.length) granted.browser = browser;
+  const credentials = [...selected]
+    .filter((key) => key.startsWith(CREDENTIAL_PERMISSION_PREFIX))
+    .map((key) => key.slice(CREDENTIAL_PERMISSION_PREFIX.length));
+  if (credentials.length) granted.credentials = credentials;
+  const tools = [...selected]
+    .filter((key) => key.startsWith(TOOL_PERMISSION_PREFIX))
+    .map((key) => key.slice(TOOL_PERMISSION_PREFIX.length));
+  if (tools.length) granted.tools = tools;
   const network = [...selected]
     .filter((key) => key.startsWith(NETWORK_PERMISSION_PREFIX))
     .map((key) => key.slice(NETWORK_PERMISSION_PREFIX.length));
@@ -275,7 +358,10 @@ class PermissionService {
     if (domain === "database") return permissions.database === "private";
     if (domain === "files") return Array.isArray(permissions.files) && permissions.files.includes(value);
     if (domain === "ai") return Boolean(permissions.ai?.roles?.includes(value) || (!value && permissions.ai?.roles?.length));
+    if (domain === "compute") return Array.isArray(permissions.compute) && (!value || permissions.compute.includes(value));
     if (domain === "browser") return Array.isArray(permissions.browser) && (!value || permissions.browser.includes(value));
+    if (domain === "credentials") return Array.isArray(permissions.credentials) && (!value || permissions.credentials.includes(value));
+    if (domain === "tools") return Array.isArray(permissions.tools) && (!value || permissions.tools.includes(value));
     if (domain === "network") {
       if (!Array.isArray(permissions.network)) return false;
       if (!value) return permissions.network.length > 0;
@@ -287,11 +373,13 @@ class PermissionService {
 
 module.exports = {
   PERMISSION_DEFINITIONS,
+  credentialPermissionKey,
   PermissionService,
   keysForPermissions,
   networkPermissionKey,
   permissionDefinition,
   permissionDiff,
   permissionItems,
-  permissionsForKeys
+  permissionsForKeys,
+  toolPermissionKey
 };

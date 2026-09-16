@@ -10,8 +10,17 @@ const { RoomStore } = require("../src/main/room-store.cjs");
 const { readProjectFile } = require("../src/main/project-source.cjs");
 const { RoomAgentService: ProductionRoomAgentService, compactAgentContext } = require("../src/main/room-agent-service.cjs");
 // Unit tests isolate Electron; the real subprocess validator has separate smoke coverage.
+const runtimeStub = async () => ({
+  passed: true,
+  kind: "unit-test-stub",
+  checks: [
+    { id: "startup", passed: true },
+    { id: "reload", passed: true },
+    { id: "interactions", passed: true, tested: ["测试按钮"], skipped: [] }
+  ]
+});
 class RoomAgentService extends ProductionRoomAgentService {
-  constructor(options) { super({ runtimeValidator: async () => ({ passed: true, kind: "unit-test-stub" }), ...options }); }
+  constructor(options) { super({ runtimeValidator: runtimeStub, installedProgramValidator: runtimeStub, ...options }); }
 }
 const { getTestGitToolchain } = require("../test-support/bundled-git.cjs");
 
@@ -35,7 +44,7 @@ test("project migration requires assessment, explicit mode and approval; origina
   const pi = await import("@earendil-works/pi-ai");
   const tools = service.createTools(session, { pi });
   const invoke = (name, args) => tools.find(tool => tool.name === name).execute("test", args, new AbortController().signal);
-  const plan = { ...Object.fromEntries(["overview", "features", "usage", "data", "permissions", "steps", "acceptance", "limitations"].map(key => [key, "测试迁移方案说明：保留原来的游戏交互。"])), usesAi: false };
+  const plan = { summary: "测试迁移方案：保留原来的游戏交互。", features: "保留核心玩法并适配房间运行环境。", acceptance: "打开房间后主要操作可用且测试通过。", usesAi: false };
   session.workflow.answered = true;
   await assert.rejects(invoke("propose_room_plan", plan), /评估/);
   const assessment = { recommendation: "unsupported", ...Object.fromEntries(["summary", "evidence", "preserved", "changes", "dependencies", "risks", "acceptance"].map(key => [key, "测试评估说明：需检查原项目差异。 "])) };
@@ -47,11 +56,11 @@ test("project migration requires assessment, explicit mode and approval; origina
   await invoke("assess_project_migration", { ...assessment, recommendation: "refactor" });
   await assert.rejects(invoke("propose_room_plan", { ...plan, migrationMode: "adapt" }), /需要重构/);
   await invoke("propose_room_plan", { ...plan, migrationMode: "refactor" });
-  await assert.rejects(invoke("draft_custom_room", { appSpecJson: JSON.stringify(freeBilliardsSpec()) }), /用户确认/);
+  await assert.rejects(saveCustomDraft(tools, freeBilliardsSpec()), /用户确认/);
   service.run = async () => {};
   await service.send(session.id, { approvePlanId: session.workflow.plan.id });
-  await assert.rejects(invoke("build_room", {}), /自由房间/);
-  await invoke("draft_custom_room", { appSpecJson: JSON.stringify(freeBilliardsSpec()) });
+  assert.equal(tools.some((tool) => ["build_room", "build_3d_room", "draft_custom_room"].includes(tool.name)), false);
+  await saveCustomDraft(tools, freeBilliardsSpec());
   await invoke("test_custom_room", {});
   await invoke("install_custom_room", {});
   assert.ok(session.roomId);
@@ -153,7 +162,7 @@ test("room program inspection includes multi-file modules and update drops obsol
   assert.match(source.content, /multi-file/);
   const updated = freeBilliardsSpec();
   updated.capabilities.files = ["pick"];
-  await tools.find((tool) => tool.name === "draft_custom_room").execute("draft", { appSpecJson: JSON.stringify(updated) }, new AbortController().signal);
+  await saveCustomDraft(tools, updated);
   await tools.find((tool) => tool.name === "test_custom_room").execute("test", {}, new AbortController().signal);
   await tools.find((tool) => tool.name === "install_custom_room").execute("install", {}, new AbortController().signal);
   assert.deepEqual(store.getRoom(built.room.id).grantedPermissions.files, ["pick"]);
@@ -212,6 +221,31 @@ test("Agent context compaction removes old thinking signatures and saved source 
   assert.match(serialized, /内容已由 Harness 保存/);
 });
 
+test("Agent context keeps recent file evidence when the user resumes after an error", async () => {
+  const compacted = compactAgentContext([
+    { role: "user", content: "很早以前的需求", timestamp: 1 },
+    { role: "assistant", content: [{ type: "toolCall", id: "stale-read", name: "read_current_room_file", arguments: { path: "old.js" } }], timestamp: 2 },
+    { role: "toolResult", toolCallId: "stale-read", toolName: "read_current_room_file", content: [{ type: "text", text: "STALE_FILE_EVIDENCE" }], timestamp: 3 },
+    { role: "user", content: "确认方案", timestamp: 4 },
+    { role: "assistant", content: [{ type: "text", text: "开始实施" }], timestamp: 5 },
+    { role: "user", content: "创建房间", timestamp: 6 },
+    { role: "assistant", content: [{ type: "toolCall", id: "recent-read", name: "read_current_room_file", arguments: { path: "app/app.js" } }], stopReason: "toolUse", timestamp: 7 },
+    { role: "toolResult", toolCallId: "recent-read", toolName: "read_current_room_file", content: [{ type: "text", text: "const PRESERVED_ACROSS_RESUME = true;" }], timestamp: 8 },
+    { role: "assistant", content: [{ type: "text", text: "网关临时失败" }], stopReason: "error", timestamp: 9 },
+    { role: "user", content: "继续", timestamp: 10 }
+  ]);
+  const serialized = JSON.stringify(compacted);
+  assert.match(serialized, /PRESERVED_ACROSS_RESUME/);
+  assert.match(serialized, /recent-read/);
+  assert.match(serialized, /继续/);
+  assert.doesNotMatch(serialized, /STALE_FILE_EVIDENCE/);
+  for (const message of compacted.filter((item) => item.role === "assistant")) {
+    assert.equal(Number.isFinite(message.usage?.totalTokens), true);
+  }
+  const agentModule = await import("@earendil-works/pi-agent-core");
+  assert.doesNotThrow(() => agentModule.estimateContextTokens(compacted));
+});
+
 test("slash commands expose harness status, switch models and persist semantic compaction", async t => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-agent-commands-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
@@ -235,6 +269,8 @@ test("slash commands expose harness status, switch models and persist semantic c
   await service.send(session.id, "/model second");
   assert.equal(service.getSession(session.id).profileId, "second");
   assert.match((await service.send(session.id, "/context")).session.messages.at(-1).content, /tokens/);
+  const tuned = await service.send(session.id, "/runtime thinking=high retries=3");
+  assert.deepEqual(tuned.session.runtimeOptions, { thinkingLevel: "high", maxRetries: 3 });
   const compacted = await service.send(session.id, "/compact");
   assert.equal(compacted.session.context.hasSummary, true);
   assert.equal(compacted.session.context.compaction.count, 1);
@@ -266,10 +302,16 @@ test("implementation can delegate multiple read-only reviews to child Pi agents"
   const store = await new RoomStore(root).init();
   const profile = { id: "test", name: "Test", model: "test", hasSessionKey: true };
   let childTools = [];
+  let childUsageWasNormalized = false;
   class ChildAgent {
     constructor(options) { this.options = options; this.listeners = []; this.state = { messages: [] }; childTools = options.initialState.tools.map((tool) => tool.name); }
     subscribe(listener) { this.listeners.push(listener); }
-    async prompt(task) { this.state.messages.push({ role: "user", content: task }, { role: "assistant", content: [{ type: "text", text: "结论：修改点可行。证据：入口已核对。风险：需回归。建议：先局部修复再测试。" }] }); }
+    async prompt(task) {
+      const intermediate = { role: "assistant", content: [{ type: "toolCall", id: "inspect", name: "inspect_current_room", arguments: {} }], stopReason: "toolUse", timestamp: Date.now() };
+      for (const listener of this.listeners) await listener({ type: "message_end", message: intermediate });
+      childUsageWasNormalized = intermediate.usage?.totalTokens === 0;
+      this.state.messages.push({ role: "user", content: task }, intermediate, { role: "assistant", content: [{ type: "text", text: "结论：修改点可行。证据：入口已核对。风险：需回归。建议：先局部修复再测试。" }] });
+    }
     abort() {}
   }
   const service = await new RoomAgentService({ roomStore: store, aiService: { getPublicProfile: () => profile } }).init();
@@ -282,6 +324,7 @@ test("implementation can delegate multiple read-only reviews to child Pi agents"
   const invoke = () => tool.execute("delegate", { role: "代码审查", task: "检查当前实现可能遗漏的回归场景并给出证据" }, new AbortController().signal);
   assert.match((await invoke()).content[0].text, /修改点可行/);
   assert.deepEqual(childTools.sort(), ["inspect_current_room", "inspect_room_capabilities", "inspect_source_project", "read_current_room_file", "read_source_project_file"].sort());
+  assert.equal(childUsageWasNormalized, true);
   assert.equal(session.subagents.at(-1).status, "complete");
   await invoke(); await invoke(); await invoke();
   assert.equal(session.subagents.length, 4);
@@ -316,7 +359,7 @@ test("AI rooms require explicit test consent and use only the selected model whe
   const spec = freeBilliardsSpec();
   spec.capabilities.ai = true;
   spec.files.javascript += `\ndocument.getElementById("restart").addEventListener("dblclick",async()=>{await window.room.ai.generate("测试")});`;
-  await tools.find((tool) => tool.name === "draft_custom_room").execute("draft", { appSpecJson: JSON.stringify(spec) }, new AbortController().signal);
+  await saveCustomDraft(tools, spec);
   const tested = await tools.find((tool) => tool.name === "test_custom_room").execute("test", {}, new AbortController().signal);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].profileId, "room-test");
@@ -334,7 +377,7 @@ test("runtime errors block install and tool generation streams report progress a
   const pi = await import("@earendil-works/pi-ai");
   const tools = service.createTools(session, { pi });
   const invoke = (name, params) => tools.find(tool => tool.name === name).execute("test", params, new AbortController().signal);
-  await invoke("draft_custom_room", { appSpecJson: JSON.stringify(freeBilliardsSpec()) });
+  await saveCustomDraft(tools, freeBilliardsSpec());
   await assert.rejects(invoke("test_custom_room", {}), /缺少 DOM/);
   await assert.rejects(invoke("install_custom_room", {}), /尚未通过测试/);
   assert.equal(store.listRooms().length, 0);
@@ -371,6 +414,33 @@ test("missing provider usage is normalized before Pi starts the next tool turn",
   assert.equal(hydrated[0].usage.totalTokens, 0);
 });
 
+test("failed agent_end persists the complete transcript instead of only the failure message", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-failed-transcript-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const store = await new RoomStore(root).init();
+  const service = await new RoomAgentService({ roomStore: store, aiService: { getPublicProfile: () => null } }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  const failure = { role: "assistant", content: [{ type: "text", text: "临时网关错误" }], stopReason: "error", timestamp: 5 };
+  const completeTranscript = [
+    { role: "user", content: "创建一个房间", timestamp: 1 },
+    { role: "assistant", content: [{ type: "toolCall", id: "read-source", name: "read_source_project_file", arguments: { path: "src/app.js" } }], stopReason: "toolUse", timestamp: 2 },
+    { role: "toolResult", toolCallId: "read-source", toolName: "read_source_project_file", content: [{ type: "text", text: "const SOURCE_EVIDENCE = true;" }], timestamp: 3 },
+    { role: "user", content: "按方案继续", timestamp: 4 },
+    failure
+  ];
+  session.status = "error";
+  const agent = { state: { messages: completeTranscript } };
+  await service.handleAgentEvent(session, {}, agent, { type: "agent_end", messages: [failure] }, {});
+  assert.equal(session.agentMessages.length, completeTranscript.length);
+  assert.match(JSON.stringify(session.agentMessages), /SOURCE_EVIDENCE/);
+  assert.equal(session.agentMessages.at(-1).usage.totalTokens, 0);
+
+  const restored = await new RoomAgentService({ roomStore: store, aiService: { getPublicProfile: () => null } }).init();
+  t.after(() => restored.dispose());
+  assert.match(JSON.stringify(restored.requireSession(session.id).agentMessages), /SOURCE_EVIDENCE/);
+});
+
 test("manual conversation titles persist and automatic titles follow built rooms", async (t) => {
   const dataRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-title-"));
   t.after(() => fsp.rm(dataRoot, { recursive: true, force: true }));
@@ -392,58 +462,24 @@ test("manual conversation titles persist and automatic titles follow built rooms
   assert.equal(restoredSession.title, "我的游戏");
 });
 
-function roomSpec({ modified = false } = {}) {
+function projectRoomSpec({ modified = false } = {}) {
+  const name = modified ? "项目风险与问题中心" : "项目问题跟踪中心";
+  const riskField = modified ? '<label>风险说明<textarea id="risk"></textarea></label>' : "";
   return {
-    specVersion: "room-spec@1",
-    kind: "composed",
-    name: modified ? "项目风险与问题中心" : "项目问题跟踪中心",
-    description: "集中登记、分析和跟踪项目问题，支持离线统计与数据交换",
+    formatVersion: "room-app@1",
+    kind: "custom",
+    name,
+    description: "集中登记、搜索和跟踪项目问题，并可导出本地数据",
     theme: modified ? "violet" : "blue",
-    data: [{
-      id: "issues",
-      label: "项目问题",
-      fields: [
-        { key: "title", label: "问题标题", type: "text", required: true },
-        { key: "owner", label: "负责人", type: "text", required: false },
-        { key: "status", label: "处理状态", type: "select", required: true, options: ["待处理", "处理中", "已解决"] },
-        { key: "priority", label: "优先级", type: "select", required: true, options: ["高", "中", "低"] },
-        { key: "cost", label: "影响金额", type: "number", required: false },
-        { key: "deadline", label: "截止日期", type: "date", required: false },
-        ...(modified ? [{ key: "risk", label: "风险说明", type: "textarea", required: false }] : [])
-      ],
-      seed: []
-    }],
-    actions: [
-      { id: "resolve", type: "set-field", label: "标记解决", source: "issues", field: "status", value: "已解决", tone: "success" },
-      { id: "remove", type: "delete", label: "删除", source: "issues", tone: "danger" }
-    ],
-    pages: [
-      {
-        id: "overview",
-        title: "项目概览",
-        layout: "grid",
-        columns: 2,
-        components: [
-          { id: "intro", type: "hero", title: modified ? "风险与问题中心" : "问题跟踪中心", text: "本地管理项目问题", badge: "离线可用", span: 2 },
-          { id: "issue_stats", type: "stats", title: "问题统计", source: "issues", metrics: [{ label: "问题总数", aggregate: "count" }, { label: "影响金额", aggregate: "sum", field: "cost" }] },
-          { id: "status_chart", type: "chart", title: "状态分布", source: "issues", chart: "doughnut", groupBy: "status", aggregate: "count" }
-        ]
-      },
-      {
-        id: "manage",
-        title: "问题管理",
-        layout: "grid",
-        columns: 2,
-        components: [
-          { id: "issue_form", type: "form", title: "登记问题", source: "issues", fields: modified ? ["title", "owner", "status", "priority", "cost", "deadline", "risk"] : ["title", "owner", "status", "priority", "cost", "deadline"], submitLabel: "保存问题" },
-          { id: "issue_table", type: "table", title: "问题列表", source: "issues", fields: ["title", "owner", "status", "priority", "cost", "deadline"], search: true, actions: ["resolve", "remove"], span: 2 },
-          { id: "issue_export", type: "export", title: "导出数据", source: "issues", formats: ["xlsx", "csv", "json"] }
-        ]
-      }
-    ]
+    hostModules: [],
+    capabilities: { database: true, files: ["export"], ai: false, network: [], browser: [] },
+    files: {
+      html: `<main><h1>${name}</h1><section><strong id="count">0</strong><span>个问题</span></section><label>搜索<input id="search"></label><form id="form"><label>问题标题<input id="title" required></label>${riskField}<button type="submit">保存问题</button></form><table><thead><tr><th>问题</th><th>风险</th></tr></thead><tbody id="rows"></tbody></table><button id="export" type="button">导出数据</button></main>`,
+      css: "body{margin:0;font:16px system-ui;background:#f4f7fb;color:#172033}main{max-width:960px;margin:auto;padding:24px;display:grid;gap:16px}form,label{display:grid;gap:8px}input,textarea,button{font:inherit;padding:10px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #ccd5e0}@media(max-width:600px){main{padding:12px}}",
+      javascript: `const form=document.getElementById("form");const rows=document.getElementById("rows");const search=document.getElementById("search");let items=[];function render(){rows.replaceChildren();const query=search.value.trim().toLowerCase();for(const item of items.filter(entry=>entry.title.toLowerCase().includes(query))){const tr=document.createElement("tr");const title=document.createElement("td");title.textContent=item.title;const risk=document.createElement("td");risk.textContent=item.risk||"";tr.append(title,risk);rows.append(tr)}document.getElementById("count").textContent=String(items.length)}form.addEventListener("submit",async event=>{event.preventDefault();items.push({title:document.getElementById("title").value,risk:document.getElementById("risk")?.value||""});await window.room.storage.set("issues",items);form.reset();render()});search.addEventListener("input",render);document.getElementById("export").addEventListener("click",()=>window.room.files.exportText("issues.json",JSON.stringify(items)));async function init(){items=await window.room.storage.get("issues")||[];render()}init();`
+    }
   };
 }
-
 function freeBilliardsSpec() {
   return {
     formatVersion: "room-app@1",
@@ -461,7 +497,18 @@ function freeBilliardsSpec() {
   };
 }
 
-const testPlan = { ...Object.fromEntries(["overview", "features", "usage", "data", "permissions", "steps", "acceptance", "limitations"].map((key) => [key, `测试方案 ${key}：使用本地数据，不需要联网。`])), usesAi: false };
+async function saveCustomDraft(tools, spec) {
+  const signal = new AbortController().signal;
+  const { files, ...metadata } = spec;
+  const begin = await tools.find((tool) => tool.name === "begin_custom_room").execute("begin", metadata, signal);
+  let revision = JSON.parse(begin.content[0].text).revision;
+  for (const [file, content] of Object.entries(files)) {
+    const result = await tools.find((tool) => tool.name === "write_custom_room_file").execute("write", { file, content, expectedRevision: revision }, signal);
+    revision = JSON.parse(result.content[0].text).revision;
+  }
+  return revision;
+}
+const testPlan = { summary: "测试方案：使用本地数据。", features: "提供主要操作和本地保存能力。", acceptance: "房间可以启动、重载并完成基础按钮交互。", usesAi: false };
 
 async function sendApproved(service, sessionId, prompt) {
   await service.send(sessionId, prompt);
@@ -537,26 +584,36 @@ class FakeAgent {
     const preface = { role: "assistant", content: [{ type: "text", text: "我来设计并构建这个房间。" }], stopReason: "toolUse", timestamp: Date.now() };
     await this.emit({ type: "message_update", message: preface, assistantMessageEvent: { type: "text_delta", delta: "我来设计并构建这个房间。" } });
     await this.emit({ type: "message_end", message: preface });
-    const tool = this.options.initialState.tools.find((item) => item.name === "build_room");
-    const args = {
-      roomSpecJson: JSON.stringify(roomSpec({ modified: /风险说明/.test(prompt) })),
-      summary: /风险说明/.test(prompt) ? "增加风险说明并升级房间" : "构建项目问题跟踪中心"
-    };
-    const toolCallId = `call_${Date.now()}`;
-    await this.emit({ type: "tool_execution_start", toolCallId, toolName: tool.name, args });
-    let result;
-    try {
-      result = await tool.execute(toolCallId, args, new AbortController().signal, (partialResult) => {
-        this.emit({ type: "tool_execution_update", toolCallId, toolName: tool.name, args, partialResult });
-      });
-      await this.emit({ type: "tool_execution_end", toolCallId, toolName: tool.name, result, isError: false });
-    } catch (error) {
-      result = { content: [{ type: "text", text: error.message }], details: null };
-      await this.emit({ type: "tool_execution_end", toolCallId, toolName: tool.name, result, isError: true });
-      throw error;
-    }
-    this.state.messages.push(preface, { role: "toolResult", toolCallId, toolName: tool.name, content: result.content, isError: false, timestamp: Date.now() });
-    const final = { role: "assistant", content: [{ type: "text", text: "房间已经完成，可以直接打开，也可以继续告诉我怎么修改。" }], stopReason: "stop", timestamp: Date.now(), usage: { input: 100, output: 50 } };
+    const spec = projectRoomSpec({ modified: /风险说明/.test(prompt) });
+    const { files, ...metadata } = spec;
+    const invocations = [
+      ["begin_custom_room", metadata],
+      ...Object.entries(files).map(([file, content]) => ["write_custom_room_file", { file, content }]),
+      ["test_custom_room", {}],
+      ["install_custom_room", {}]
+    ];
+    let revision;
+    this.state.messages.push(preface);
+    for (const [toolName, args] of invocations) {
+      if (toolName === "write_custom_room_file") args.expectedRevision = revision;
+      const tool = this.options.initialState.tools.find((item) => item.name === toolName);
+      assert.ok(tool, `missing ${toolName}`);
+      const toolCallId = `${toolName}_${Date.now()}`;
+      await this.emit({ type: "tool_execution_start", toolCallId, toolName, args });
+      let result;
+      try {
+        result = await tool.execute(toolCallId, args, new AbortController().signal, (partialResult) => {
+          this.emit({ type: "tool_execution_update", toolCallId, toolName, args, partialResult });
+        });
+        await this.emit({ type: "tool_execution_end", toolCallId, toolName, result, isError: false });
+      } catch (error) {
+        result = { content: [{ type: "text", text: error.message }], details: null };
+        await this.emit({ type: "tool_execution_end", toolCallId, toolName, result, isError: true });
+        throw error;
+      }
+      revision = JSON.parse(result.content[0].text).revision || revision;
+      this.state.messages.push({ role: "toolResult", toolCallId, toolName, content: result.content, isError: false, timestamp: Date.now() });
+    }    const final = { role: "assistant", content: [{ type: "text", text: "房间已经完成，可以直接打开，也可以继续告诉我怎么修改。" }], stopReason: "stop", timestamp: Date.now(), usage: { input: 100, output: 50 } };
     this.state.messages.push(final);
     await this.emit({ type: "turn_start" });
     await this.emit({ type: "message_update", message: final, assistantMessageEvent: { type: "text_delta", delta: "房间已经完成，可以直接打开，也可以继续告诉我怎么修改。" } });
@@ -573,10 +630,10 @@ class CustomRoomFakeAgent extends FakeAgent {
     this.state.messages.push({ role: "user", content: prompt, timestamp: Date.now() });
     await this.emit({ type: "agent_start" });
     await this.emit({ type: "turn_start" });
-    assert.match(this.options.initialState.systemPrompt, /绝不能因为模板不支持就拒绝用户/);
+    assert.match(this.options.initialState.systemPrompt, /没有声明式或 3D 模板工具/);
     assert.match(this.options.initialState.systemPrompt, /begin_custom_room → write_custom_room_file → test_custom_room → install_custom_room/);
-    assert.match(this.options.initialState.systemPrompt, /多角色房间必须为每个角色保存各自的 profileId/);
-    assert.match(this.options.initialState.systemPrompt, /generate\(prompt, \{ profileId \}\)/);
+    assert.match(this.options.initialState.systemPrompt, /capabilities\.ai\.roles/);
+    assert.match(this.options.initialState.systemPrompt, /room\.ai\.listModels/);
     const { files, ...metadata } = freeBilliardsSpec();
     const invocations = [
       ["begin_custom_room", metadata],
@@ -652,7 +709,7 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   const internal = service.requireSession(created.id);
   const tools = service.createTools(internal, { pi });
   const propose = tools.find((tool) => tool.name === "propose_room_plan");
-  const mutating = tools.filter((tool) => !["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name));
+  const mutating = tools.filter((tool) => !["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "search_custom_room", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name));
   for (const tool of mutating) await assert.rejects(() => tool.execute("bypass", {}), /用户确认/);
   await assert.rejects(() => propose.execute("early", testPlan), /等待用户回答/);
   await service.send(created.id, "做一个台账，直接开始不要问我");
@@ -677,15 +734,24 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   assert.equal(restored.getSession(created.id).workflow.plan.id, revised.workflow.plan.id);
   await restored.send(created.id, { approvePlanId: revised.workflow.plan.id });
   const completed = await restored.waitForIdle(created.id);
-  assert.ok(completed.room);
+  assert.ok(completed.room, completed.error);
   assert.equal(completed.workflow.phase, "complete");
   assert.match(restored.requireSession(created.id).latestUserGoal, /台账/);
   await assert.rejects(() => restored.send(created.id, { approvePlanId: revised.workflow.plan.id }), /失效/);
   await restored.send(created.id, "现在加个筛选功能");
   const next = await restored.waitForIdle(created.id);
-  assert.equal(next.workflow.phase, "clarifying");
-  assert.equal(next.workflow.plan, undefined);
-  assert.equal(next.room.version, completed.room.version);
+  assert.equal(next.workflow.phase, "complete");
+  assert.equal(next.workflow.mode, "maintenance");
+  assert.notEqual(next.room.version, completed.room.version);
+  assert.equal(next.workflow.questions, null);
+  assert.equal(next.steps.some((step) => step.toolName === "ask_room_questions" && step.startedAt > completed.updatedAt), false);
+
+  const maintenanceTools = restored.createTools(restored.requireSession(created.id), { pi });
+  const ask = maintenanceTools.find((tool) => tool.name === "ask_room_questions");
+  const blockingQuestion = { selection: "single", topic: "other", title: "筛选条件为空时显示全部还是空列表？", options: ["显示全部", "显示空列表"], recommended: "显示全部", example: "清空筛选框后恢复全部记录" };
+  await assert.rejects(() => ask.execute("too-many", { questions: [blockingQuestion, { ...blockingQuestion, title: "是否默认记住筛选条件？" }] }, new AbortController().signal), /最多问 1 个/);
+  await ask.execute("one-question", { questions: [blockingQuestion] }, new AbortController().signal);
+  await assert.rejects(() => ask.execute("repeat-question", { questions: [blockingQuestion] }, new AbortController().signal), /此前已经问过/);
 });
 
 test("long question answers are not silently truncated and stopped runs stay stopped", async (t) => {
@@ -794,7 +860,8 @@ test("each room Agent session persists and uses its selected programming model",
       profileId,
       model: profiles.get(profileId).model,
       input: ["text"],
-      supportsImages: false
+      supportsImages: false,
+      supportsReasoning: true
     }),
     createAgentRuntime: async (options) => {
       runtimeOptions.push(options);
@@ -806,11 +873,15 @@ test("each room Agent session persists and uses its selected programming model",
       };
     }
   };
+  const agentOptions = [];
+  class ConfiguredFakeAgent extends FakeAgent {
+    constructor(agentOptionsInput) { super(agentOptionsInput); agentOptions.push(agentOptionsInput); }
+  }
   const options = {
     roomStore,
     aiService,
     gitService: { captureRoom: async () => {} },
-    agentModuleLoader: async () => ({ Agent: FakeAgent })
+    agentModuleLoader: async () => ({ Agent: ConfiguredFakeAgent })
   };
   const service = await new RoomAgentService(options).init();
   const created = await service.createSession({ profileId: "profile-fast" });
@@ -821,11 +892,15 @@ test("each room Agent session persists and uses its selected programming model",
   assert.equal(switched.provider.model, "mimo-v2.5-pro");
   await sendApproved(service, created.id, "创建一个问题跟踪中心");
   const completed = await service.waitForIdle(created.id);
-  assert.equal(completed.status, "idle");
+  assert.equal(completed.status, "idle", completed.error);
+  assert.equal(agentOptions.at(-1).initialState.thinkingLevel, "medium");
+  assert.equal(agentOptions.at(-1).toolExecution, "parallel");
+  assert.equal(agentOptions.at(-1).initialState.tools.some((tool) => ["build_room", "build_3d_room", "draft_custom_room"].includes(tool.name)), false);
   assert.equal(runtimeOptions.length, 3);
   assert.deepEqual(runtimeOptions.slice(-1), [{
     maxTokens: 16000,
-    timeoutMs: 180000,
+    timeoutMs: 600000,
+    maxRetries: 2,
     profileId: "profile-pro"
   }]);
 
@@ -858,13 +933,13 @@ test("Pi Agent room session builds, updates, streams events and survives restart
   const accepted = await sendApproved(service, created.id, "做一个有统计、图表、搜索和 Excel 导出的项目问题跟踪中心");
   assert.equal(accepted.accepted, true);
   const first = await service.waitForIdle(created.id);
-  assert.equal(first.status, "idle");
+  assert.equal(first.status, "idle", first.error);
   assert.equal(first.room.name, "项目问题跟踪中心");
   assert.equal(first.room.version, "1.0.0");
   assert.equal(first.room.embeddedDependencies.length, 0);
   assert.equal(first.room.grantedPermissions.network?.length || 0, 0);
   assert.ok(first.messages.some((message) => message.role === "assistant"));
-  assert.ok(first.steps.some((step) => step.toolName === "build_room" && step.status === "success"));
+  assert.ok(first.steps.some((step) => step.toolName === "install_custom_room" && step.status === "success"));
   assert.ok(events.some((event) => event.type === "message_delta"));
   assert.ok(events.some((event) => event.type === "tool_updated"));
   assert.ok(events.some((event) => event.type === "room_ready"));
@@ -879,7 +954,7 @@ test("Pi Agent room session builds, updates, streams events and survives restart
   assert.ok(buildUsage.elapsedMs >= 0);
   assert.ok(events.some((event) => event.type === "usage_updated"));
 
-  await sendApproved(service, created.id, "保留原数据，再增加风险说明字段");
+  await service.send(created.id, "保留原数据，再增加风险说明字段");
   const updated = await service.waitForIdle(created.id);
   assert.equal(updated.room.id, first.room.id);
   assert.equal(updated.room.version, "1.0.1");
@@ -892,8 +967,8 @@ test("Pi Agent room session builds, updates, streams events and survives restart
   const restored = restoredService.getSession(created.id);
   assert.equal(restored.roomId, first.room.id);
   assert.deepEqual(restored.runs, updated.runs);
-  assert.equal(restored.messages.filter((message) => message.role === "user").length, 6);
-  assert.equal(restored.steps.filter((step) => step.status === "success").length, 2);
+  assert.equal(restored.messages.filter((message) => message.role === "user").length, 4);
+  assert.equal(restored.steps.filter((step) => step.status === "success").length, 12);
   assert.equal(await restoredService.unlinkRoom(first.room.id), 1);
   assert.equal(restoredService.getSession(created.id).roomId, null);
 });
@@ -921,7 +996,7 @@ test("Pi Agent harness freely creates an unsupported 3D billiards room through d
   const session = await service.createSession();
   await sendApproved(service, session.id, "创建一个真正能玩的 3D 台球游戏，不要记分表，也不要套用收集、迷宫或跑酷模板");
   const result = await service.waitForIdle(session.id);
-  assert.equal(result.status, "idle");
+  assert.equal(result.status, "idle", result.error);
   assert.equal(result.room.name, "自由 3D 台球房间");
   assert.deepEqual(result.steps.map((step) => step.toolName), ["begin_custom_room", "write_custom_room_file", "write_custom_room_file", "write_custom_room_file", "test_custom_room", "install_custom_room"]);
   assert.ok(result.steps.every((step) => step.status === "success"));
@@ -930,7 +1005,7 @@ test("Pi Agent harness freely creates an unsupported 3D billiards room through d
   assert.deepEqual(result.room.embeddedDependencies, []);
   assert.deepEqual(result.room.grantedPermissions.network || [], []);
   assert.equal(requestedRuntimeOptions.length, 3);
-  assert.deepEqual(requestedRuntimeOptions.slice(-1), [{ maxTokens: 16000, timeoutMs: 180000 }]);
+  assert.deepEqual(requestedRuntimeOptions.slice(-1), [{ maxTokens: 16000, timeoutMs: 180000, maxRetries: 2 }]);
   const history = await gitService.listHistory(result.room.id);
   assert.equal(history.checkpoints.length, 1);
   assert.equal(history.checkpoints[0].kind, "generated");
@@ -960,7 +1035,7 @@ test("a post-install MinGit failure is reported as a warning without losing the 
   await sendApproved(service, session.id, "创建一个真正能玩的 3D 台球游戏");
   const result = await service.waitForIdle(session.id);
   const installStep = result.steps.find((step) => step.toolName === "install_custom_room");
-  assert.equal(result.status, "idle");
+  assert.equal(result.status, "idle", result.error);
   assert.ok(result.room);
   assert.equal(installStep.status, "success");
   assert.match(installStep.details.checkpointWarning, /模拟 MinGit 写入失败/);
@@ -1006,7 +1081,7 @@ test("multimodal room chat stores image files out of transcript and restores Pi 
     attachments: [{ path: sourceImage, name: "界面参考.png", type: "image/png", size: imageBytes.length }]
   });
   const result = await service.waitForIdle(session.id);
-  assert.equal(result.status, "idle");
+  assert.equal(result.status, "idle", result.error);
   assert.equal(result.messages[0].attachments.length, 1);
   assert.equal(result.messages[0].attachments[0].name, "界面参考.png");
   assert.equal(activeAgent.receivedImages.length, 1);

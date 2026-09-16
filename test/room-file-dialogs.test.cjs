@@ -41,20 +41,22 @@ function fixture() {
 const operations = [
   ["room:exportText", "inventory.csv", "名称,数量\n纸张,3"],
   ["room:exportBinary", "report.bin", new Uint8Array([1, 2, 3])],
-  ["room:pickText"], ["room:pickBinary"], ["room:binaryOpen"], ["room:largeTextOpen"]
+  ["room:pickText"], ["room:pickBinary"], ["room:binaryOpen"], ["room:filePickMany"], ["room:directoryOpen"], ["room:largeTextOpen"]
 ];
 
-test("all six room file dialogs follow attached, detached and re-docked room; cancellation returns null", async () => {
+test("all eight room file dialogs follow attached, detached and re-docked room; cancellation is explicit", async () => {
   const f = fixture();
   for (const parent of [f.mainWindow, f.detachedWindow, f.mainWindow]) {
     if (parent === f.mainWindow) f.roomViews.detachedWindows.clear();
     else f.roomViews.detachedWindows.set(f.room.id, { window: parent });
     for (const [channel, ...args] of operations) {
-      assert.equal(await f.handlers.get(channel)(f.event, ...args), null, channel);
+      const result = await f.handlers.get(channel)(f.event, ...args);
+      if (channel === "room:filePickMany") assert.deepEqual(result, [], channel);
+      else assert.equal(result, null, channel);
       assert.equal(f.calls.at(-1).parent, parent, channel);
     }
   }
-  assert.equal(f.calls.length, 18);
+  assert.equal(f.calls.length, 24);
 });
 
 test("unknown senders, revoked permissions and closed rooms never open file dialogs", async () => {

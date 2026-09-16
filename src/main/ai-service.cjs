@@ -175,6 +175,7 @@ class AiService {
     this.profiles = new Map();
     this.activeProfileId = null;
     this.roomSelections = new Map();
+    this.roomModelSlots = new Map();
     this.sessionApiKeys = new Map();
     this.storedKeyIds = new Set();
     this.keyStorageErrors = new Map();
@@ -221,6 +222,19 @@ class AiService {
             try {
               const validRoomId = validateRoomId(roomId);
               if (this.profiles.has(profileId)) this.roomSelections.set(validRoomId, profileId);
+            } catch {}
+          }
+        }
+        if (stored.roomModelSlots && typeof stored.roomModelSlots === "object" && !Array.isArray(stored.roomModelSlots)) {
+          for (const [roomId, slots] of Object.entries(stored.roomModelSlots)) {
+            try {
+              const validRoomId = validateRoomId(roomId);
+              if (!slots || typeof slots !== "object" || Array.isArray(slots)) continue;
+              const validSlots = {};
+              for (const [slot, profileId] of Object.entries(slots)) {
+                if (/^[a-z][a-z0-9-]{0,31}$/.test(slot) && this.profiles.has(profileId)) validSlots[slot] = profileId;
+              }
+              if (Object.keys(validSlots).length) this.roomModelSlots.set(validRoomId, validSlots);
             } catch {}
           }
         }
@@ -278,7 +292,8 @@ class AiService {
       formatVersion: PROVIDER_REGISTRY_FORMAT,
       activeProfileId: this.activeProfileId,
       profiles: [...this.profiles.values()],
-      roomSelections: Object.fromEntries(this.roomSelections)
+      roomSelections: Object.fromEntries(this.roomSelections),
+      roomModelSlots: Object.fromEntries(this.roomModelSlots)
     };
     await fsp.mkdir(path.dirname(this.profilePath), { recursive: true });
     const temporaryPath = `${this.profilePath}.tmp`;
@@ -438,6 +453,11 @@ class AiService {
     await fsp.rm(this.secretPathFor(profileId), { force: true });
     for (const [roomId, selectedProfileId] of this.roomSelections) {
       if (selectedProfileId === profileId) this.roomSelections.delete(roomId);
+    }
+    for (const [roomId, slots] of this.roomModelSlots) {
+      const next = Object.fromEntries(Object.entries(slots).filter(([, selectedProfileId]) => selectedProfileId !== profileId));
+      if (Object.keys(next).length) this.roomModelSlots.set(roomId, next);
+      else this.roomModelSlots.delete(roomId);
     }
     if (this.activeProfileId === profileId) this.activeProfileId = this.profiles.keys().next().value || null;
     await this.persistRegistry();
@@ -633,6 +653,49 @@ class AiService {
     await this.persistRegistry();
     return this.getRoomModelSelection(validRoomId);
   }
+  getRoomModelSlots(roomId) {
+    const validRoomId = validateRoomId(roomId);
+    const slots = this.roomModelSlots.get(validRoomId) || {};
+    return { ...slots };
+  }
+
+  resolveRoomModelProfile(roomId, { profileId, slot } = {}) {
+    const validRoomId = validateRoomId(roomId);
+    if (profileId !== undefined) {
+      if (!this.profiles.has(profileId)) throw new Error("所选模型配置不存在");
+      return profileId;
+    }
+    if (slot !== undefined) {
+      const validSlot = String(slot || "").trim();
+      if (!/^[a-z][a-z0-9-]{0,31}$/.test(validSlot)) throw new Error("模型槽位名称无效");
+      const selected = this.roomModelSlots.get(validRoomId)?.[validSlot];
+      if (selected && this.profiles.has(selected)) return selected;
+    }
+    return this.getRoomModelSelection(validRoomId).profileId;
+  }
+
+  async selectRoomModelSlot(roomId, slot, profileId) {
+    const validRoomId = validateRoomId(roomId);
+    const validSlot = String(slot || "").trim();
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(validSlot)) throw new Error("模型槽位名称无效");
+    if (!this.profiles.has(profileId)) throw new Error("所选模型配置不存在");
+    const slots = { ...(this.roomModelSlots.get(validRoomId) || {}), [validSlot]: profileId };
+    this.roomModelSlots.set(validRoomId, slots);
+    await this.persistRegistry();
+    return { slot: validSlot, profileId };
+  }
+
+  async clearRoomModelSlot(roomId, slot) {
+    const validRoomId = validateRoomId(roomId);
+    const validSlot = String(slot || "").trim();
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(validSlot)) throw new Error("模型槽位名称无效");
+    const slots = { ...(this.roomModelSlots.get(validRoomId) || {}) };
+    delete slots[validSlot];
+    if (Object.keys(slots).length) this.roomModelSlots.set(validRoomId, slots);
+    else this.roomModelSlots.delete(validRoomId);
+    await this.persistRegistry();
+    return { slot: validSlot, profileId: null };
+  }
 
   async createRuntime(profileId = this.activeProfileId) {
     const profile = this.ensureConfigured(profileId);
@@ -686,11 +749,12 @@ class AiService {
     return { pi, models, model };
   }
 
-  async createAgentRuntime({ maxTokens = 8000, timeoutMs = 120_000, profileId = this.activeProfileId } = {}) {
+  async createAgentRuntime({ maxTokens = 8000, timeoutMs = 120_000, maxRetries = 2, profileId = this.activeProfileId } = {}) {
     const profile = this.ensureConfigured(profileId);
     const { pi, models, model } = await this.createRuntime(profile.id);
     if (!Number.isSafeInteger(Number(maxTokens)) || Number(maxTokens) <= 0) throw new Error("Agent 最大输出 Token 必须是正整数");
     if (!Number.isSafeInteger(Number(timeoutMs)) || Number(timeoutMs) <= 0) throw new Error("Agent 请求超时必须是正整数毫秒");
+    if (!Number.isSafeInteger(Number(maxRetries)) || Number(maxRetries) < 0 || Number(maxRetries) > 5) throw new Error("Agent 自动重试次数必须是 0–5 的整数");
     const compatibility = getProviderCompatibility(profile);
     // Agent supplies its persistent conversation ID; keep a stable fallback for other callers.
     const fallbackSessionId = crypto.randomUUID();
@@ -713,7 +777,7 @@ class AiService {
         apiKey: this.sessionApiKeys.get(profile.id) || "local",
         maxTokens: Math.min(Number(activeModel.maxTokens) || maxTokens, maxTokens),
         timeoutMs,
-        maxRetries: 0,
+        maxRetries: Number(maxRetries),
         ...(onPayload ? { onPayload } : {})
       });
     };
@@ -735,6 +799,7 @@ class AiService {
     images = [],
     maxTokens = 2048,
     timeoutMs = 60_000,
+    maxRetries = 2,
     temperature,
     structuredOutput = false,
     sessionId = crypto.randomUUID(),
@@ -756,6 +821,8 @@ class AiService {
       : requestedMaxTokens;
     const effectiveTimeoutMs = Number(timeoutMs);
     if (!Number.isSafeInteger(effectiveTimeoutMs) || effectiveTimeoutMs <= 0) throw new Error("AI 请求超时必须是正整数毫秒");
+    const effectiveMaxRetries = Number(maxRetries);
+    if (!Number.isSafeInteger(effectiveMaxRetries) || effectiveMaxRetries < 0 || effectiveMaxRetries > 5) throw new Error("AI 自动重试次数必须是 0–5 的整数");
     if (images.length && (!Array.isArray(model.input) || !model.input.includes("image"))) {
       throw new Error(`当前模型 ${model.id} 不支持图片输入，请切换到多模态模型`);
     }
@@ -797,7 +864,7 @@ class AiService {
         maxTokens: effectiveMaxTokens,
         temperature,
         timeoutMs: effectiveTimeoutMs,
-        maxRetries: 0,
+        maxRetries: effectiveMaxRetries,
         onPayload
       }
     );

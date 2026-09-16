@@ -1311,3 +1311,13 @@ html[data-font-size] :is(.agentHeaderIdentity small, .agentModelPicker, .agentMo
 .agentTableScroll { max-width: 100%; overflow: auto; }
 .agentTableScroll table { border-collapse: collapse; width: 100%; white-space: normal; }
 .agentTableScroll th, .agentTableScroll td { border: 1px solid var(--border, #d5e3df); padding: 8px; text-align: left; }
+
+.credentialManager { display:grid; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid var(--ui-border, #dce6e1); }
+.credentialFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.credentialFields .wide { grid-column:1 / -1; }
+.credentialActions { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.credentialList { display:grid; gap:8px; }
+.credentialItem { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--ui-border, #dce6e1); border-radius:10px; background:var(--ui-surface-muted, #f7faf8); }
+.credentialItem strong,.credentialItem small { display:block; }
+.credentialItem small { margin-top:3px; color:var(--ui-text-secondary, #75857e); overflow-wrap:anywhere; }
+@media(max-width:650px){.credentialFields{grid-template-columns:1fr}.credentialFields .wide{grid-column:auto}.credentialActions{align-items:stretch;flex-direction:column}}

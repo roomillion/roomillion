@@ -66,7 +66,7 @@ function normalizeNetworkOrigin(value) {
 
 function validatePermissions(value) {
   assertPlainObject(value, "permissions");
-  const allowedKeys = new Set(["database", "files", "ai", "network", "browser"]);
+  const allowedKeys = new Set(["database", "files", "ai", "network", "browser", "compute", "tools", "credentials"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new ManifestError(`不支持的权限字段：${key}`);
@@ -79,7 +79,7 @@ function validatePermissions(value) {
 
   if (value.files !== undefined) {
     if (!Array.isArray(value.files)) throw new ManifestError("permissions.files 必须是数组");
-    const allowedFilePermissions = new Set(["pick", "export", "largeText"]);
+    const allowedFilePermissions = new Set(["pick", "pickMany", "directoryRead", "directoryWrite", "export", "largeText"]);
     for (const permission of value.files) {
       if (!allowedFilePermissions.has(permission)) {
         throw new ManifestError(`不支持的文件权限：${permission}`);
@@ -106,6 +106,23 @@ function validatePermissions(value) {
     }
   }
 
+  if (value.credentials !== undefined) {
+    if (!Array.isArray(value.credentials) || value.credentials.length > 32) throw new ManifestError("permissions.credentials 必须是最多 32 项的数组");
+    for (const alias of value.credentials) if (typeof alias !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(alias)) throw new ManifestError(`凭据别名无效：${alias}`);
+    if (new Set(value.credentials).size !== value.credentials.length) throw new ManifestError("permissions.credentials 不能包含重复别名");
+  }
+
+  if (value.tools !== undefined) {
+    if (!Array.isArray(value.tools) || value.tools.length > 64) throw new ManifestError("permissions.tools 必须是最多 64 项的数组");
+    for (const toolId of value.tools) if (typeof toolId !== "string" || !/^[a-z][a-z0-9.-]{1,79}@\d+$/.test(toolId)) throw new ManifestError(`房间工具 ID 无效：${toolId}`);
+    if (new Set(value.tools).size !== value.tools.length) throw new ManifestError("permissions.tools 不能包含重复工具");
+  }
+
+  if (value.compute !== undefined) {
+    if (!Array.isArray(value.compute)) throw new ManifestError("permissions.compute 必须是数组");
+    for (const permission of value.compute) if (permission !== "worker") throw new ManifestError(`不支持的计算权限：${permission}`);
+  }
+
   if (value.ai !== undefined) {
     assertPlainObject(value.ai, "permissions.ai");
     if (!Array.isArray(value.ai.roles) || value.ai.roles.length === 0) {
@@ -115,13 +132,27 @@ function validatePermissions(value) {
     for (const role of value.ai.roles) {
       if (!allowedRoles.has(role)) throw new ManifestError(`不支持的 AI 角色：${role}`);
     }
+    if (value.ai.slots !== undefined) {
+      assertPlainObject(value.ai.slots, "permissions.ai.slots");
+      if (Object.keys(value.ai.slots).length > 16) throw new ManifestError("permissions.ai.slots 最多包含 16 项");
+      for (const [slotName, slot] of Object.entries(value.ai.slots)) {
+        if (!/^[a-z][a-z0-9-]{0,31}$/.test(slotName)) throw new ManifestError(`AI 槽位名称无效：${slotName}`);
+        assertPlainObject(slot, `permissions.ai.slots.${slotName}`);
+        if (!allowedRoles.has(slot.role) || !value.ai.roles.includes(slot.role)) throw new ManifestError(`AI 槽位 ${slotName} 的角色未声明`);
+        if (slot.requiresImages !== undefined && typeof slot.requiresImages !== "boolean") throw new ManifestError(`AI 槽位 ${slotName} 的 requiresImages 无效`);
+        if (slot.minimumContextWindow !== undefined && (!Number.isSafeInteger(slot.minimumContextWindow) || slot.minimumContextWindow < 0 || slot.minimumContextWindow > 10_000_000)) throw new ManifestError(`AI 槽位 ${slotName} 的 minimumContextWindow 无效`);
+      }
+    }
   }
   return {
     ...value,
     ...(value.files === undefined ? {} : { files: [...new Set(value.files)] }),
     ...(value.browser === undefined ? {} : { browser: [...new Set(value.browser)] }),
     ...(value.network === undefined ? {} : { network: value.network.map(normalizeNetworkOrigin) }),
-    ...(value.ai === undefined ? {} : { ai: { ...value.ai, roles: [...new Set(value.ai.roles)] } })
+    ...(value.ai === undefined ? {} : { ai: { ...value.ai, roles: [...new Set(value.ai.roles)], ...(value.ai.slots ? { slots: structuredClone(value.ai.slots) } : {}) } }),
+    ...(value.compute === undefined ? {} : { compute: [...new Set(value.compute)] }),
+    ...(value.tools === undefined ? {} : { tools: [...value.tools] }),
+    ...(value.credentials === undefined ? {} : { credentials: [...value.credentials] })
   };
 }
 

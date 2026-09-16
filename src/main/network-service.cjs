@@ -50,7 +50,9 @@ function normalizeRequest(input) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMEOUT_MS) throw new Error("网络请求超时必须是正整数毫秒");
   const maxRedirects = input.maxRedirects === undefined ? MAX_REDIRECTS : Math.round(Number(input.maxRedirects));
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) throw new Error("最大重定向次数必须是非负整数");
-  return { url: String(input.url || ""), method, headers, body, timeoutMs, maxRedirects };
+  const credentialAlias = input.credentialAlias === undefined ? null : String(input.credentialAlias).trim();
+  if (credentialAlias !== null && !/^[a-z][a-z0-9-]{0,31}$/.test(credentialAlias)) throw new Error("网络请求凭据别名无效");
+  return { url: String(input.url || ""), method, headers, body, timeoutMs, maxRedirects, credentialAlias };
 }
 function allowedOriginsForRoom(room) {
   const requested = new Set((room?.requestedPermissions?.network || room?.permissions?.network || []).map(normalizeNetworkOrigin));
@@ -71,9 +73,10 @@ function responseHeaders(response) {
 }
 
 class NetworkService {
-  constructor(dataRoot, { fetchImpl = globalThis.fetch } = {}) {
+  constructor(dataRoot, { fetchImpl = globalThis.fetch, credentialService = null } = {}) {
     this.filePath = path.join(path.resolve(dataRoot), "network-settings.json");
     this.fetchImpl = fetchImpl;
+    this.credentialService = credentialService;
     this.state = { formatVersion: NETWORK_SETTINGS_FORMAT, roomNetworkEnabled: false, updatedAt: null };
     this.streams = new Map();
   }
@@ -91,7 +94,7 @@ class NetworkService {
     await fsp.writeFile(temporaryPath, `${JSON.stringify(this.state, null, 2)}\n`, "utf8");
     await fsp.rename(temporaryPath, this.filePath);
   }
-  getPublicState() { return Object.freeze({ roomNetworkEnabled: this.state.roomNetworkEnabled, aiApiAllowed: true, policy: "global-switch-and-room-origin-permission" }); }
+  getPublicState() { return Object.freeze({ roomNetworkEnabled: this.state.roomNetworkEnabled, aiApiAllowed: true, namedCredentials: Boolean(this.credentialService), policy: "global-switch-room-origin-and-credential-permission" }); }
   getRoomStatus(room) {
     const origins = allowedOriginsForRoom(room);
     return Object.freeze({ workbenchAllowed: this.state.roomNetworkEnabled, roomAllowed: origins.length > 0, available: this.state.roomNetworkEnabled && origins.length > 0, origins, streaming: true });
@@ -111,7 +114,16 @@ class NetworkService {
     try {
       for (let redirects = 0; redirects <= request.maxRedirects; redirects += 1) {
         let response;
-        try { response = await this.fetchImpl(url, { method, headers: request.headers, ...(body === undefined ? {} : { body }), redirect: "manual", signal: controller.signal }); }
+        try {
+          const headers = { ...request.headers };
+          if (request.credentialAlias) {
+            if (!this.credentialService) throw new Error("当前工作台未启用命名凭据服务");
+            const injected = this.credentialService.resolveForRoom(room, request.credentialAlias, url);
+            if (Object.hasOwn(headers, injected.name)) throw new Error(`请求已设置凭据注入目标头：${injected.name}`);
+            headers[injected.name] = injected.value;
+          }
+          response = await this.fetchImpl(url, { method, headers, ...(body === undefined ? {} : { body }), redirect: "manual", signal: controller.signal });
+        }
         catch (error) { if (controller.signal.aborted) throw new Error("网络请求超时或已取消"); throw new Error(`网络请求失败：${String(error?.message || error).slice(0, 300)}`); }
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           const location = response.headers.get("location"); await response.body?.cancel().catch(() => {});

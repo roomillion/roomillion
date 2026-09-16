@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const { NetworkService } = require("../src/main/network-service.cjs");
+const { RoomCredentialService } = require("../src/main/room-credential-service.cjs");
 
 function room({ granted = ["https://api.example.com"] } = {}) {
   return {
@@ -23,7 +24,8 @@ test("global room network switch is off by default and persists independently fr
   assert.deepEqual(service.getPublicState(), {
     roomNetworkEnabled: false,
     aiApiAllowed: true,
-    policy: "global-switch-and-room-origin-permission"
+    namedCredentials: false,
+    policy: "global-switch-room-origin-and-credential-permission"
   });
   await assert.rejects(service.request(room(), { url: "https://api.example.com/data" }), /主工作台尚未允许/);
   await service.setRoomNetworkEnabled(true);
@@ -90,4 +92,34 @@ test("room network streams binary responses without a total response ceiling", a
     if (result.done) break;
   }
   assert.deepEqual(Buffer.concat(chunks), Buffer.from(payload));
+});
+
+test("named credentials inject only into their bound origin and never return plaintext", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-network-credential-test-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const secureStorage = {
+    isEncryptionAvailable: () => true,
+    encryptString: (value) => Buffer.from(`protected:${value}`),
+    decryptString: (value) => value.toString().slice("protected:".length)
+  };
+  const credentials = await new RoomCredentialService(root, { secureStorage }).init();
+  await credentials.set({ alias: "book-api", label: "书籍服务", origin: "https://api.example.com", value: "top-secret", remember: true });
+  await assert.rejects(credentials.set({ alias: "bad-header", origin: "https://api.example.com", value: "secret\r\ninjected: yes" }), /换行/);
+  const calls = [];
+  const service = await new NetworkService(root, { credentialService: credentials, fetchImpl: async (url, options) => { calls.push({ url: url.toString(), headers: options.headers }); return new Response("ok"); } }).init();
+  await service.setRoomNetworkEnabled(true);
+  const credentialRoom = {
+    ...room(),
+    permissions: { network: ["https://api.example.com"], credentials: ["book-api"] },
+    requestedPermissions: { network: ["https://api.example.com"], credentials: ["book-api"] },
+    grantedPermissions: { network: ["https://api.example.com"], credentials: ["book-api"] }
+  };
+  const response = await service.request(credentialRoom, { url: "https://api.example.com/books", credentialAlias: "book-api" });
+  assert.equal(calls[0].headers.authorization, "Bearer top-secret");
+  assert.doesNotMatch(JSON.stringify(response), /top-secret/);
+  assert.deepEqual(credentials.listForRoom(credentialRoom).map((item) => ({ alias: item.alias, available: item.available })), [{ alias: "book-api", available: true }]);
+  assert.throws(() => credentials.resolveForRoom(credentialRoom, "book-api", "https://other.example/data"), /只能用于/);
+  const reloaded = await new RoomCredentialService(root, { secureStorage }).init();
+  assert.equal(reloaded.list()[0].available, true);
+  assert.doesNotMatch(await fsp.readFile(path.join(root, "room-credentials", "index.json"), "utf8"), /top-secret/);
 });

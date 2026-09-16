@@ -323,6 +323,19 @@
       <div id="networkPolicySummary" class="networkPolicySummary"><span class="networkPolicyIcon" aria-hidden="true">网</span><div><strong>房间联网已关闭</strong><small>所有房间的普通网络请求都会被工作台拒绝</small></div></div>
       <label class="checkboxLabel"><input id="roomNetworkEnabled" name="roomNetworkEnabled" type="checkbox" value="true"><span><strong>允许已授权房间联网</strong><small>只有同时声明了精确服务源、并由你授予该服务源权限的房间才能访问。</small></span></label>
       <div class="noticeBox">房间仍不能直接使用 fetch、XHR、WebSocket，也不能联网下载代码或依赖。请求必须通过工作台受控接口，并受超时与大小限制。</div>
+      <section class="credentialManager" aria-labelledby="credentialManagerTitle">
+        <div class="providerProfilesHeader"><div><strong id="credentialManagerTitle">命名凭据</strong><small>房间只能引用别名；密钥只会注入绑定服务源的受控请求</small></div></div>
+        <div class="credentialFields">
+          <label>别名<input id="credentialAlias" maxlength="32" pattern="[a-z][a-z0-9-]{0,31}" placeholder="例如 book-api"></label>
+          <label>显示名称<input id="credentialLabel" maxlength="100" placeholder="例如 书籍服务"></label>
+          <label class="wide">绑定服务源<input id="credentialOrigin" type="url" placeholder="https://api.example.com"></label>
+          <label>请求头<input id="credentialHeaderName" value="authorization" maxlength="80"></label>
+          <label>值前缀<input id="credentialPrefix" value="Bearer " maxlength="100"></label>
+          <label class="wide">密钥<input id="credentialValue" type="password" maxlength="32768" autocomplete="off" placeholder="明文不会返回页面"></label>
+        </div>
+        <div class="credentialActions"><label class="checkboxLabel"><input id="credentialRemember" type="checkbox" checked><span><strong>使用系统安全存储</strong><small>取消后仅本次会话可用</small></span></label><button type="button" id="saveCredentialButton" class="secondaryButton">保存凭据</button></div>
+        <div id="credentialList" class="credentialList"></div>
+      </section>
       <div id="networkStatus" class="inlineStatus"></div>
       <div class="modalActions"><button type="button" class="secondaryButton" data-close="networkDialog">取消</button><span class="spacer"></span><button type="submit" id="saveNetworkButton" class="primaryButton compact">保存设置</button></div>
     </form>
