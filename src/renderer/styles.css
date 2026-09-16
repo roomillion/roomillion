@@ -1321,3 +1321,4 @@ html[data-font-size] :is(.agentHeaderIdentity small, .agentModelPicker, .agentMo
 .credentialItem strong,.credentialItem small { display:block; }
 .credentialItem small { margin-top:3px; color:var(--ui-text-secondary, #75857e); overflow-wrap:anywhere; }
 @media(max-width:650px){.credentialFields{grid-template-columns:1fr}.credentialFields .wide{grid-column:auto}.credentialActions{align-items:stretch;flex-direction:column}}
+.storageLocationValue { overflow-wrap: anywhere; user-select: text; }

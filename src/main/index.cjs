@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
@@ -23,6 +24,7 @@ const { resolveExamplePackages } = require("./example-catalog.cjs");
 const { resolveRoomModuleAsset } = require("./room-module-service.cjs");
 const { ROOM_MODULE_CATALOG } = require("./room-module-catalog.cjs");
 const { resolveRoomillionUserDataPath } = require("./brand-profile.cjs");
+const { RoomStorageLocation } = require("./room-storage-location.cjs");
 const { createComposedRoom, createGeneratedRoom } = require("./generated-room.cjs");
 const { applyCustomRuntimeCompatibility, createCustomRoom } = require("./custom-room.cjs");
 const { bundleRoomDependency } = require("./room-dependency-bundler.cjs");
@@ -62,6 +64,7 @@ if (smokeMode || previewMode || runtimeCheckInput) {
 
 let mainWindow;
 let roomStore;
+let storageLocation;
 let database;
 let aiService;
 let roomAgent;
@@ -2189,9 +2192,26 @@ async function bootstrap() {
       }
     );
   }
+  storageLocation = new RoomStorageLocation({
+    profileRoot: app.getPath("userData"),
+    executablePath: app.getPath("exe"),
+    packaged: app.isPackaged,
+    portableFolder: app.isPackaged && fs.existsSync(path.join(process.resourcesPath, "portable-folder.marker")),
+    portableExecutableDir: app.isPackaged ? process.env.PORTABLE_EXECUTABLE_DIR || null : null,
+    pickDirectory: async (defaultPath) => {
+      const result = await dialog.showOpenDialog({
+        title: "首次使用：选择房间安装目录（将在其中创建 Roomillion-data）",
+        defaultPath,
+        properties: ["openDirectory", "createDirectory"]
+      });
+      return result.canceled ? null : result.filePaths?.[0] || null;
+    }
+  });
   const dataRoot = smokeMode
     ? path.join(app.getPath("temp"), "roomillion-smoke")
-    : path.join(app.getPath("userData"), "mvp-data");
+    : await storageLocation.resolveStartup();
+  if (!dataRoot) { app.quit(); return; }
+  if (storageLocation.warning) dialog.showMessageBoxSync({ type: "warning", title: "房间位置", message: storageLocation.warning });
   if (smokeMode) await fsp.rm(dataRoot, { recursive: true, force: true });
   roomStore = await new RoomStore(dataRoot).init();
   database = await new RoomDatabaseService(roomStore).init();
@@ -2262,6 +2282,7 @@ async function bootstrap() {
     agentWindows,
     examplePackages: getExamplePackages(),
     environment,
+    storageLocation,
     takePendingRoomImports: () => {
       externalRoomConsumerReady = true;
       return pendingExternalRoomPaths.splice(0);

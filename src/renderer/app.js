@@ -25,6 +25,7 @@ const state = {
   networkPolicy: null,
   credentials: [],
   environment: null,
+  dataLocation: null,
   roomModules: [],
   examples: [],
   pendingImport: null,
@@ -3430,7 +3431,11 @@ async function initialize() {
   state.networkPolicy = initial.networkPolicy;
   state.credentials = initial.credentials || [];
   state.environment = initial.environment;
-  document.getElementById("dataLocation").textContent = initial.dataLocation || "数据路径暂不可用";
+  state.dataLocation = initial.dataLocation || null;
+  document.getElementById("dataLocation").textContent = state.dataLocation || "数据路径暂不可用";
+  document.getElementById("storageLocationValue").textContent = state.dataLocation || "数据路径暂不可用";
+  document.getElementById("storageSummaryNav").textContent = state.dataLocation || "查看安装目录";
+  if (initial.storageWarning) setInlineStatus(document.getElementById("storageLocationStatus"), initial.storageWarning, true);
   refreshExamples().catch(error => console.warn("读取内置房间更新失败", error.message));
   state.roomModules = initial.roomModules;
   state.agentDetached = initial.agentWindow?.mode === "detached";
@@ -3499,6 +3504,21 @@ document.getElementById("openAppearanceButton").addEventListener("click", () => 
 document.getElementById("openAiCenterButton").addEventListener("click", () => { closeSettingsHub(); showProviderDialog().catch((error) => showToast(formatError(error))); });
 document.getElementById("openNetworkButton").addEventListener("click", () => { closeSettingsHub(); showNetworkDialog().catch((error) => showToast(formatError(error))); });
 document.getElementById("openDiagnosticsButton").addEventListener("click", () => { closeSettingsHub(); showDiagnosticsDialog().catch((error) => showToast(formatError(error))); });
+document.getElementById("changeStorageLocationButton").addEventListener("click", async () => {
+  const status = document.getElementById("storageLocationStatus");
+  try {
+    const result = await window.workbench.chooseRoomStorageLocation();
+    if (result.canceled) return;
+    if (!result.changed) {
+      setInlineStatus(status, "当前已经使用这个房间位置。", false);
+      return;
+    }
+    setInlineStatus(status, `新位置：${result.target}。请关闭并重新打开程序；下次启动会复制现有房间与数据，旧目录会保留。`, false);
+  } catch (error) {
+    setInlineStatus(status, formatError(error), true);
+  }
+});
+
 for (const button of document.querySelectorAll("[data-theme-choice]")) {
   button.addEventListener("click", () => applyWorkbenchTheme(button.dataset.themeChoice, { announce: true }));
 }

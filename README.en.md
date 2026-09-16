@@ -30,7 +30,7 @@ release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 
 Download published binaries from the matching GitHub Release and verify the attached SHA-256 checksum. The source repository excludes the local `release/` directory. Windows artifacts are currently unsigned.
 
-All three Windows distributions are self-contained and do not require Node.js, Git, SQLite, or npm packages on the target computer. Portable means the application does not require installation; it does not mean user data travels inside the executable. Rooms and databases remain in the current user's application data directory. API keys are protected by system encryption and must be configured again after moving to another computer.
+All three Windows distributions are self-contained and do not require Node.js, Git, SQLite, or npm packages on the target computer. The extracted portable ZIP stores rooms and workbench data in `Roomillion-data/` beside the executable by default. The single-file portable executable asks for a storage folder on first launch and creates `Roomillion-data/` there. The installer continues to use the current user's application data directory. You can view or change the location under Settings → Room location; changing it copies data on the next launch and retains the old directory. The room import picker starts in the last successfully used import folder. Copying the single executable alone does not carry rooms to another computer. API keys use system encryption and must be configured again on another computer.
 
 The `.room` format supports application-only exports, application-and-data exports, and optional password protection. Legacy `.zroom` packages can still be imported, while new exports use `.room`.
 

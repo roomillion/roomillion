@@ -14,6 +14,7 @@ const { RoomBlobService } = require("./room-blob-service.cjs");
 const { RoomJobService } = require("./room-job-service.cjs");
 const { RoomDocumentService } = require("./room-document-service.cjs");
 const { RoomToolService } = require("./room-tool-service.cjs");
+const { RoomImportLocation } = require("./room-import-location.cjs");
 
 const DEFAULT_BINARY_EXTENSIONS = Object.freeze([
   "pdf", "docx", "xlsx", "xls", "pptx", "zip", "png", "jpg", "jpeg", "webp"
@@ -100,6 +101,7 @@ function registerIpcHandlers({
   agentWindows,
   examplePackages,
   environment,
+  storageLocation,
   takePendingRoomImports = () => [],
   dialogApi = dialog,
   fileAccess,
@@ -108,6 +110,7 @@ function registerIpcHandlers({
   documentService,
   toolService
 }) {
+  const importLocation = new RoomImportLocation(roomStore.dataRoot || process.cwd());
   const vectors = new RoomVectorService(database);
   const binaryFiles = new BinaryFileService();
   const directoryFiles = fileAccess || new RoomFileAccessService(roomStore.dataRoot || process.cwd());
@@ -226,9 +229,21 @@ function registerIpcHandlers({
       roomModules: getPublicRoomModuleCatalog(),
       roomWindows: roomViews.getWindowStates(),
       dataLocation: roomStore.dataRoot,
+      storageWarning: storageLocation?.warning || null,
       agentWindow: agentWindows?.getState() ?? { mode: "attached" },
       environment
     };
+  });
+  handle("workbench:chooseRoomStorageLocation", async (event) => {
+    requireWorkbench(event);
+    if (!storageLocation) throw new Error("房间位置设置不可用");
+    const selected = await dialogApi.showOpenDialog(mainWindow, {
+      title: "选择新的房间安装目录（将在其中创建 Roomillion-data）",
+      defaultPath: path.dirname(roomStore.dataRoot),
+      properties: ["openDirectory", "createDirectory"]
+    });
+    if (selected.canceled || !selected.filePaths?.[0]) return { canceled: true };
+    return storageLocation.scheduleMove(roomStore.dataRoot, selected.filePaths[0]);
   });
   handle("workbench:setTheme", async (event, themeId) => {
     requireWorkbench(event);
@@ -372,13 +387,17 @@ function registerIpcHandlers({
   handle("workbench:inspectRoom", async (event) => {
     requireWorkbench(event);
     roomViews.hide();
-    const result = await dialog.showOpenDialog(mainWindow, {
+    const lastImportDirectory = await importLocation.get();
+    const result = await dialogApi.showOpenDialog(mainWindow, {
       title: "导入千万间房间",
+      ...(lastImportDirectory ? { defaultPath: lastImportDirectory } : {}),
       properties: ["openFile"],
       filters: [{ name: "千万间 Roomillion 房间", extensions: ["room", "zroom"] }]
     });
-    if (result.canceled || !result.filePaths[0]) return null;
-    return dataBackups.inspectRoomTransfer(result.filePaths[0], { source: "external" });
+    if (result.canceled || !result.filePaths?.[0]) return null;
+    const inspection = await dataBackups.inspectRoomTransfer(result.filePaths[0], { source: "external" });
+    await importLocation.remember(result.filePaths[0]);
+    return inspection;
   });
   handle("workbench:inspectRoomPath", async (event, packagePath) => {
     requireWorkbench(event);
@@ -389,7 +408,9 @@ function registerIpcHandlers({
     }
     const stats = await fsp.stat(packagePath);
     if (!stats.isFile()) throw new Error("房间包不是普通文件");
-    return dataBackups.inspectRoomTransfer(packagePath, { source: "external" });
+    const inspection = await dataBackups.inspectRoomTransfer(packagePath, { source: "external" });
+    await importLocation.remember(packagePath);
+    return inspection;
   });
   handle("workbench:unlockRoomImport", async (event, token, password) => {
     requireWorkbench(event);

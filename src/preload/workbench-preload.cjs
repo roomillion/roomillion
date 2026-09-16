@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("workbench", Object.freeze({
   getState: () => ipcRenderer.invoke("workbench:getState"),
+  chooseRoomStorageLocation: () => ipcRenderer.invoke("workbench:chooseRoomStorageLocation"),
   setTheme: (themeId) => ipcRenderer.invoke("workbench:setTheme", themeId),
   setViewport: (bounds) => ipcRenderer.invoke("workbench:setViewport", bounds),
   openRoom: (roomId) => ipcRenderer.invoke("workbench:openRoom", roomId),

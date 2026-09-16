@@ -9,7 +9,9 @@ test("Roomillion keeps legacy user data and uses the new profile for fresh insta
   const appDataRoot = path.resolve("profiles");
   const legacyData = path.join(appDataRoot, "智变工作台", "mvp-data");
   const currentData = path.join(appDataRoot, "Roomillion", "mvp-data");
+  const legacyLocation = path.join(appDataRoot, "智变工作台", "room-storage-location.json");
   assert.equal(resolveRoomillionUserDataPath(appDataRoot, () => false), path.join(appDataRoot, "Roomillion"));
   assert.equal(resolveRoomillionUserDataPath(appDataRoot, (candidate) => candidate === legacyData), path.join(appDataRoot, "智变工作台"));
   assert.equal(resolveRoomillionUserDataPath(appDataRoot, (candidate) => candidate === legacyData || candidate === currentData), path.join(appDataRoot, "Roomillion"));
+  assert.equal(resolveRoomillionUserDataPath(appDataRoot, (candidate) => candidate === legacyLocation), path.join(appDataRoot, "智变工作台"));
 });

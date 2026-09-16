@@ -74,19 +74,15 @@ Provider 和模型设置会保存在用户配置中。默认不记住密钥；�
 
 ## 5. 数据位置与卸载
 
-开发模式和打包模式的数据根目录由 Electron 的 `userData` 目录决定，通常位于：
-
-```text
-%APPDATA%\千万间 Roomillion\mvp-data
-```
+开发模式和安装版默认使用 Electron 的 `userData/mvp-data`，新配置通常在 `%APPDATA%\Roomillion\mvp-data`；已有旧版数据时继续识别 `%APPDATA%\智变工作台\mvp-data`。解压 ZIP 版默认使用解压目录中的 `Roomillion-data/`；单文件便携 EXE 首次启动时让用户选择目录，并在其中创建 `Roomillion-data/`。用户可在“设置 → 房间位置”安排迁移，重启后复制数据并保留旧目录。
 
 主要内容：
 
 ```text
 mvp-data/
   registry.json          # 已安装房间注册表
-  rooms/<room-id>/       # 房间程序，只读使用
-  data/<room-id>/        # 房间私有数据库和存储
+  rooms/<room-id>/program/  # 房间程序
+  rooms/<room-id>/data/     # 房间私有数据库和存储
 ```
 
 删除便携 EXE 只会删除程序，不会自动删除用户数据。需要彻底卸载时，应先备份需要保留的数据，再手工删除上述目录。

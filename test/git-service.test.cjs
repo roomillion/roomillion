@@ -69,3 +69,17 @@ test("bundled platform Git creates checkpoints without system PATH and restores 
   assert.equal(history.checkpoints[0].kind, "restore");
   assert.ok(history.checkpoints.some((checkpoint) => checkpoint.kind === "before-restore"));
 });
+
+
+test("startup skips a stale room record whose program directory is missing", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-missing-program-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const { room, store } = await setupRoom(root);
+  const missingId = "cn.zhibian.missing-program";
+  store.registry.rooms[missingId] = { ...store.registry.rooms[room.id], id: missingId };
+  const git = await new GitService(store, getTestGitToolchain()).init();
+  await git.initializeExistingRooms();
+  assert.equal((await git.listHistory(room.id)).checkpoints.length, 1);
+  assert.equal((await git.listHistory(missingId)).checkpoints.length, 0);
+  await assert.rejects(fsp.access(git.getProjectRoot(missingId)), { code: "ENOENT" });
+});

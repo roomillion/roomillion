@@ -196,6 +196,7 @@
           <button type="button" class="settingsHubNavItem active" data-settings-section="appearance"><strong>外观</strong><small id="themeSummaryNav">日间主题</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="ai"><strong>AI 能力</strong><small id="providerSummaryNav">尚未配置</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="network"><strong>联网控制</strong><small id="networkSummaryNav">房间联网已关闭</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="storage"><strong>房间位置</strong><small id="storageSummaryNav">查看安装目录</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="diagnostics"><strong>诊断报告</strong><small>导出脱敏报告</small></button>
         </nav>
         <div class="settingsHubPanels">
@@ -210,6 +211,12 @@
           <section class="settingsHubPanel" data-settings-panel="network">
             <div class="settingsHubPanelIntro"><strong>联网控制</strong><small>主工作台联网总开关；房间即使申请了联网权限，也只有总开关开启时才能访问。</small></div>
             <button type="button" id="openNetworkButton" class="settingsHubAction">打开联网控制<span id="networkSummaryInline">房间联网已关闭</span></button>
+          </section>
+          <section class="settingsHubPanel" data-settings-panel="storage">
+            <div class="settingsHubPanelIntro"><strong>房间与工作台数据位置</strong><small>已安装房间、业务数据和本机配置保存在这里。更改后会在下次启动时复制到新位置；旧目录保留，迁移成功后再自行清理。</small></div>
+            <p id="storageLocationValue" class="detailSummary storageLocationValue"></p>
+            <button type="button" id="changeStorageLocationButton" class="settingsHubAction">更改房间安装位置<span>选择空文件夹，程序会创建 Roomillion-data</span></button>
+            <div id="storageLocationStatus" class="inlineStatus"></div>
           </section>
           <section class="settingsHubPanel" data-settings-panel="diagnostics">
             <div class="settingsHubPanelIntro"><strong>诊断报告</strong><small>导出前可预览内容；预览版默认脱敏，不包含密钥和业务数据。</small></div>
@@ -264,7 +271,7 @@
         </div>
       </section>
       <div id="themeStatus" class="inlineStatus">当前主题会自动保存在本机。</div>
-      <section class="inspectionSection"><h3>本机数据位置</h3><p id="dataLocation" class="detailSummary"></p><p>免安装不等于数据随程序携带。复制 EXE 不会带走房间和数据库；迁移请使用房间“更多 → 导出 → 应用＋数据”。API 密钥由系统加密，换电脑后需要重新配置。</p></section>
+      <section class="inspectionSection"><h3>本机数据位置</h3><p id="dataLocation" class="detailSummary"></p><p>解压版默认把房间和数据放在程序文件夹的 Roomillion-data；单文件便携版首次使用时选择位置。可在“设置 → 房间位置”更改。复制单文件 EXE 不会自动带走房间；跨电脑仍建议导出房间与数据。API 密钥由系统加密，换电脑后需要重新配置。</p></section>
       <div class="modalActions"><button type="button" id="resetThemeButton" class="secondaryButton">恢复默认主题</button><span class="spacer"></span><button type="button" class="primaryButton compact" data-close="workbenchSettingsDialog">完成</button></div>
     </form>
   </dialog>

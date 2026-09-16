@@ -256,6 +256,12 @@ class GitService {
 
   async initializeExistingRooms() {
     for (const room of this.roomStore.listRooms()) {
+      try {
+        if (!(await fsp.stat(this.roomStore.getProgramRoot(room.id))).isDirectory()) continue;
+      } catch (error) {
+        if (error.code === "ENOENT") continue;
+        throw error;
+      }
       const history = await this.loadHistory(room.id);
       if (!history.checkpoints.length) await this.captureRoom(room.id, "建立初始检查点", { kind: "initial" });
     }
