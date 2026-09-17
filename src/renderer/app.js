@@ -220,6 +220,7 @@ const elements = {
   agentVisionStatus: document.getElementById("agentVisionStatus"),
   agentProviderSettingsButton: document.getElementById("agentProviderSettingsButton"),
   agentWindowButton: document.getElementById("agentWindowButton"),
+  exportAgentSessionButton: document.getElementById("exportAgentSessionButton"),
   closeAgentWorkspaceButton: document.getElementById("closeAgentWorkspaceButton"),
   deleteAgentSessionButton: document.getElementById("deleteAgentSessionButton"),
   agentImagePreviewDialog: document.getElementById("agentImagePreviewDialog"),
@@ -2921,7 +2922,9 @@ function createQuestionForm(session) {
 
 function createAgentWorkflowCard(session) {
   const workflow = session.workflow;
-  if (!workflow?.questions?.length && !workflow?.plan) return null;
+  const plan = session.roomId ? null : workflow?.plan;
+  const showQuestions = workflow?.phase === "clarifying" && !workflow.answered && Boolean(workflow.questions?.length);
+  if (!showQuestions && !plan) return null;
   const card = document.createElement("section");
   card.className = "agentWorkflowCard";
   const heading = document.createElement("h3");
@@ -2932,10 +2935,10 @@ function createAgentWorkflowCard(session) {
     saved.textContent = `草稿已保存 · 修订 ${session.draft.revision} · ${Object.values(session.draft.files).filter(file => file.saved).length}/3 个文件。中断或失败后可以继续；已保存不代表运行检查通过。`;
     card.append(saved);
   }
-  if (workflow.phase === "clarifying" && !workflow.answered) {
+  if (showQuestions) {
     card.appendChild(createQuestionForm(session));
   }
-  if (workflow.plan) {
+  if (plan) {
     const details = document.createElement("details");
     details.open = workflow.phase === "review";
     const summary = document.createElement("summary");
@@ -2946,7 +2949,7 @@ function createAgentWorkflowCard(session) {
       title.textContent = label;
       const text = document.createElement("div");
       text.className = "agentRichText";
-      renderAgentRichText(text, workflow.plan[key]);
+      renderAgentRichText(text, plan[key]);
       details.append(title, text);
     }
     card.appendChild(details);
@@ -2955,17 +2958,17 @@ function createAgentWorkflowCard(session) {
       note.textContent = "有要调整的地方，请先在下方发送修改要求。确认方案不等于授予联网或文件等运行权限。";
       let aiTestToggle = null;
       let aiTestModel = null;
-      if (workflow.plan.usesAi) {
+      if (plan.usesAi) {
         const testBox = document.createElement("div");
         testBox.className = "agentAiTestChoice";
         const heading = document.createElement("strong");
         heading.textContent = "真实 AI 能力测试";
         const explanation = document.createElement("p");
-        explanation.textContent = `${workflow.plan.aiTestPurpose || "验证房间调用主工作台 AI 的链路"}。默认只做离线契约测试；开启后会消耗所选模型的少量 Token，失败将阻止安装。`;
+        explanation.textContent = `${plan.aiTestPurpose || "验证房间调用主工作台 AI 的链路"}。默认只做离线契约测试；开启后会消耗所选模型的少量 Token，失败将阻止安装。`;
         const toggleLabel = document.createElement("label");
         aiTestToggle = document.createElement("input");
         aiTestToggle.type = "checkbox";
-        aiTestToggle.checked = workflow.approvedPlanId === workflow.plan.id && workflow.aiTestPolicy?.enabled === true;
+        aiTestToggle.checked = workflow.approvedPlanId === plan.id && workflow.aiTestPolicy?.enabled === true;
         const toggleText = document.createElement("span");
         toggleText.textContent = "允许进行一次真实 AI 调用测试";
         toggleLabel.append(aiTestToggle, toggleText);
@@ -2995,9 +2998,9 @@ function createAgentWorkflowCard(session) {
       }
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = workflow.approvedPlanId === workflow.plan.id
+      button.textContent = workflow.approvedPlanId === plan.id
         ? "继续实施当前方案"
-        : workflow.plan.migrationMode === "refactor" ? "同意重构方案，创建新房间" : workflow.plan.migrationMode === "adapt" ? "同意适配方案，创建新房间" : "同意方案，开始实施";
+        : plan.migrationMode === "refactor" ? "同意重构方案，创建新房间" : plan.migrationMode === "adapt" ? "同意适配方案，创建新房间" : "同意方案，开始实施";
       button.className = "primaryButton compact";
       button.disabled = ["working", "stopping"].includes(session.status) || !WorkbenchPresentation.canUseProfile(state.aiProfiles.find(profile => profile.id === (session.profileId || state.provider?.id)));
       button.addEventListener("click", async () => {
@@ -3007,10 +3010,10 @@ function createAgentWorkflowCard(session) {
         }
         button.disabled = true;
         try {
-          const aiTest = workflow.plan.usesAi
+          const aiTest = plan.usesAi
             ? { enabled: Boolean(aiTestToggle?.checked), ...(aiTestToggle?.checked ? { profileId: aiTestModel?.value } : {}) }
             : null;
-          const result = await window.workbench.sendRoomAgentMessage(session.id, "", [], workflow.plan.id, aiTest);
+          const result = await window.workbench.sendRoomAgentMessage(session.id, "", [], plan.id, aiTest);
           if (state.agentSession?.id === session.id) state.agentSession = result.session;
           state.agentActivity = "已确认方案，正在实施";
           renderAgentWorkspace();
@@ -3135,6 +3138,7 @@ function renderAgentHeader() {
   elements.agentRunStatus.textContent = status === "idle" ? (session?.roomId && (!session.workflow?.questions?.length && !session.workflow?.plan) ? "已有房间 · 修改待沟通" : { clarifying: session?.roomId ? "修改需求沟通" : "需求沟通", review: "等待确认", complete: "房间已完成" }[session?.workflow?.phase] || "就绪") : (AGENT_STATUS_LABELS[status] || "就绪");
   elements.stopAgentButton.hidden = !["working", "stopping"].includes(status);
   elements.deleteAgentSessionButton.disabled = !session || ["working", "stopping"].includes(status);
+  elements.exportAgentSessionButton.disabled = !session;
   elements.agentWindowButton.textContent = state.isAgentWindow || state.agentDetached ? "↙" : "↗";
   elements.agentWindowButton.title = state.isAgentWindow || state.agentDetached ? "收回工作台" : "在独立窗口打开";
   elements.closeAgentWorkspaceButton.title = state.isAgentWindow ? "收回工作台" : "关闭 AI 创建标签";
@@ -3350,7 +3354,23 @@ function applyRoomAgentEvent(payload) {
     session.messages.push(payload.message);
   } else if (payload.type === "message_delta") {
     const message = session.messages.find((item) => item.id === payload.messageId);
-    if (message) message.content += payload.delta || "";
+    if (message) {
+      const delta = payload.delta || "";
+      message.content += delta;
+      const article = elements.agentTimeline.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`);
+      const body = article?.querySelector(".agentMessageBody");
+      if (body) {
+        const nearBottom = elements.agentConversation.scrollHeight - elements.agentConversation.scrollTop - elements.agentConversation.clientHeight < 100;
+        if (body.dataset.streamingPlain === "true" && body.firstChild?.nodeType === Node.TEXT_NODE) {
+          body.firstChild.appendData(delta);
+        } else {
+          body.textContent = message.content;
+          body.dataset.streamingPlain = "true";
+        }
+        if (nearBottom) elements.agentConversation.scrollTop = elements.agentConversation.scrollHeight;
+        return;
+      }
+    }
   } else if (payload.type === "message_finished" && payload.message) {
     const index = session.messages.findIndex((item) => item.id === payload.message.id);
     if (index >= 0) session.messages[index] = payload.message;
@@ -3363,6 +3383,15 @@ function applyRoomAgentEvent(payload) {
     if (index >= 0) session.steps[index] = payload.step;
     else session.steps.push(payload.step);
     state.agentActivity = payload.step.progress || "";
+    if (payload.type === "tool_updated") {
+      const article = elements.agentTimeline.querySelector(`[data-step-id="${CSS.escape(payload.step.id)}"]`);
+      const progress = article?.querySelector(".agentToolProgress");
+      if (progress) {
+        progress.textContent = payload.step.error || payload.step.progress || "执行中";
+        elements.agentActivity.textContent = state.agentActivity;
+        return;
+      }
+    }
   } else if (payload.type === "room_ready" && payload.room) {
     session.roomId = payload.room.id;
     const runningStep = [...session.steps].reverse().find((step) => step.status === "running" && (step.toolName.startsWith("build_") || step.toolName === "install_custom_room"));
@@ -3375,6 +3404,8 @@ function applyRoomAgentEvent(payload) {
     if (payload.error) state.agentActivity = payload.error;
   } else if (payload.type === "activity") {
     state.agentActivity = payload.label || "";
+    elements.agentActivity.textContent = state.agentActivity;
+    return;
   }
   session.updatedAt = new Date().toISOString();
   renderAgentWorkspace({ keepScroll: true });
@@ -3764,6 +3795,16 @@ elements.generateForm.addEventListener("submit", generateRoom);
 elements.newAgentSessionButton.addEventListener("click", () => createAgentSession().catch((error) => showToast(formatError(error))));
 document.getElementById("agentTopNewButton").addEventListener("click", () => createAgentSession().catch((error) => showToast(formatError(error))));
 elements.agentNewTaskButton.addEventListener("click", () => createAgentSession().catch((error) => showToast(formatError(error))));
+elements.exportAgentSessionButton.addEventListener("click", async () => {
+  const sessionId = state.agentSession?.id;
+  if (!sessionId) return;
+  try {
+    const result = await window.workbench.exportRoomAgentSession(sessionId);
+    if (result?.filePath) showToast("对话记录已导出");
+  } catch (error) {
+    showToast(formatError(error));
+  }
+});
 elements.deleteAgentSessionButton.addEventListener("click", async () => {
   const session = state.agentSession;
   if (!session || !window.confirm(`删除对话“${session.title}”及其中的参考图片？已生成的房间不会删除。`)) return;

@@ -136,8 +136,11 @@ test("room modification can inspect and page through only the installed program 
   assert.equal(JSON.stringify(page).includes(store.getDataRoot(built.room.id)), false);
   await assert.rejects(() => read.execute("bad", { path: "../../data/room.sqlite" }, new AbortController().signal), /没有该程序文件/);
   session.workflow = { phase: "clarifying", answered: true };
-  await tools.find((tool) => tool.name === "propose_room_plan").execute("plan", testPlan, new AbortController().signal);
-  assert.equal(session.workflow.phase, "review");
+  await assert.rejects(
+    () => tools.find((tool) => tool.name === "propose_room_plan").execute("plan", testPlan, new AbortController().signal),
+    /无需重新提交实施方案/
+  );
+  assert.equal(session.workflow.phase, "clarifying");
 });
 
 test("room program inspection includes multi-file modules and update drops obsolete grants safely", async t => {
@@ -182,13 +185,14 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
     aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) },
     installedProgramValidator: async ({ programRoot }) => {
       validationRoots.push(programRoot);
-      assert.match(await fsp.readFile(path.join(programRoot, "app", "app.js"), "utf8"), /speed=\.12/);
+      assert.match(await fsp.readFile(path.join(programRoot, "app", "app.js"), "utf8"), validationRoots.length === 1 ? /speed=\.12/ : /speed=\.16/);
       return { passed: true, kind: "unit-test-program" };
     }
   }).init();
   t.after(() => service.dispose());
   const session = service.requireSession((await service.createSession({ roomId: built.room.id })).id);
-  session.workflow = { phase: "implementing", answered: true, plan: { ...testPlan, id: "plan" }, approvedPlanId: "plan" };
+  session.workflow = { phase: "implementing", mode: "maintenance", answered: true };
+  session.status = "working";
   const pi = await import("@earendil-works/pi-ai");
   const tools = service.createTools(session, { pi });
   const invoke = (name, params = {}) => tools.find((tool) => tool.name === name).execute(name, params, new AbortController().signal);
@@ -203,6 +207,14 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   assert.match(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.12/);
   assert.deepEqual(store.getRoom(built.room.id).grantedPermissions.files, ["pick"]);
   assert.equal(session.programPatch, null);
+  assert.equal(session.workflow.phase, "implementing");
+  await invoke("inspect_current_room");
+  await invoke("read_current_room_file", { path: "app/app.js" });
+  await invoke("patch_current_room_file", { path: "app/app.js", find: "speed=.12", replacement: "speed=.16", expectedRevision: 1 });
+  await invoke("test_current_room_patch");
+  await invoke("install_current_room_patch");
+  assert.equal(store.getRoom(built.room.id).version, "1.0.2");
+  assert.match(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.16/);
 });
 
 test("Agent context compaction removes old thinking signatures and saved source payloads", () => {
@@ -737,11 +749,14 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   assert.ok(completed.room, completed.error);
   assert.equal(completed.workflow.phase, "complete");
   assert.match(restored.requireSession(created.id).latestUserGoal, /台账/);
-  await assert.rejects(() => restored.send(created.id, { approvePlanId: revised.workflow.plan.id }), /失效/);
+  await assert.rejects(() => restored.send(created.id, { approvePlanId: revised.workflow.plan.id }), /无需确认旧方案/);
   await restored.send(created.id, "现在加个筛选功能");
   const next = await restored.waitForIdle(created.id);
   assert.equal(next.workflow.phase, "complete");
   assert.equal(next.workflow.mode, "maintenance");
+  assert.equal(next.workflow.plan, null);
+  assert.equal(next.workflow.approvedPlanId, null);
+  await assert.rejects(() => restored.send(created.id, { approvePlanId: oldId }), /无需确认旧方案/);
   assert.notEqual(next.room.version, completed.room.version);
   assert.equal(next.workflow.questions, null);
   assert.equal(next.steps.some((step) => step.toolName === "ask_room_questions" && step.startedAt > completed.updatedAt), false);
@@ -752,6 +767,72 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   await assert.rejects(() => ask.execute("too-many", { questions: [blockingQuestion, { ...blockingQuestion, title: "是否默认记住筛选条件？" }] }, new AbortController().signal), /最多问 1 个/);
   await ask.execute("one-question", { questions: [blockingQuestion] }, new AbortController().signal);
   await assert.rejects(() => ask.execute("repeat-question", { questions: [blockingQuestion] }, new AbortController().signal), /此前已经问过/);
+});
+
+test("maintenance failures and restored legacy sessions never resurface an old approval plan", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-maintenance-plan-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const store = await new RoomStore(root).init();
+  const { createCustomRoom } = require("../src/main/custom-room.cjs");
+  const built = await createCustomRoom({ spec: freeBilliardsSpec(), roomStore: store });
+  const options = {
+    roomStore: store,
+    aiService: {
+      getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }),
+      createAgentRuntime: async () => { throw new Error("模拟模型初始化失败"); }
+    }
+  };
+  const service = await new RoomAgentService(options).init();
+  const session = service.requireSession((await service.createSession({ roomId: built.room.id })).id);
+  session.workflow = { phase: "review", mode: "maintenance", answered: true, plan: { ...testPlan, id: "old-plan" }, approvedPlanId: "old-plan" };
+  await assert.rejects(() => service.send(session.id, { approvePlanId: "old-plan" }), /无需确认旧方案/);
+  await service.persist(session);
+  await service.dispose();
+  const restored = await new RoomAgentService(options).init();
+  t.after(() => restored.dispose());
+  const recovered = restored.getSession(session.id);
+  assert.equal(recovered.workflow.phase, "complete");
+  assert.equal(recovered.workflow.plan, null);
+  await restored.send(session.id, "把按钮改成绿色");
+  const failed = await restored.waitForIdle(session.id);
+  assert.equal(failed.status, "error");
+  assert.equal(failed.workflow.phase, "complete");
+  assert.equal(failed.workflow.plan, null);
+  assert.equal(failed.workflow.approvedPlanId, null);
+  await assert.rejects(() => restored.send(session.id, { approvePlanId: "old-plan" }), /无需确认旧方案/);
+  await restored.send(session.id, "继续修复按钮");
+  const retried = await restored.waitForIdle(session.id);
+  assert.equal(retried.workflow.plan, null);
+  assert.equal(retried.workflow.phase, "complete");
+});
+
+test("streaming chat batches small deltas and flushes them before the final message", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-stream-batching-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const store = await new RoomStore(root).init();
+  const events = [];
+  const service = await new RoomAgentService({
+    roomStore: store,
+    aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) },
+    onEvent: (event) => events.push(event)
+  }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  const state = { assistantMessageId: null, seenUsage: new WeakSet() };
+  for (let index = 0; index < 1000; index += 1) {
+    await service.handleAgentEvent(session, {}, null, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "x" }
+    }, state);
+  }
+  await service.handleAgentEvent(session, { pi: { contentText: () => "" } }, { state: { messages: [] } }, {
+    type: "message_end", message: { role: "assistant", content: [], stopReason: "end" }
+  }, state);
+  const deltas = events.filter((event) => event.type === "message_delta");
+  assert.equal(deltas.map((event) => event.delta).join(""), "x".repeat(1000));
+  assert.ok(deltas.length < 50, `received ${deltas.length} IPC deltas`);
+  assert.ok(events.findIndex((event) => event.type === "message_finished") > events.findLastIndex((event) => event.type === "message_delta"));
+  assert.equal(session.messages.at(-1).content.length, 1000);
 });
 
 test("long question answers are not silently truncated and stopped runs stay stopped", async (t) => {

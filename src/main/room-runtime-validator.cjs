@@ -39,25 +39,42 @@ async function validateInstalledProgramRuntime({ programRoot, signal, timeoutMs 
   }
 }
 
-async function runWorker(input, signal, timeoutMs) {
+async function runWorker(input, signal, timeoutMs, spawnWorker = spawn) {
   const electron = process.versions.electron ? require("electron") : null;
   const executable = process.versions.electron ? process.execPath : require("electron");
   const args = electron?.app?.isPackaged ? [`--room-runtime-check=${input}`] : [path.join(__dirname, "room-runtime-worker.cjs"), input];
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { env, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawnWorker(executable, args, { env, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     let diagnostics = "";
-    child.stderr.on("data", chunk => { diagnostics = (diagnostics + chunk.toString()).slice(-2000); });
-    let failure = null;
-    const stop = error => { failure ||= error; child.kill(); };
+    let settled = false;
+    child.stderr?.on("data", chunk => { diagnostics = (diagnostics + chunk.toString()).slice(-2000); });
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    };
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try { child.stderr?.destroy?.(); } catch {}
+      if (error) reject(error);
+      else resolve();
+    };
+    const stop = (error) => {
+      if (settled) return;
+      try { child.kill(); } catch {}
+      finish(error);
+    };
     const abort = () => stop(new Error("运行检查已停止"));
     const timer = setTimeout(() => stop(new Error("房间运行检查超时：可能出现死循环或资源初始化未完成")), timeoutMs);
+    child.once("error", finish);
+    // Electron renderers can inherit stderr and keep the pipe open after the
+    // browser process exits. Its exit is the completion signal, not pipe close.
+    child.once("exit", code => finish(code === 0 ? null : new Error("隔离运行检查进程异常退出：" + diagnostics)));
     signal?.addEventListener("abort", abort, { once: true });
     if (signal?.aborted) abort();
-    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); };
-    child.once("error", error => { cleanup(); reject(error); });
-    child.once("close", code => { cleanup(); if (failure) reject(failure); else if (code !== 0) reject(new Error("隔离运行检查进程异常退出：" + diagnostics)); else resolve(); });
   });
 }
 
@@ -69,4 +86,4 @@ async function readResult(jobRoot) {
   return result;
 }
 
-module.exports = { validateRoomRuntime, validateInstalledProgramRuntime };
+module.exports = { validateRoomRuntime, validateInstalledProgramRuntime, runWorker };

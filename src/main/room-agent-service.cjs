@@ -107,7 +107,7 @@ function isAcceptRecommendedPrompt(value) {
 }
 
 function isMaintenanceSession(session) {
-  return Boolean(session?.roomId) && !session?.sourceProject;
+  return Boolean(session?.roomId);
 }
 
 function canImplement(session) {
@@ -378,7 +378,9 @@ function normalizeSession(value) {
     runs: Array.isArray(value.runs) ? value.runs.map((run) => run.finishedAt ? run : { ...run, status: "interrupted", elapsedMs: null }) : [],
     latestUserGoal: cleanText(value.latestUserGoal, 12000),
     workflow: value.workflow && typeof value.workflow === "object"
-      ? { ...value.workflow, phase: value.workflow.phase === "implementing" ? "review" : value.workflow.phase }
+      ? value.roomId && ["review", "implementing"].includes(value.workflow.phase)
+        ? { ...value.workflow, phase: "complete", plan: null, approvedPlanId: null, aiTestPolicy: null }
+        : { ...value.workflow, phase: value.workflow.phase === "implementing" ? "review" : value.workflow.phase }
       : { phase: value.roomId ? "complete" : "clarifying" },
     customDraft: value.customDraft && typeof value.customDraft === "object" ? value.customDraft : null,
     sourceProject: value.sourceProject || null,
@@ -1260,7 +1262,7 @@ class RoomAgentService {
 - 可用 delegate_room_task 让只读子 Agent 做独立审查；主 Agent负责最终修改与验证。
 - 当前工作流：${JSON.stringify(session.workflow || { phase: "clarifying" })}。下方提供当前任务资料和开发参考。
 
-${session.sourceProject ? `当前迁移项目：${JSON.stringify({ id: session.sourceProject.id, name: session.sourceProject.name })}。` : "当前没有已导入的迁移项目。"}
+${session.sourceProject && !isMaintenanceSession(session) ? `当前迁移项目：${JSON.stringify({ id: session.sourceProject.id, name: session.sourceProject.name })}。` : "当前没有已导入的迁移项目。"}
 ${session.workflow?.phase === "implementing" ? `<room_builder_skill>\n${this.skillText}\n</room_builder_skill>` : "当前先完成首次需求沟通、项目读取或方案确认；实施工具会在确认后开放。"}
 ${session.contextSummary ? `<context_summary>\n${session.contextSummary}\n</context_summary>` : ""}
 ${currentContext}`;
@@ -1324,7 +1326,10 @@ ${currentContext}`;
 
   async afterRoomBuilt(session, room, details) {
     if (!session.manualTitle) session.title = room.name.slice(0, 80);
-    session.workflow = { ...session.workflow, phase: "complete", mode: "maintenance" };
+    // A maintenance turn may install more than one tested patch. Keep its write
+    // tools authorized until the agent turn ends; run() marks it complete then.
+    const continuingMaintenance = details.updated === true && session.workflow?.mode === "maintenance" && session.status === "working";
+    session.workflow = { ...session.workflow, phase: continuingMaintenance ? "implementing" : "complete", mode: "maintenance" };
     session.roomId = room.id;
     session.currentRoomInspection = null;
     session.programPatch = null;
@@ -1658,6 +1663,7 @@ ${currentContext}`;
         executionMode: "sequential",
         execute: async (_id, params, signal) => {
           signal?.throwIfAborted();
+          if (isMaintenanceSession(session)) throw new Error("已有房间的修改和修复无需重新提交实施方案，请直接实施并测试");
           if (!session.workflow?.answered) throw new Error("先调用 ask_room_questions，等待用户回答后才能提交方案");
           const plan = {};
           if (session.roomId) {
@@ -2033,11 +2039,16 @@ ${currentContext}`;
       const execute = tool.execute;
       return { ...tool, execute: async (...args) => {
         if (session.runs?.at(-1)?.stopRequested) throw new Error("当前运行已停止；草稿已保留，不再执行工具");
-        if (session.sourceProject && (session.workflow?.plan?.sourceId !== session.sourceProject.id || session.projectAssessment?.recommendation === "unsupported")) {
+        if (session.sourceProject && !isMaintenanceSession(session) && (session.workflow?.plan?.sourceId !== session.sourceProject.id || session.projectAssessment?.recommendation === "unsupported")) {
           throw new Error("项目迁移必须使用当前项目已确认的方案和自由房间通道，不能绕过迁移评估");
         }
         if (!canImplement(session)) {
-          throw new Error("首次创建或迁移尚未获得当前方案的用户确认；已有房间的明确修复请求可以直接实施。");
+          if (isMaintenanceSession(session)) {
+            throw new Error(session.workflow?.phase === "clarifying"
+              ? "已向用户提出澄清问题，请等待回答后继续修改；不要反复调用修改工具"
+              : "当前维护回合尚未开始或已经结束；请等待用户发送新的修改需求");
+          }
+          throw new Error("首次创建或迁移尚未获得当前方案的用户确认");
         }
         return execute(...args);
       } };
@@ -2066,6 +2077,29 @@ ${currentContext}`;
     session.usage = clone(usage);
   }
 
+  flushMessageDelta(session, runState) {
+    if (runState.textDeltaTimer) clearTimeout(runState.textDeltaTimer);
+    runState.textDeltaTimer = null;
+    const delta = runState.pendingTextDelta || "";
+    const messageId = runState.pendingTextMessageId;
+    runState.pendingTextDelta = "";
+    runState.pendingTextMessageId = null;
+    if (delta && messageId) this.emit(session, "message_delta", { messageId, delta });
+  }
+
+  queueMessageDelta(session, runState, messageId, delta) {
+    if (runState.pendingTextMessageId && runState.pendingTextMessageId !== messageId) {
+      this.flushMessageDelta(session, runState);
+    }
+    runState.pendingTextMessageId = messageId;
+    runState.pendingTextDelta = (runState.pendingTextDelta || "") + delta;
+    if (runState.pendingTextDelta.length >= 2048) {
+      this.flushMessageDelta(session, runState);
+    } else if (!runState.textDeltaTimer) {
+      runState.textDeltaTimer = setTimeout(() => this.flushMessageDelta(session, runState), 50);
+    }
+  }
+
   async handleAgentEvent(session, runtime, agent, event, runState) {
     session.updatedAt = nowIso();
     if (event.type === "agent_start") {
@@ -2092,10 +2126,11 @@ ${currentContext}`;
       if (event.assistantMessageEvent?.type !== "text_delta" || !event.assistantMessageEvent.delta) return;
       const message = this.addAssistantMessage(session, runState);
       message.content += event.assistantMessageEvent.delta;
-      this.emit(session, "message_delta", { messageId: message.id, delta: event.assistantMessageEvent.delta });
+      this.queueMessageDelta(session, runState, message.id, event.assistantMessageEvent.delta);
       return;
     }
     if (event.type === "message_end" && event.message?.role === "assistant") {
+      this.flushMessageDelta(session, runState);
       // Some OpenAI-compatible gateways omit `usage` on intermediate tool-call
       // responses. Pi estimates the next request from every assistant message;
       // normalize in-place before its next turn so a missing object cannot stop
@@ -2182,6 +2217,7 @@ ${currentContext}`;
       return;
     }
     if (event.type === "agent_end") {
+      this.flushMessageDelta(session, runState);
       for (const message of session.messages) if (message.status === "queued") message.status = "sent";
       const stateMessages = Array.isArray(agent?.state?.messages) ? agent.state.messages : [];
       const emittedMessages = Array.isArray(event.messages) ? event.messages : [];
@@ -2234,6 +2270,7 @@ ${currentContext}`;
     const startedAt = Date.now();
     let limitTimer;
     let agent = null;
+    let runState = null;
     this.emit(session, "session_updated", { session: publicSession(session, this.roomStore) });
     try {
       const agentModule = await this.agentModuleLoader();
@@ -2248,13 +2285,15 @@ ${currentContext}`;
       runtime.thinkingLevel = limits.thinkingLevel;
       runtime.harnessState = { subagentCount: 0 };
       const { Agent } = agentModule;
-      const runState = { assistantMessageId: null, run, seenUsage: new WeakSet() };
+      runState = { assistantMessageId: null, run, seenUsage: new WeakSet() };
       agent = new Agent({
         initialState: {
           systemPrompt: await this.systemPrompt(session),
           model: runtime.model,
           thinkingLevel: runtime.thinkingLevel || "medium",
-          tools: this.createTools(session, runtime).filter((tool) => session.workflow?.phase === "implementing" || ["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name)),
+          tools: this.createTools(session, runtime).filter((tool) =>
+            !(isMaintenanceSession(session) && tool.name === "propose_room_plan") &&
+            (session.workflow?.phase === "implementing" || ["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name))),
           messages: await this.hydrateAgentMessages(session)
         },
         streamFn: runtime.streamFn,
@@ -2276,13 +2315,14 @@ ${currentContext}`;
       this.emit(session, "status", { status: session.status, error: session.error });
     } finally {
       clearTimeout(limitTimer);
+      if (agent) this.flushMessageDelta(session, runState);
       if (Array.isArray(agent?.state?.messages) && agent.state.messages.length) {
         session.agentMessages = this.dehydrateAgentMessages(session, agent.state.messages);
       }
       run.finishedAt = nowIso();
       run.elapsedMs = Date.now() - startedAt;
       run.status = run.stopRequested ? "stopped" : session.status === "error" ? "error" : session.status === "stopping" ? "stopped" : "complete";
-      if (session.workflow?.phase === "implementing") session.workflow.phase = "review";
+      if (session.workflow?.phase === "implementing") session.workflow.phase = isMaintenanceSession(session) ? "complete" : "review";
       if (session.status === "working" || session.status === "stopping") session.status = "idle";
       if (run.limitReason) session.status = "interrupted";
       await this.persist(session);
@@ -2371,9 +2411,10 @@ ${currentContext}`;
         request = { ...request, prompt: "继续实施当前方案" };
       }
     }
-    const resumingByText = !request.approvePlanId && workflowBefore.phase === "review" && workflowBefore.plan?.id &&
+    const resumingByText = !isMaintenanceSession(session) && !request.approvePlanId && workflowBefore.phase === "review" && workflowBefore.plan?.id &&
       workflowBefore.approvedPlanId === workflowBefore.plan.id && isResumeImplementationPrompt(request.prompt);
     const approval = request.approvePlanId || (resumingByText ? workflowBefore.plan.id : null);
+    if (approval && isMaintenanceSession(session)) throw new Error("已有房间无需确认旧方案，请直接描述修改或修复需求");
     if (approval && (session.workflow?.phase !== "review" || approval !== session.workflow?.plan?.id)) throw new Error("方案已变更或失效，请查看最新方案后重新确认");
     if (request.approvePlanId && (request.prompt || request.attachments?.length)) throw new Error("确认方案不能同时附加新需求，请先发送修改要求");
     if (approval) {
@@ -2426,7 +2467,7 @@ ${currentContext}`;
       session.workflow.approvedPlanId = approval;
     } else {
       const workflow = session.workflow || { phase: "clarifying" };
-      const diagnosticFollowup = workflow.phase === "review" && workflow.plan?.id && workflow.approvedPlanId === workflow.plan.id && isImplementationStatusPrompt(effectivePrompt);
+      const diagnosticFollowup = !maintenance && workflow.phase === "review" && workflow.plan?.id && workflow.approvedPlanId === workflow.plan.id && isImplementationStatusPrompt(effectivePrompt);
       if (diagnosticFollowup) {
         session.workflow = { ...workflow, phase: "review" };
       } else if (maintenance) {
@@ -2436,7 +2477,10 @@ ${currentContext}`;
           phase: "implementing",
           mode: "maintenance",
           answered: true,
-          questions: null
+          questions: null,
+          plan: null,
+          approvedPlanId: null,
+          aiTestPolicy: null
         };
         if (!acceptingRecommended) session.latestUserGoal = cleanText([session.latestUserGoal, effectivePrompt].filter(Boolean).join("\n补充需求："), 12000);
       } else {

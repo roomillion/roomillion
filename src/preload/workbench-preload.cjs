@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld("workbench", Object.freeze({
   listRoomAgentSessions: () => ipcRenderer.invoke("workbench:listRoomAgentSessions"),
   createRoomAgentSession: (options) => ipcRenderer.invoke("workbench:createRoomAgentSession", options),
   getRoomAgentSession: (sessionId) => ipcRenderer.invoke("workbench:getRoomAgentSession", sessionId),
+  exportRoomAgentSession: (sessionId) => ipcRenderer.invoke("workbench:exportRoomAgentSession", sessionId),
   importSourceProject: (sessionId) => ipcRenderer.invoke("workbench:importSourceProject", sessionId),
   setRoomAgentModel: (sessionId, profileId) => ipcRenderer.invoke("workbench:setRoomAgentModel", sessionId, profileId),
   renameRoomAgentSession: (sessionId, title) => ipcRenderer.invoke("workbench:renameRoomAgentSession", sessionId, title),

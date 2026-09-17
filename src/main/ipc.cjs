@@ -15,6 +15,7 @@ const { RoomJobService } = require("./room-job-service.cjs");
 const { RoomDocumentService } = require("./room-document-service.cjs");
 const { RoomToolService } = require("./room-tool-service.cjs");
 const { RoomImportLocation } = require("./room-import-location.cjs");
+const { buildRoomAgentExport } = require("./room-agent-export.cjs");
 
 const DEFAULT_BINARY_EXTENSIONS = Object.freeze([
   "pdf", "docx", "xlsx", "xls", "pptx", "zip", "png", "jpg", "jpeg", "webp"
@@ -675,6 +676,21 @@ function registerIpcHandlers({
   handle("workbench:getRoomAgentSession", async (event, sessionId) => {
     requireWorkbench(event);
     return roomAgent.getSession(sessionId);
+  });
+  handle("workbench:exportRoomAgentSession", async (event, sessionId) => {
+    requireWorkbench(event);
+    const session = roomAgent.getSession(sessionId);
+    const parent = require("electron").BrowserWindow.fromWebContents(event.sender) || mainWindow;
+    const safeTitle = String(session.title || "room-agent-chat").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 60);
+    const result = await dialog.showSaveDialog(parent, {
+      title: "导出 AI 创建房间对话",
+      defaultPath: `${safeTitle}-${String(session.id).slice(0, 8)}.json`,
+      filters: [{ name: "JSON 对话记录", extensions: ["json"] }]
+    });
+    if (result.canceled || !result.filePath) return null;
+    const report = buildRoomAgentExport(session, { appVersion: require("../../package.json").version });
+    await fsp.writeFile(result.filePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    return { filePath: result.filePath };
   });
   handle("workbench:importSourceProject", async (event, sessionId) => {
     requireWorkbench(event);
