@@ -166,6 +166,9 @@ function createMainWindow() {
     minHeight: 680,
     backgroundColor: "#edf2ef",
     title: "千万间 Roomillion",
+    ...(process.platform === "linux" ? { icon: app.isPackaged
+      ? path.join(process.resourcesPath, "app-icon.png")
+      : path.join(__dirname, "..", "..", "build", "generated", "icons", "256x256.png") } : {}),
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: "#f7faf8",

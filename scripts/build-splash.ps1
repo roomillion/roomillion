@@ -33,7 +33,6 @@ function Write-PngIcon([string]$Path, [string]$Glyph, [System.Drawing.Color]$Bac
   } finally { $pngStream.Dispose(); $backgroundBrush.Dispose(); $iconBrush.Dispose(); $iconFont.Dispose(); $iconGraphics.Dispose(); $iconBitmap.Dispose() }
 }
 
-Write-PngIcon (Join-Path $outputDirectory 'app.ico') '千' ([System.Drawing.Color]::FromArgb(23,61,50)) ([System.Drawing.Color]::FromArgb(215,243,106))
 Write-PngIcon (Join-Path $outputDirectory 'room.ico') '房' ([System.Drawing.Color]::FromArgb(34,91,73)) ([System.Drawing.Color]::FromArgb(235,250,243))
 $bitmap = New-Object System.Drawing.Bitmap 600,260
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
@@ -41,14 +40,17 @@ $titleFont = New-Object System.Drawing.Font 'Microsoft YaHei',28,([System.Drawin
 $bodyFont = New-Object System.Drawing.Font 'Microsoft YaHei',12
 $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(240,249,244))
 $accent = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(215,243,106))
+$appIcon = [System.Drawing.Image]::FromFile((Join-Path $outputDirectory 'icons/256x256.png'))
 try {
   $graphics.Clear([System.Drawing.Color]::FromArgb(23,61,50))
   $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-  $graphics.DrawString('千万间 Roomillion', $titleFont, $white, 40, 45)
-  $graphics.DrawString('正在准备运行环境，请稍候…', $bodyFont, $white, 43, 113)
-  $graphics.DrawString('首次启动需要解压资源，请不要重复打开。', $bodyFont, $white, 43, 151)
-  $graphics.FillRectangle($accent, 43, 207, 514, 5)
+  $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $graphics.DrawImage($appIcon, 34, 63, 126, 126)
+  $graphics.DrawString('千万间 Roomillion', $titleFont, $white, 179, 45)
+  $graphics.DrawString('正在准备运行环境，请稍候…', $bodyFont, $white, 182, 113)
+  $graphics.DrawString('首次启动需要解压资源，请不要重复打开。', $bodyFont, $white, 182, 151)
+  $graphics.FillRectangle($accent, 182, 207, 375, 5)
   $bitmap.Save((Join-Path $outputDirectory 'startup.bmp'), [System.Drawing.Imaging.ImageFormat]::Bmp)
 } finally {
-  $graphics.Dispose(); $bitmap.Dispose(); $titleFont.Dispose(); $bodyFont.Dispose(); $white.Dispose(); $accent.Dispose()
+  $graphics.Dispose(); $bitmap.Dispose(); $titleFont.Dispose(); $bodyFont.Dispose(); $white.Dispose(); $accent.Dispose(); $appIcon.Dispose()
 }

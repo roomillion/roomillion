@@ -35,9 +35,14 @@ module.exports = {
     {
       from: "resources/room-modules",
       to: "room-modules"
+    },
+    {
+      from: "build/generated/icons/256x256.png",
+      to: "app-icon.png"
     }
   ],
   linux: {
+    icon: "build/generated/icons",
     target: ["dir"],
     category: "Utility",
     executableName: "roomillion",
