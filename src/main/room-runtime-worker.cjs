@@ -49,10 +49,10 @@ function start(input, schemeRegistered = false) {
     mainWindow = new BrowserWindow({ show: false, width: 1200, height: 800, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
     const handler = createRoomProtocolHandler({ roomStore: store, resourcesRoot: app.isPackaged ? path.join(process.resourcesPath, "room-modules") : path.resolve(__dirname, "../../resources/room-modules") });
     views = await new RoomViewManager(mainWindow, store, handler).init();
-    const handle = (channel, fn, permission = null) => ipcMain.handle(channel, (event, ...args) => {
+    const handle = (channel, fn, permission = null, withEvent = false) => ipcMain.handle(channel, (event, ...args) => {
       if (views.getRoomIdForSender(event.sender.id) !== room.id) throw new Error("运行检查调用方无效");
       if (permission && !hasPermission(room, ...permission)) throw new Error("房间未声明所需权限");
-      return fn(...args);
+      return withEvent ? fn(event, ...args) : fn(...args);
     });
     handle("room:getInfo", () => room);
     handle("room:dbQuery", (sql, params) => database.query(room.id, sql, params), ["database", "read"]);
@@ -71,7 +71,15 @@ function start(input, schemeRegistered = false) {
     handle("room:aiSelectSlot", (_slot, profileId) => ({ profileId }), runtimeAiPermission);
     handle("room:aiClearSlot", slot => ({ slot, profileId: null }), runtimeAiPermission);
     const aiMock = createRoomRuntimeAiMock(testDefinition?.mocks?.ai);
-    handle("room:aiGenerate", () => aiMock.generate(), runtimeAiPermission);
+    handle("room:aiGenerate", (event, _prompt, options = {}) => {
+      const result = aiMock.generate();
+      if (options?.streamRequestId) {
+        for (const delta of result.text.match(/[\s\S]{1,3}/g) || []) {
+          event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, delta });
+        }
+      }
+      return result;
+    }, runtimeAiPermission, true);
     handle("room:aiBatch", (requests, options) => aiMock.batch(requests, options), runtimeAiPermission);
     handle("room:credentialList", () => []);
     handle("room:networkGetStatus", () => ({ enabled: false, allowed: false, reason: "隔离检查禁止外网" }));
@@ -170,7 +178,10 @@ function start(input, schemeRegistered = false) {
       ].join("\n");
       const interaction = await view.webContents.executeJavaScript(interactionScript);
       report.checks.push({ id: "interactions", ...interaction });
-      if (interaction.passed && testDefinition) report.checks.push({ id: "declared-scenarios", ...(await runDeclaredScenarios(view.webContents, testDefinition)) });
+      if (interaction.passed && testDefinition) {
+        aiMock.reset();
+        report.checks.push({ id: "declared-scenarios", ...(await runDeclaredScenarios(view.webContents, testDefinition)) });
+      }
     }
     report.passed = !report.rendererCrashed && report.checks.length >= 3 && report.checks.every(check => check.passed);
   }).catch(error => { report.error = String(error.message).slice(0, 1000); }).finally(async () => {

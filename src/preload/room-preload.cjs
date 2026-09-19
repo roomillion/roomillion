@@ -2,6 +2,36 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
+let aiRequestCounter = 0;
+async function generateAi(prompt, options = {}) {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    return ipcRenderer.invoke("room:aiGenerate", prompt, options);
+  }
+  const { onChunk, ...requestOptions } = options;
+  if (typeof onChunk !== "function") return ipcRenderer.invoke("room:aiGenerate", prompt, requestOptions);
+  const requestId = `r${Date.now().toString(36)}-${++aiRequestCounter}`;
+  let received = "";
+  const listener = (_event, payload) => {
+    if (payload?.requestId !== requestId || typeof payload.delta !== "string") return;
+    received += payload.delta;
+    try { onChunk(payload.delta, received); } catch (error) { console.error(error); }
+  };
+  ipcRenderer.on("room:aiTextDelta", listener);
+  try {
+    const result = await ipcRenderer.invoke("room:aiGenerate", prompt, { ...requestOptions, streamRequestId: requestId });
+    const finalText = typeof result?.text === "string" ? result.text : "";
+    const streamedText = received.trimStart();
+    if (finalText.startsWith(streamedText) && finalText.length > streamedText.length) {
+      const remaining = finalText.slice(streamedText.length);
+      received += remaining;
+      try { onChunk(remaining, received); } catch (error) { console.error(error); }
+    }
+    return result;
+  } finally {
+    ipcRenderer.removeListener("room:aiTextDelta", listener);
+  }
+}
+
 contextBridge.exposeInMainWorld("room", Object.freeze({
   getInfo: () => ipcRenderer.invoke("room:getInfo"),
   vector: Object.freeze(Object.fromEntries(["create", "list", "upsert", "search", "remove", "drop"].map((method) => [method, (...args) => ipcRenderer.invoke(`room:vector:${method}`, ...args)]))),
@@ -92,7 +122,7 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
     selectSlot: (slot, profileId) => ipcRenderer.invoke("room:aiSelectSlot", slot, profileId),
     clearSlot: (slot) => ipcRenderer.invoke("room:aiClearSlot", slot),
     selectModel: (profileId) => ipcRenderer.invoke("room:aiSelectModel", profileId),
-    generate: (prompt, options = {}) => ipcRenderer.invoke("room:aiGenerate", prompt, options),
+    generate: generateAi,
     batch: (requests, options = {}) => ipcRenderer.invoke("room:aiBatch", requests, options),
     onModelsChanged: (callback) => {
       if (typeof callback !== "function") throw new TypeError("模型目录监听器必须是函数");

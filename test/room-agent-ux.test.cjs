@@ -21,9 +21,12 @@ test("structured questions preserve choices, examples and add missing audience c
   assert.equal(questions[0].topic, "audience");
   assert.ok(questions[0].options.includes("多人共同编辑同一份数据"));
   assert.equal(questions[1].example, question.example);
+  assert.equal(normalizeQuestions([{ topic: "data", title: "需要保存翻译历史吗？", options: ["保存", "不保存"], recommended: "保存" }, { topic: "features", title: "需要手动选择目标语言吗？", options: ["需要", "不需要"], recommended: "需要" }])[0].example, "");
   assert.ok(questions[1].options.includes("你来推荐"));
   assert.equal(new Set(questions.map((q) => q.id)).size, 3);
-  assert.throws(() => normalizeQuestions([question, { ...question, recommended: "不存在" }]), /推荐答案/);
+  assert.equal(normalizeQuestions([question, { ...question, recommended: "不存在" }])[1].recommended, question.options[0]);
+  assert.equal(normalizeQuestions([question, { ...question, recommended: "已有 Excel，需要导入（推荐）" }])[1].recommended, question.options[1]);
+  assert.equal(normalizeQuestions([question, { ...question, recommended: undefined }])[1].recommended, question.options[0]);
   assert.throws(() => normalizeQuestions([question, { ...question, options: ["只有一项"] }]), /2–5/);
 });
 test("legacy question strings remain readable without losing their original text", () => {

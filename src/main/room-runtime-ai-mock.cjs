@@ -3,8 +3,9 @@
 function createRoomRuntimeAiMock(mocks = []) {
   let index = 0;
   const generate = () => {
-    const mock = mocks[index++];
-    if (!mock) throw new Error("隔离检查不调用真实 AI；请在 room-tests.json 的 mocks.ai 中提供模拟响应");
+    const mock = mocks[index];
+    if (!mock) throw new Error(`隔离检查不调用真实 AI；本次是第 ${index + 1} 次场景 AI 调用，但 room-tests.json 的 mocks.ai 只有 ${mocks.length} 条响应。请按所有场景的调用顺序，每次提供一条`);
+    index += 1;
     return { text: mock.text, model: "mock-model", profileId: "mock-profile", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
   };
   const batch = (requests, options = {}) => {
@@ -21,7 +22,7 @@ function createRoomRuntimeAiMock(mocks = []) {
     });
     return { results, total: results.length, passed: results.filter((item) => item.ok).length, failed: results.filter((item) => !item.ok).length };
   };
-  return { generate, batch };
+  return { generate, batch, reset: () => { index = 0; } };
 }
 
 module.exports = { createRoomRuntimeAiMock };

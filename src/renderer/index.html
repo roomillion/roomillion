@@ -126,7 +126,7 @@
 
   <dialog id="exportDialog" class="modal dataModal">
     <form id="exportForm" method="dialog">
-      <div class="modalHeader"><div><p class="eyebrow">分享房间</p><h2>导出房间</h2></div><button type="button" class="closeButton" data-close="exportDialog">×</button></div>
+      <div class="modalHeader"><div><p class="eyebrow">分享房间</p><h2 id="exportRoomTitle">导出房间</h2></div><button type="button" class="closeButton" data-close="exportDialog">×</button></div>
       <p class="modalIntro">选择要分享的内容。仅应用适合发布模板；应用和数据适合迁移自己的完整工作环境。</p>
       <div class="exportModeList" role="radiogroup" aria-label="导出内容">
         <label class="exportModeOption selected"><input type="radio" name="mode" value="app-only" checked><span><strong>只导出应用</strong><small>生成 `.room`，包含程序和资源，不包含业务数据库</small></span><b>推荐分享</b></label>
@@ -152,6 +152,12 @@
         <div class="sectionTitleRow"><h3>房间申请的权限</h3><small>勾选表示保存后授予</small></div>
         <div id="detailsPermissionSummary" class="permissionOverview" aria-live="polite"></div>
         <div id="detailsPermissions" class="permissionList"></div>
+      </section>
+      <section id="detailsAiModelSection" class="inspectionSection" hidden>
+        <div class="sectionTitleRow"><h3>此房间使用的 AI 模型</h3><small>只影响当前房间</small></div>
+        <div class="roomAiModelControls"><select id="detailsAiModelSelect" aria-label="房间 AI 模型"></select><button type="button" id="detailsSaveAiModelButton" class="secondaryButton">保存模型</button><button type="button" id="detailsTestAiModelButton" class="secondaryButton">测试连接</button></div>
+        <p id="detailsAiModelHint" class="roomAiModelHint"></p>
+        <button type="button" id="detailsOpenAiCenterButton" class="secondaryButton">打开 AI 能力中心配置密钥</button>
       </section>
       <section class="inspectionSection historySection">
         <div class="sectionTitleRow"><h3>版本历史</h3><small id="historyGitVersion">内置 MinGit</small></div>
@@ -441,6 +447,7 @@
 
   <div id="toast" class="toast" role="status"></div>
   <div id="roomContextMenu" class="contextMenu" role="menu" aria-label="房间操作" hidden>
+    <button type="button" data-room-context-action="export" role="menuitem">导出房间</button>
     <button type="button" class="danger" data-room-context-action="uninstall" role="menuitem">卸载房间</button>
   </div>
   <div id="dropOverlay" class="dropOverlay"><div><strong>松开即可检查房间</strong><span>应用与应用+数据统一使用 `.room`，导入前不会安装或授予权限</span></div></div>

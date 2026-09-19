@@ -1980,6 +1980,23 @@ async function runSmokeCheck(dataRoot) {
       submitCopy: document.getElementById("submitExportButton").textContent
     });
     document.getElementById("exportDialog").close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const activeBeforeContextExport = state.activeRoomId;
+    const targetRoom = state.rooms.find((room) => room.id !== activeBeforeContextExport) || state.rooms[0];
+    const targetIndex = state.rooms.findIndex((room) => room.id === targetRoom?.id);
+    document.querySelectorAll("#roomList .roomItem")[targetIndex]?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 120 }));
+    result.contextExportAction = document.querySelector('#roomContextMenu [data-room-context-action="export"]')?.textContent;
+    document.querySelector('#roomContextMenu [data-room-context-action="export"]')?.click();
+    const exportDeadline = Date.now() + 3000;
+    while (!document.getElementById("exportDialog").open && Date.now() < exportDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    result.contextExportTarget = state.exportRoomId;
+    result.contextExportExpected = targetRoom?.id;
+    result.contextExportTitle = document.getElementById("exportRoomTitle")?.textContent;
+    result.contextExportActiveUnchanged = state.activeRoomId === activeBeforeContextExport;
+    result.contextExportDialogOpen = document.getElementById("exportDialog").open;
+    document.getElementById("exportDialog").close();
     return result;
   })()`);
   if (
@@ -1996,7 +2013,12 @@ async function runSmokeCheck(dataRoot) {
     !exportUiResult.dataCopy.includes("应用和数据一起导出") ||
     !exportUiResult.dataCopy.includes(".room") ||
     !exportUiResult.protectionCopy.includes("设置导出密码") ||
-    !exportUiResult.submitCopy.includes(".room")
+    !exportUiResult.submitCopy.includes(".room") ||
+    exportUiResult.contextExportAction !== "导出房间" ||
+    !exportUiResult.contextExportDialogOpen ||
+    exportUiResult.contextExportTarget !== exportUiResult.contextExportExpected ||
+    !exportUiResult.contextExportTitle.includes("导出房间") ||
+    !exportUiResult.contextExportActiveUnchanged
   ) {
     throw new Error(`双模式房间导出界面检查失败：${JSON.stringify(exportUiResult)}`);
   }
@@ -2102,6 +2124,9 @@ async function runSmokeCheck(dataRoot) {
       settingsButton: document.getElementById("detailsButton").textContent,
       eyebrow: document.querySelector("#detailsDialog .eyebrow").textContent,
       permissionHeading: document.querySelector("#detailsPermissionSummary").previousElementSibling.querySelector("h3").textContent,
+      aiModelSectionVisible: !document.getElementById("detailsAiModelSection").hidden,
+      aiModelHeading: document.querySelector("#detailsAiModelSection h3")?.textContent,
+      aiCenterButton: document.getElementById("detailsOpenAiCenterButton")?.textContent,
       requestedKeys: [...document.querySelectorAll("#detailsPermissions input[data-permission-key]")].map((input) => input.dataset.permissionKey),
       grantStates: [...document.querySelectorAll("#detailsPermissions .permissionGrantState")].map((item) => item.textContent),
       overviewValues: [...document.querySelectorAll("#detailsPermissionSummary .permissionOverviewItem strong")].map((item) => Number(item.textContent)),
@@ -2116,6 +2141,9 @@ async function runSmokeCheck(dataRoot) {
     historyResult.settingsButton !== "房间设置" ||
     historyResult.eyebrow !== "房间设置" ||
     historyResult.permissionHeading !== "房间申请的权限" ||
+    !historyResult.aiModelSectionVisible ||
+    historyResult.aiModelHeading !== "此房间使用的 AI 模型" ||
+    historyResult.aiCenterButton !== "打开 AI 能力中心配置密钥" ||
     !["database.private", "files.pick", "files.export", "ai.general"].every((key) => historyResult.requestedKeys.includes(key)) ||
     !historyResult.grantStates.includes("必需并已授权") ||
     historyResult.overviewValues[0] !== historyResult.requestedKeys.length ||

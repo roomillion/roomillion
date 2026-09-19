@@ -498,6 +498,9 @@ button { cursor: pointer; }
 .riskBadge.high { color: #9a3827; background: #fee1db; }
 .noticeBox { border-left: 4px solid #d29b31; background: #fff8e8; border-radius: 8px; padding: 10px 12px; color: #715320; font-size: 12px; }
 .inspectionSection { display: grid; gap: 9px; }
+.roomAiModelControls { display: flex; flex-wrap: wrap; gap: 8px; }
+.roomAiModelControls select { flex: 1 1 230px; }
+.roomAiModelHint { margin: 0; color: #667a70; font-size: 11px; line-height: 1.5; }
 .inspectionSection h3 { margin: 0; font-size: 13px; }
 .sectionTitleRow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .sectionTitleRow small { color: #809088; font-size: 10px; }

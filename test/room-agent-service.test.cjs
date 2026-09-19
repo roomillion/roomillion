@@ -8,7 +8,7 @@ const test = require("node:test");
 const { GitService } = require("../src/main/git-service.cjs");
 const { RoomStore } = require("../src/main/room-store.cjs");
 const { readProjectFile } = require("../src/main/project-source.cjs");
-const { RoomAgentService: ProductionRoomAgentService, compactAgentContext } = require("../src/main/room-agent-service.cjs");
+const { RoomAgentService: ProductionRoomAgentService, compactAgentContext, evaluateCustomRoomContract } = require("../src/main/room-agent-service.cjs");
 // Unit tests isolate Electron; the real subprocess validator has separate smoke coverage.
 const runtimeStub = async () => ({
   passed: true,
@@ -23,6 +23,44 @@ class RoomAgentService extends ProductionRoomAgentService {
   constructor(options) { super({ runtimeValidator: runtimeStub, installedProgramValidator: runtimeStub, ...options }); }
 }
 const { getTestGitToolchain } = require("../test-support/bundled-git.cjs");
+
+test("multi-file room contract finds interaction logic in imported JavaScript modules", () => {
+  const spec = {
+    files: {
+      html: '<main><textarea id="source"></textarea><button id="translate">翻译</button><output id="result"></output></main>',
+      javascript: 'import { start } from "./views/translate.js"; start();',
+      "views/translate.js": 'export function start() { const button = document.getElementById("translate"); button.addEventListener("click", async () => { document.getElementById("result").textContent = (await window.room.ai.generate(document.getElementById("source").value)).text; }); }',
+      "room-tests.json": JSON.stringify({ version: 1, mocks: { ai: [{ text: "Hello" }] }, scenarios: [{ name: "翻译", actions: [{ type: "input", selector: "#source", value: "你好" }, { type: "click", selector: "#translate" }, { type: "assertText", selector: "#result", value: "Hello" }] }] })
+    },
+    capabilities: { aiRoles: ["general"], files: [], browser: [] },
+    hostModules: []
+  };
+  const result = evaluateCustomRoomContract(spec, "用大模型翻译左侧文本并在右侧显示", { passed: true });
+  assert.equal(result.passed, true);
+  assert.equal(result.checks.find((check) => check.id === "meaningful-logic").passed, true);
+  const withoutBusinessTest = evaluateCustomRoomContract({ ...spec, files: { ...spec.files, "room-tests.json": undefined } }, "用大模型翻译左侧文本并在右侧显示", { passed: true });
+  assert.equal(withoutBusinessTest.checks.find((check) => check.id === "declared-business-scenarios").passed, false);
+  const delayedEntry = evaluateCustomRoomContract({ ...spec, files: { ...spec.files, javascript: 'import { start } from "./views/translate.js"; document.addEventListener("DOMContentLoaded", start);' } }, "用大模型翻译左侧文本并在右侧显示", { passed: true });
+  assert.equal(delayedEntry.checks.find((check) => check.id === "entry-init-timing").passed, false);
+  const guardedEntry = evaluateCustomRoomContract({ ...spec, files: { ...spec.files, javascript: 'import { start } from "./views/translate.js"; if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();' } }, "用大模型翻译左侧文本并在右侧显示", { passed: true });
+  assert.equal(guardedEntry.checks.find((check) => check.id === "entry-init-timing").passed, true);
+});
+
+test("creation plan supplies acceptance criteria when the model omits the optional field", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-optional-acceptance-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const service = await new RoomAgentService({ roomStore, aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) } }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  session.workflow = { phase: "clarifying", answered: true };
+  const pi = await import("@earendil-works/pi-ai");
+  const propose = service.createTools(session, { pi }).find(tool => tool.name === "propose_room_plan");
+  assert.equal(propose.parameters.required.includes("acceptance"), false);
+  await propose.execute("plan", { summary: "个人使用的双向翻译工具", features: "输入文本后自动识别方向并通过 AI 翻译", usesAi: true }, new AbortController().signal);
+  assert.equal(session.workflow.phase, "review");
+  assert.match(session.workflow.plan.acceptance, /关键按钮可用/);
+});
 
 test("project migration requires assessment, explicit mode and approval; original source and notices survive", async t => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-project-migration-"));
@@ -230,7 +268,8 @@ test("Agent context compaction removes old thinking signatures and saved source 
   const serialized = JSON.stringify(compacted);
   assert.ok(serialized.length < 5000);
   assert.doesNotMatch(serialized, /thinkingSignature/);
-  assert.match(serialized, /内容已由 Harness 保存/);
+  assert.match(serialized, /contentOmitted/);
+  assert.doesNotMatch(serialized, /内容已由 Harness 保存/);
 });
 
 test("Agent context keeps recent file evidence when the user resumes after an error", async () => {
@@ -256,6 +295,24 @@ test("Agent context keeps recent file evidence when the user resumes after an er
   }
   const agentModule = await import("@earendil-works/pi-agent-core");
   assert.doesNotThrow(() => agentModule.estimateContextTokens(compacted));
+});
+
+test("maintenance context preserves Pi assistant content blocks across old turns", () => {
+  const history = [
+    { role: "user", content: "最初创建翻译房间", timestamp: 1 },
+    { role: "assistant", content: [{ type: "text", text: "翻译房间已安装" }], timestamp: 2 },
+    { role: "user", content: "增加历史记录", timestamp: 3 },
+    { role: "assistant", content: [{ type: "text", text: "历史记录已添加" }], timestamp: 4 },
+    { role: "user", content: "点击翻译显示 401", timestamp: 5 },
+    { role: "assistant", content: [{ type: "text", text: "我会检查模型选择" }], timestamp: 6 },
+    { role: "user", content: "继续修复", timestamp: 7 }
+  ];
+  const compacted = compactAgentContext(history);
+  assert.ok(compacted.some(message => message.role === "assistant" && message.content[0]?.text === "翻译房间已安装"));
+  for (const message of compacted.filter(item => item.role === "assistant")) {
+    assert.ok(Array.isArray(message.content));
+    assert.doesNotThrow(() => message.content.flatMap(block => [block]));
+  }
 });
 
 test("slash commands expose harness status, switch models and persist semantic compaction", async t => {
@@ -371,11 +428,39 @@ test("AI rooms require explicit test consent and use only the selected model whe
   const spec = freeBilliardsSpec();
   spec.capabilities.ai = true;
   spec.files.javascript += `\ndocument.getElementById("restart").addEventListener("dblclick",async()=>{await window.room.ai.generate("测试")});`;
+  spec.files["room-tests.json"] = JSON.stringify({ version: 1, scenarios: [{ name: "重新开始", actions: [{ type: "click", selector: "#restart" }] }] });
   await saveCustomDraft(tools, spec);
   const tested = await tools.find((tool) => tool.name === "test_custom_room").execute("test", {}, new AbortController().signal);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].profileId, "room-test");
   assert.equal(tested.details.aiTest.passed, true);
+});
+
+test("generated AI rooms use the verified builder model and preserve a later room choice", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-room-model-binding-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const store = await new RoomStore(root).init();
+  const spec = freeBilliardsSpec();
+  spec.capabilities.ai = true;
+  const { createCustomRoom } = require("../src/main/custom-room.cjs");
+  const room = (await createCustomRoom({ spec, roomStore: store })).room;
+  const selected = new Map();
+  const aiService = {
+    getPublicProfile: id => ({ id, label: id, hasSessionKey: true, ready: true }),
+    getRoomModelSelection: id => ({ profileId: selected.get(id) || "global-default", source: selected.has(id) ? "room" : "default" }),
+    selectRoomModel: async (id, profileId) => { selected.set(id, profileId); return { profileId, source: "room" }; }
+  };
+  const service = await new RoomAgentService({ roomStore: store, aiService }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession({ profileId: "builder" })).id);
+  session.workflow = { phase: "implementing", mode: "creation", aiTestPolicy: { enabled: true, profileId: "verified-model" } };
+  const details = { kind: "custom", updated: false, quality: { passed: true, issues: [], warnings: [] } };
+  await service.afterRoomBuilt(session, room, details);
+  assert.equal(selected.get(room.id), "verified-model");
+  assert.equal(details.aiModelSelection.profileId, "verified-model");
+  selected.set(room.id, "manual-choice");
+  await service.afterRoomBuilt(session, room, { kind: "custom", updated: true, quality: { passed: true, issues: [], warnings: [] } });
+  assert.equal(selected.get(room.id), "manual-choice");
 });
 
 test("runtime errors block install and tool generation streams report progress and budget stops", async t => {

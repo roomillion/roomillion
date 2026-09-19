@@ -457,6 +457,25 @@ function registerIpcHandlers({
     requireWorkbench(event);
     return roomStore.getPermissionDetails(roomId);
   });
+  handle("workbench:getRoomAiModels", async (event, roomId) => {
+    requireWorkbench(event);
+    const room = roomStore.getRoom(roomId);
+    if (!room) throw new Error("房间不存在");
+    if (!room.permissions?.ai) throw new Error("房间未申请 AI 能力");
+    return {
+      selection: aiService.getRoomModelSelection(room.id),
+      models: await aiService.listRoomModels(room.id)
+    };
+  });
+  handle("workbench:selectRoomAiModel", async (event, roomId, profileId) => {
+    requireWorkbench(event);
+    const room = roomStore.getRoom(roomId);
+    if (!room) throw new Error("房间不存在");
+    if (!room.permissions?.ai) throw new Error("房间未申请 AI 能力");
+    const selection = await aiService.selectRoomModel(room.id, profileId);
+    notifyAiModelsChanged();
+    return selection;
+  });
   handle("workbench:setRoomPermissions", async (event, roomId, selectedKeys) => {
     requireWorkbench(event);
     const result = await roomStore.setRoomPermissions(roomId, selectedKeys);
@@ -1234,6 +1253,10 @@ function registerIpcHandlers({
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("AI 调用选项无效");
+    const streamRequestId = options.streamRequestId;
+    if (streamRequestId !== undefined && (typeof streamRequestId !== "string" || !/^r[a-z0-9-]{1,80}$/.test(streamRequestId))) {
+      throw new Error("AI 流式请求标识无效");
+    }
     const images = await resolveAiImages(room, options.images);
     if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
     const requestedMaxTokens = options.maxTokens === undefined ? 2000 : Number(options.maxTokens);
@@ -1257,7 +1280,10 @@ function registerIpcHandlers({
       structuredOutput: options.structuredOutput === true,
       timeoutMs,
       maxRetries,
-      profileId
+      profileId,
+      onTextDelta: streamRequestId ? delta => {
+        if (!event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: streamRequestId, delta });
+      } : undefined
     });
     return { text: result.text, model: result.model, profileId, usage: result.usage };
   });

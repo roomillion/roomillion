@@ -803,6 +803,7 @@ class AiService {
     temperature,
     structuredOutput = false,
     sessionId = crypto.randomUUID(),
+    onTextDelta,
     profileId = this.activeProfileId
   }) {
     if (typeof prompt !== "string" || prompt.length === 0) {
@@ -846,28 +847,37 @@ class AiService {
           return nextPayload;
         }
       : undefined;
-    const response = await models.completeSimple(
-      model,
-      {
-        systemPrompt,
-        messages: [{
-          role: "user",
-          content: normalizedImages.length
-            ? [{ type: "text", text: prompt }, ...normalizedImages]
-            : prompt,
-          timestamp: Date.now()
-        }]
-      },
-      {
-        ...providerRequestOptions(profile, sessionId),
-        apiKey: this.sessionApiKeys.get(profile.id) || "local",
-        maxTokens: effectiveMaxTokens,
-        temperature,
-        timeoutMs: effectiveTimeoutMs,
-        maxRetries: effectiveMaxRetries,
-        onPayload
+    const context = {
+      systemPrompt,
+      messages: [{
+        role: "user",
+        content: normalizedImages.length
+          ? [{ type: "text", text: prompt }, ...normalizedImages]
+          : prompt,
+        timestamp: Date.now()
+      }]
+    };
+    const requestOptions = {
+      ...providerRequestOptions(profile, sessionId),
+      apiKey: this.sessionApiKeys.get(profile.id) || "local",
+      maxTokens: effectiveMaxTokens,
+      temperature,
+      timeoutMs: effectiveTimeoutMs,
+      maxRetries: effectiveMaxRetries,
+      onPayload
+    };
+    let response;
+    if (typeof onTextDelta === "function") {
+      const stream = models.streamSimple(model, context, requestOptions);
+      for await (const event of stream) {
+        if (event.type === "text_delta" && typeof event.delta === "string" && event.delta) {
+          try { onTextDelta(event.delta); } catch {}
+        }
       }
-    );
+      response = await stream.result();
+    } else {
+      response = await models.completeSimple(model, context, requestOptions);
+    }
     if (response.stopReason === "error" || response.stopReason === "aborted") {
       throw new Error(response.errorMessage || "AI 请求失败");
     }
@@ -889,7 +899,8 @@ class AiService {
       const result = await this.complete({
         systemPrompt: "You are a connectivity test. Follow the user instruction exactly.",
         prompt: "Reply with exactly: OK",
-        maxTokens: 16,
+        // Reasoning models may spend their first tokens on hidden thinking.
+        maxTokens: 256,
         timeoutMs: 25_000,
         profileId
       });

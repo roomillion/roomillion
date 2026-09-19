@@ -42,6 +42,7 @@ const state = {
   toastTimer: null,
   dragDepth: 0,
   contextRoomId: null,
+  exportRoomId: null,
   headerOverlayRoomId: null,
   headerMenuBusy: false,
   sidebarState: "full",
@@ -107,6 +108,7 @@ const elements = {
   importStatus: document.getElementById("importStatus"),
   confirmImportButton: document.getElementById("confirmImportButton"),
   exportDialog: document.getElementById("exportDialog"),
+  exportRoomTitle: document.getElementById("exportRoomTitle"),
   exportForm: document.getElementById("exportForm"),
   exportPasswordFields: document.getElementById("exportPasswordFields"),
   exportSharingHint: document.getElementById("exportSharingHint"),
@@ -118,6 +120,11 @@ const elements = {
   detailsIdentity: document.getElementById("detailsIdentity"),
   detailsPermissionSummary: document.getElementById("detailsPermissionSummary"),
   detailsPermissions: document.getElementById("detailsPermissions"),
+  detailsAiModelSection: document.getElementById("detailsAiModelSection"),
+  detailsAiModelSelect: document.getElementById("detailsAiModelSelect"),
+  detailsSaveAiModelButton: document.getElementById("detailsSaveAiModelButton"),
+  detailsTestAiModelButton: document.getElementById("detailsTestAiModelButton"),
+  detailsAiModelHint: document.getElementById("detailsAiModelHint"),
   detailsHistory: document.getElementById("detailsHistory"),
   historyGitVersion: document.getElementById("historyGitVersion"),
   checkpointLabel: document.getElementById("checkpointLabel"),
@@ -2118,6 +2125,7 @@ async function showDetailsDialog() {
       }
     );
     renderDetailsPermissionSummary(result.items);
+    await renderDetailsAiModel(result.room);
     renderRoomHistory(history);
     await renderDataRecoveryPoints(result.room.id);
     setInlineStatus(elements.detailsStatus, "权限由工作台在每次能力调用时检查。", false);
@@ -2126,6 +2134,65 @@ async function showDetailsDialog() {
   } catch (error) {
     showToast(formatError(error));
     await restoreActiveRoomAfterDialog();
+  }
+}
+
+async function renderDetailsAiModel(room) {
+  elements.detailsAiModelSection.hidden = !room.permissions?.ai;
+  if (!room.permissions?.ai) return;
+  const { selection, models } = await window.workbench.getRoomAiModels(room.id);
+  const select = elements.detailsAiModelSelect;
+  select.replaceChildren();
+  for (const model of models) {
+    const option = document.createElement("option");
+    option.value = model.id;
+    option.textContent = `${model.providerName} · ${model.model}${model.ready ? "" : "（需配置密钥）"}`;
+    option.disabled = !model.ready;
+    select.append(option);
+  }
+  if (selection.profileId) select.value = selection.profileId;
+  select.disabled = !models.some((model) => model.ready);
+  elements.detailsSaveAiModelButton.disabled = select.disabled;
+  elements.detailsTestAiModelButton.disabled = select.disabled;
+  const selected = models.find((model) => model.id === selection.profileId);
+  elements.detailsAiModelHint.textContent = !models.length
+    ? "尚未启用 AI 模型。请先到 AI 能力中心添加模型和密钥。"
+    : !selected?.ready
+      ? "当前模型缺少可用密钥。请选择已配置模型，或在 AI 能力中心修复密钥。"
+      : selection.source === "room"
+        ? `当前房间已绑定 ${selected.providerName} · ${selected.model}。可测试连接后再使用。`
+        : `当前跟随工作台默认模型 ${selected.providerName} · ${selected.model}。建议保存此房间的模型并测试连接。`;
+}
+
+async function saveDetailsAiModel() {
+  if (!state.detailsRoomId || !elements.detailsAiModelSelect.value) return;
+  elements.detailsSaveAiModelButton.disabled = true;
+  try {
+    await window.workbench.selectRoomAiModel(state.detailsRoomId, elements.detailsAiModelSelect.value);
+    const room = state.rooms.find((item) => item.id === state.detailsRoomId);
+    if (room) await renderDetailsAiModel(room);
+    showToast("房间 AI 模型已保存");
+  } catch (error) {
+    elements.detailsAiModelHint.textContent = formatError(error);
+  } finally {
+    elements.detailsSaveAiModelButton.disabled = false;
+  }
+}
+
+async function testDetailsAiModel() {
+  const profileId = elements.detailsAiModelSelect.value;
+  if (!profileId) return;
+  elements.detailsTestAiModelButton.disabled = true;
+  elements.detailsAiModelHint.textContent = "正在测试所选模型连接……";
+  try {
+    const result = await window.workbench.testProvider(profileId);
+    elements.detailsAiModelHint.textContent = result.ok
+      ? `连接成功（${result.latencyMs} ms）。${state.detailsRoomId && (await window.workbench.getRoomAiModels(state.detailsRoomId)).selection.profileId === profileId ? "此房间正在使用该模型。" : "请点击“保存模型”供此房间使用。"}`
+      : "连接未通过，请检查 AI 能力中心的密钥。";
+  } catch (error) {
+    elements.detailsAiModelHint.textContent = `连接失败：${formatError(error)}`;
+  } finally {
+    elements.detailsTestAiModelButton.disabled = false;
   }
 }
 
@@ -2253,10 +2320,12 @@ function updateExportMode() {
   );
 }
 
-async function showExportDialog() {
-  if (!state.activeRoomId) return;
-  const room = roomById(state.activeRoomId);
+async function showExportDialog(roomId = state.activeRoomId) {
+  const room = roomById(roomId);
+  if (!room) return;
   await hideRoomForModal();
+  state.exportRoomId = roomId;
+  elements.exportRoomTitle.textContent = `导出房间 · ${room.name}`;
   elements.exportForm.reset();
   const allowAiModifyInput = elements.exportForm.elements.allowAiModify;
   const canOfferAiModification = isAiModifiable(room);
@@ -2272,7 +2341,8 @@ async function showExportDialog() {
 
 async function exportRoomPackage(event) {
   event.preventDefault();
-  if (!state.activeRoomId) return;
+  const roomId = state.exportRoomId;
+  if (!roomId || !roomById(roomId)) return;
   const includeData = elements.exportForm.elements.mode.value === "app-and-data";
   const protect = elements.exportForm.elements.protect.checked;
   const allowAiModifyInput = elements.exportForm.elements.allowAiModify;
@@ -2290,7 +2360,7 @@ async function exportRoomPackage(event) {
     false
   );
   try {
-    const result = await window.workbench.exportRoom(state.activeRoomId, { includeData, password, allowAiModification });
+    const result = await window.workbench.exportRoom(roomId, { includeData, password, allowAiModification });
     if (!result) {
       setInlineStatus(elements.exportStatus, "已取消选择保存位置。", false);
       return;
@@ -3448,6 +3518,7 @@ async function restoreActiveRoomAfterDialog() {
   if (document.querySelector("dialog[open]:not(#generateDialog)")) return;
   if (state.activeRoomId) {
     await syncViewport();
+    if (document.querySelector("dialog[open]:not(#generateDialog)")) return;
     await window.workbench.openRoom(state.activeRoomId);
   }
 }
@@ -3590,6 +3661,12 @@ document.getElementById("exampleButton").addEventListener("click", showExamplesD
 document.getElementById("exampleUpdateNotice").addEventListener("click", showExamplesDialog);
 document.getElementById("welcomeExample").addEventListener("click", showExamplesDialog);
 elements.detailsButton.addEventListener("click", showDetailsDialog);
+elements.detailsSaveAiModelButton.addEventListener("click", () => saveDetailsAiModel());
+elements.detailsTestAiModelButton.addEventListener("click", () => testDetailsAiModel());
+document.getElementById("detailsOpenAiCenterButton").addEventListener("click", () => {
+  elements.detailsDialog.close();
+  showProviderDialog().catch((error) => showToast(formatError(error)));
+});
 elements.modifyButton.addEventListener("click", showModifyDialog);
 elements.backupButton.addEventListener("click", showBackupDialog);
 elements.restoreButton.addEventListener("click", showRestoreDialog);
@@ -3970,6 +4047,7 @@ elements.roomContextMenu.addEventListener("click", (event) => {
   const action = event.target.closest("[data-room-context-action]")?.dataset.roomContextAction;
   const roomId = state.contextRoomId;
   hideRoomContextMenu();
+  if (action === "export" && roomId) showExportDialog(roomId).catch((error) => showToast(formatError(error)));
   if (action === "uninstall" && roomId) uninstallRoom(roomId);
 });
 document.addEventListener("pointerdown", (event) => {
@@ -4007,7 +4085,11 @@ elements.agentImagePreviewDialog.addEventListener("close", () => {
 });
 elements.modifyDialog.addEventListener("close", restoreActiveRoomAfterDialog);
 elements.detailsDialog.addEventListener("close", restoreActiveRoomAfterDialog);
-elements.exportDialog.addEventListener("close", restoreActiveRoomAfterDialog);
+elements.exportDialog.addEventListener("close", () => {
+  if (elements.exportDialog.open) return;
+  state.exportRoomId = null;
+  restoreActiveRoomAfterDialog();
+});
 elements.backupDialog.addEventListener("close", restoreActiveRoomAfterDialog);
 elements.restoreDialog.addEventListener("close", restoreActiveRoomAfterDialog);
 elements.diagnosticsDialog.addEventListener("close", restoreActiveRoomAfterDialog);

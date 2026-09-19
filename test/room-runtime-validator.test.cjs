@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const test = require("node:test");
-const { runWorker } = require("../src/main/room-runtime-validator.cjs");
+const { runWorker, validateRoomRuntime } = require("../src/main/room-runtime-validator.cjs");
 
 function stalledWorker() {
   const child = new EventEmitter();
@@ -36,4 +36,45 @@ test("runtime check resolves when the browser process exits even if stderr stays
   await pending;
   assert.equal(child.killed, undefined);
   assert.equal(child.stderrDestroyed, true);
+});
+
+test("AI text deltas reach room callbacks and complete before the final result", async () => {
+  const spec = {
+    formatVersion: "room-app@1",
+    kind: "custom",
+    name: "合成翻译测试房间",
+    description: "用模拟模型验证翻译输入和增量译文",
+    theme: "light",
+    hostModules: [],
+    capabilities: { database: false, files: [], ai: true },
+    files: {
+      html: '<main><textarea id="source"></textarea><button id="translate">翻译</button><output id="target"></output></main>',
+      css: 'body{font-family:sans-serif}main{display:grid;gap:1rem;padding:1rem}textarea{min-height:8rem}',
+      javascript: `const source = document.getElementById("source");
+const target = document.getElementById("target");
+document.getElementById("translate").addEventListener("click", async () => {
+  target.textContent = "";
+  let chunks = 0;
+  try {
+    const result = await window.room.ai.generate("请翻译：" + source.value, {
+      onChunk: delta => { chunks += 1; target.textContent += delta; }
+    });
+    if (chunks < 2 || target.textContent !== result.text) target.textContent = "增量不完整";
+  } catch (error) { target.textContent = "调用失败：" + error.message; }
+});`,
+      "room-tests.json": JSON.stringify({
+        version: 1,
+        mocks: { ai: [{ text: "Hello world" }] },
+        scenarios: [{ name: "翻译流式输出", actions: [
+          { type: "input", selector: "#source", value: "你好，世界" },
+          { type: "click", selector: "#translate" },
+          { type: "wait", ms: 300 },
+          { type: "assertText", selector: "#target", value: "Hello world" }
+        ] }]
+      })
+    }
+  };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+  assert.equal(result.checks.find(check => check.id === "declared-scenarios")?.passed, true);
 });

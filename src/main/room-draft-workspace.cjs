@@ -2,6 +2,11 @@
 const { normalizeCustomRoomSpec } = require("./custom-room.cjs");
 
 const CORE_FILES = new Set(["html", "css", "javascript"]);
+function knownFileRevisions(workspace) {
+  return Object.fromEntries(
+    Object.keys(workspace?.files || {}).map(file => [file, workspace.fileRevisions?.[file] ?? workspace.revision])
+  );
+}
 function normalizedFile(value) {
   const file = String(value || "").replace(/\\/g, "/");
   if (CORE_FILES.has(file)) return file;
@@ -13,14 +18,21 @@ function normalizedFile(value) {
 function createWorkspace(metadata, previous = null) {
   const normalized = normalizeCustomRoomSpec({ ...metadata, formatVersion: "room-app@1", kind: "custom", files: { html: "<main></main>", css: "main{}", javascript: "void 0;" } });
   const { files: _files, ...cleanMetadata } = normalized;
-  return { metadata: cleanMetadata, files: { ...(previous?.files || {}) }, revision: (previous?.revision || 0) + 1, updatedAt: new Date().toISOString() };
+  return { metadata: cleanMetadata, files: { ...(previous?.files || {}) }, fileRevisions: { ...knownFileRevisions(previous) }, revision: (previous?.revision || 0) + 1, updatedAt: new Date().toISOString() };
 }
 
 function writeFile(workspace, { file, content, expectedRevision, find }) {
   if (!workspace) throw new Error("先调用 begin_custom_room 设置房间名称、模块和权限");
   file = normalizedFile(file);
-  if (expectedRevision !== workspace.revision) throw new Error(`草稿已更新，当前 revision=${workspace.revision}；请先读取草稿再修改`);
+  const fileRevisions = knownFileRevisions(workspace);
+  const fileRevision = Object.hasOwn(workspace.files, file)
+    ? fileRevisions[file] ?? workspace.revision
+    : 0;
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1 || expectedRevision > workspace.revision || fileRevision > expectedRevision) {
+    throw new Error(`草稿文件已更新，当前 revision=${workspace.revision}；请先读取草稿再修改`);
+  }
   if (typeof content !== "string") throw new Error("content 必须是原始文件文本，不要再次 JSON.stringify");
+  if (content.includes("[内容已由 Harness 保存；需要复查时使用读取工具]")) throw new Error("不能把 Harness 的省略标记写入房间文件；请读取草稿或重新生成真实内容");
   let next = content;
   if (find !== undefined) {
     const current = workspace.files[file] || "";
@@ -29,7 +41,7 @@ function writeFile(workspace, { file, content, expectedRevision, find }) {
   }
   if (CORE_FILES.has(file) && !next.trim()) throw new Error(`${file} 不能为空`);
   const files = { ...workspace.files, [file]: next };
-  return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
+  return { ...workspace, files, fileRevisions: { ...fileRevisions, [file]: workspace.revision + 1 }, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
 }
 
 function deleteFile(workspace, { file, expectedRevision }) {
@@ -40,7 +52,9 @@ function deleteFile(workspace, { file, expectedRevision }) {
   if (!Object.hasOwn(workspace.files, file)) throw new Error("要删除的草稿文件不存在");
   const files = { ...workspace.files };
   delete files[file];
-  return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
+  const fileRevisions = { ...knownFileRevisions(workspace) };
+  delete fileRevisions[file];
+  return { ...workspace, files, fileRevisions, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
 }
 
 function moveFile(workspace, { from, to, expectedRevision }) {
@@ -53,7 +67,10 @@ function moveFile(workspace, { from, to, expectedRevision }) {
   if (Object.hasOwn(workspace.files, to)) throw new Error("目标草稿文件已存在");
   const files = { ...workspace.files, [to]: workspace.files[from] };
   delete files[from];
-  return { ...workspace, files, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
+  const fileRevisions = { ...knownFileRevisions(workspace) };
+  delete fileRevisions[from];
+  fileRevisions[to] = workspace.revision + 1;
+  return { ...workspace, files, fileRevisions, revision: workspace.revision + 1, updatedAt: new Date().toISOString() };
 }
 
 function searchFiles(workspace, { query, file, limit = 100 }) {

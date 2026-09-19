@@ -44,7 +44,10 @@ async function runDeclaredScenarios(webContents, definition) {
           if (action.type === 'click') { element.click(); await sleep(100); }
           if (action.type === 'input') { element.value = action.value; element.dispatchEvent(new Event('input', { bubbles: true })); element.dispatchEvent(new Event('change', { bubbles: true })); }
           if (action.type === 'assertExists' && !element) throw new Error('元素不存在：' + action.selector);
-          if (action.type === 'assertText' && !String(element.textContent || element.value || '').includes(action.value)) throw new Error('测试场景“' + scenario.name + '”文本断言失败：' + action.selector);
+          if (action.type === 'assertText') {
+            const actual = String(element.textContent || element.value || '');
+            if (!actual.includes(action.value)) throw new Error('测试场景“' + scenario.name + '”文本断言失败：' + action.selector + '；期望包含 ' + JSON.stringify(action.value.slice(0, 120)) + '，实际为 ' + JSON.stringify(actual.slice(0, 300)));
+          }
           const roomError = document.documentElement.dataset.roomError;
           if (roomError) throw new Error(roomError);
         }

@@ -7,6 +7,7 @@ const vm = require("node:vm");
 const { packDirectory } = require("./room-package.cjs");
 const { normalizeNetworkOrigin } = require("./manifest.cjs");
 const { normalizeRoomIconSpec, validateRoomIconFile, writeGeneratedRoomIcon } = require("./room-icon.cjs");
+const { normalizeRoomTestDefinition } = require("./room-test-definition.cjs");
 const {
   expandHostModules,
   getRoomModule,
@@ -242,6 +243,10 @@ function inspectCustomRoomSpec(input) {
       return [];
     })
   ];
+  if (Object.hasOwn(spec.files, "room-tests.json")) {
+    try { normalizeRoomTestDefinition(spec.files["room-tests.json"]); }
+    catch (error) { findings.push(issue("tests.invalid", `room-tests.json 无效：${error.message}`, "room-tests.json")); }
+  }
   const allSource = Object.values(spec.files).join("\n");
   const usesNetworkSdk = /\b(?:window\.)?room\.network\.(?:getStatus|request|open|read|close)\s*\(/.test(allSource);
   if (/\b(?:window\.)?room\.(?:db|storage|vector)\./.test(allSource) && !spec.capabilities.database) findings.push(issue("js.database-undeclared", "调用 room.db/storage/vector 必须声明 capabilities.database:true", "app.js"));

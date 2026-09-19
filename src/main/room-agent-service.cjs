@@ -188,7 +188,14 @@ function normalizeAgentMessageForRuntime(message) {
   const next = clone(message);
   if (!next || typeof next !== "object") return next;
   if (!Number.isFinite(next.timestamp)) next.timestamp = Date.now();
-  if (next.role === "assistant") next.usage = normalizedAgentUsage(next.usage);
+  if (next.role === "assistant") {
+    next.content = Array.isArray(next.content)
+      ? next.content
+      : typeof next.content === "string"
+        ? [{ type: "text", text: next.content }]
+        : next.content?.type ? [next.content] : [];
+    next.usage = normalizedAgentUsage(next.usage);
+  }
   return next;
 }
 
@@ -201,9 +208,13 @@ function compactToolArguments(toolName, args) {
       ? ["find", "replacement"]
       : [];
   for (const field of fields) {
-    if (typeof next[field] === "string" && next[field].length > 1000) {
-      next[`${field}Characters`] = next[field].length;
-      next[field] = "[内容已由 Harness 保存；需要复查时使用读取工具]";
+    const value = next[field];
+    if (typeof value !== "string") continue;
+    const alreadyOmitted = value === "[内容已由 Harness 保存；需要复查时使用读取工具]";
+    if (value.length > 1000 || alreadyOmitted) {
+      if (!alreadyOmitted) next[`${field}Characters`] = value.length;
+      delete next[field];
+      next[`${field}Omitted`] = true;
     }
   }
   return next;
@@ -233,7 +244,7 @@ function compactAgentContext(messages) {
       const text = cleanText(contentText(message.content), 4000);
       if (!text || historicalCharacters + text.length > 24_000) continue;
       historicalCharacters += text.length;
-      historical.push(normalizeAgentMessageForRuntime({ ...message, content: text, timestamp: message.timestamp || Date.now() }));
+      historical.push(normalizeAgentMessageForRuntime({ ...message, content: message.role === "assistant" ? [{ type: "text", text }] : text, timestamp: message.timestamp || Date.now() }));
     }
     const completedToolCalls = new Set(source.filter((message) => message?.role === "toolResult").map((message) => message.toolCallId));
     const active = source.slice(activeStart).map((message, relativeIndex) => {
@@ -466,7 +477,12 @@ function safeToolDetails(details) {
 
 function evaluateCustomRoomContract(spec, goal, staticReport) {
   const html = spec.files.html;
-  const javascript = spec.files.javascript;
+  // The entry script may only import modules. Check the complete program, not
+  // just app.js, so a valid multi-file room is not rejected as having no logic.
+  const javascriptFiles = Object.entries(spec.files)
+    .filter(([file]) => file === "javascript" || /\.(?:js|mjs)$/i.test(file));
+  const javascript = javascriptFiles.map(([, source]) => source).join("\n");
+  const lateDomReadyFile = javascriptFiles.find(([, source]) => /(?:document|window)\.addEventListener\s*\(\s*["']DOMContentLoaded["']/.test(source) && !/document\.readyState/.test(source))?.[0];
   const userGoal = cleanText(goal, 4000).toLowerCase();
   const isGame = /游戏|game|台球|乒乓|迷宫|跑酷|射击|棋|牌/.test(userGoal);
   const isThreeDimensional = /(?:\b3d\b|三维|立体)/i.test(userGoal);
@@ -474,14 +490,15 @@ function evaluateCustomRoomContract(spec, goal, staticReport) {
   const checks = [
     { id: "static-safety", passed: staticReport?.passed === true, message: "HTML、CSS、JavaScript 通过静态安全检查" },
     { id: "meaningful-ui", passed: html.length >= 80 && /<(?:main|section|canvas|form|button|div)\b/i.test(html), message: "包含可见且非空的用户界面" },
-    { id: "meaningful-logic", passed: javascript.length >= 120 && /(?:addEventListener|requestAnimationFrame|window\.room|querySelector|getElementById)/.test(javascript), message: "包含初始化或交互逻辑" }
+    { id: "meaningful-logic", passed: javascript.length >= 120 && /(?:addEventListener|requestAnimationFrame|window\.room|querySelector|getElementById)/.test(javascript), message: "入口文件或 JS 模块包含初始化或交互逻辑" },
+    { id: "entry-init-timing", passed: !lateDomReadyFile, message: lateDomReadyFile ? `${lateDomReadyFile} 只等待 DOMContentLoaded；房间脚本可能在该事件后才加载，请直接初始化或用 document.readyState 兜底` : "初始化不依赖可能已结束的 DOMContentLoaded 事件" }
   ];
-  const needsDeclaredScenarios = spec.capabilities.aiRoles.includes("vision") || spec.capabilities.files.some((permission) => ["pickMany", "directoryRead", "directoryWrite"].includes(permission));
+  const needsDeclaredScenarios = spec.capabilities.aiRoles.length > 0 || spec.capabilities.files.some((permission) => ["pickMany", "directoryRead", "directoryWrite"].includes(permission));
   if (needsDeclaredScenarios) {
     checks.push({
       id: "declared-business-scenarios",
       passed: typeof spec.files["room-tests.json"] === "string" && spec.files["room-tests.json"].trim().length > 0,
-      message: "批量文件或视觉 AI 房间提供 room-tests.json，覆盖至少一条关键业务流程"
+      message: "AI 或批量文件房间提供 room-tests.json，覆盖至少一条关键业务流程"
     });
   }
   if (isGame) {
@@ -1326,6 +1343,25 @@ ${currentContext}`;
 
   async afterRoomBuilt(session, room, details) {
     if (!session.manualTitle) session.title = room.name.slice(0, 80);
+    if (room.permissions?.ai?.roles?.length && typeof this.aiService?.selectRoomModel === "function") {
+      const selection = this.aiService.getRoomModelSelection?.(room.id);
+      if (!details.updated || selection?.source !== "room") {
+        const preferredId = session.workflow?.aiTestPolicy?.enabled
+          ? session.workflow.aiTestPolicy.profileId
+          : session.profileId;
+        const profile = preferredId && this.aiService.getPublicProfile?.(preferredId);
+        if (profile?.ready || profile?.hasSessionKey) {
+          try {
+            await this.aiService.selectRoomModel(room.id, preferredId);
+            details.aiModelSelection = { profileId: preferredId, label: profile.label || profile.model };
+          } catch (error) {
+            details.quality ||= { passed: true, issues: [], warnings: [] };
+            details.quality.warnings ||= [];
+            details.quality.warnings.push(`房间 AI 模型未能自动选择：${cleanText(error.message, 200)}`);
+          }
+        }
+      }
+    }
     // A maintenance turn may install more than one tested patch. Keep its write
     // tools authorized until the agent turn ends; run() marks it complete then.
     const continuingMaintenance = details.updated === true && session.workflow?.mode === "maintenance" && session.status === "working";
@@ -1613,8 +1649,8 @@ ${currentContext}`;
           topic: Type.Union([Type.Literal("audience"), Type.Literal("data"), Type.Literal("features"), Type.Literal("other")]),
           title: Type.String({ minLength: 5, maxLength: 700 }),
           options: Type.Array(Type.String({ minLength: 1, maxLength: 150 }), { minItems: 2, maxItems: 5 }),
-          recommended: Type.String({ description: "推荐选项的完整原文，不会自动替用户提交" }),
-          example: Type.String({ maxLength: 300, description: "贴合场景的日常例子，例如收入支出、赊账或进货" })
+          recommended: Type.Optional(Type.String({ description: "可选：推荐选项的完整原文；缺省或文字略有出入时选择最接近的选项，不会自动替用户提交" })),
+          example: Type.Optional(Type.String({ maxLength: 300, description: "可选：贴合场景的日常例子" }))
         }, { additionalProperties: false }), { minItems: 1, maxItems: 4 }) }, { additionalProperties: false }),
         executionMode: "sequential",
         execute: async (_id, params, signal) => {
@@ -1653,7 +1689,7 @@ ${currentContext}`;
         parameters: Type.Object({
           summary: Type.String({ minLength: 5, maxLength: 3000, description: "使用场景和要解决的问题" }),
           features: Type.String({ minLength: 5, maxLength: 3000, description: "第一版核心能力" }),
-          acceptance: Type.String({ minLength: 5, maxLength: 3000, description: "用户可以直接验证的完成标准" }),
+          acceptance: Type.Optional(Type.String({ minLength: 5, maxLength: 3000, description: "可选：用户可以直接验证的完成标准；未填写时使用核心能力生成默认验收要求" })),
           usesAi: Type.Boolean({ description: "第一版房间运行时是否需要调用主工作台 AI；用于让用户明确选择是否进行真实 AI 测试" }),
           permissions: Type.Optional(Type.String({ maxLength: 1000, description: "只有涉及 AI、网络、文件或浏览器能力时才填写" })),
           limitations: Type.Optional(Type.String({ maxLength: 1000, description: "只有存在重要边界时才填写" })),
@@ -1682,16 +1718,17 @@ ${currentContext}`;
             plan.migrationMode = params.migrationMode;
             plan.sourceId = session.sourceProject.id;
           }
-          for (const key of ["summary", "features", "acceptance"]) {
+          for (const key of ["summary", "features"]) {
             if (typeof params[key] !== "string" || params[key].trim().length < 5 || params[key].length > 3000) throw new Error(`方案 ${key} 必须填写清楚（5–3000 字）`);
           }
+          if (params.acceptance !== undefined && (typeof params.acceptance !== "string" || params.acceptance.trim().length < 5 || params.acceptance.length > 3000)) throw new Error("方案 acceptance 必须填写清楚（5–3000 字）");
           plan.overview = params.summary.trim();
           plan.features = params.features.trim();
           plan.usage = "按房间界面提示完成主要操作。";
           plan.data = "数据保存方式由房间声明的能力决定，并在实现中保持可迁移。";
           plan.permissions = cleanText(params.permissions || "仅申请实现上述功能所需的最小运行权限。", 1000);
           plan.steps = "使用自由多文件工具实现，并完成静态、启动、重载和基础按钮交互测试。";
-          plan.acceptance = params.acceptance.trim();
+          plan.acceptance = params.acceptance?.trim() || "房间可以启动和重载，方案中的主要操作与关键按钮可用，并通过相应的业务场景测试。";
           plan.limitations = cleanText(params.limitations || "以当前确认的第一版范围为准。", 1000);
           plan.usesAi = params.usesAi === true;
           plan.aiTestPurpose = plan.usesAi ? cleanText(params.aiTestPurpose || "验证房间所需的主工作台 AI 文本调用链路", 500) : "";
@@ -1718,7 +1755,7 @@ ${currentContext}`;
               vectorDatabase: { sdk: "window.room.vector", permission: "database: private", methods: ["create", "list", "upsert", "search", "remove", "drop"], metric: "cosine", capacity: "disk-backed; no product count/byte/dimension ceiling", persistence: "room.db，随应用+数据导出", embeddings: "window.room.ai.embed(texts, { profileId?, model?, dimensions? })；模型和任务决定批量与维度" },
               largeBinaryFiles: { sdk: "window.room.files", permissions: ["pick", "pickMany", "directoryRead", "directoryWrite"], methods: ["openBinary", "readBinary", "closeBinary", "pickMany", "openDirectory", "listDirectoryGrants", "listDirectory", "readDirectoryFile", "writeDirectoryFile", "revokeDirectory"], maxChunkBytes: 67108864, note: "pickMany 返回 {token,name,size,maxChunkBytes} 数组；listDirectory 返回 {grant,entries,cursor,nextCursor,total}；readDirectoryFile 返回 {data,nextOffset,eof,size}。目录句柄不暴露真实路径；批量内容应逐项分块处理" },
               durableData: { blobs: "window.room.blobs", artifacts: "window.room.artifacts", jobs: "window.room.jobs", note: "大文件、中间制品和任务检查点持久保存在房间私有数据中" },
-              aiRuntime: { sdk: "window.room.ai", roles: ["general", "coding", "vision"], methods: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "batch", "onModelsChanged"], concurrency: "1–8", retries: "0–5", batchSize: "1–500", generateResult: "{text,model,profileId,usage}", batchResult: "{results:[{ok:true,text,model,profileId,usage}|{ok:false,error}],total,passed,failed}", imageInputs: "images 数组项可用 {data:Uint8Array,mimeType}、{blobId} 或 {directory:{grantId,relativePath}}；视觉调用需 ai.roles 包含 vision" },
+              aiRuntime: { sdk: "window.room.ai", roles: ["general", "coding", "vision"], methods: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "batch", "onModelsChanged"], concurrency: "1–8", retries: "0–5", batchSize: "1–500", generateResult: "{text,model,profileId,usage}", generateStreaming: "generate(prompt, { onChunk: (delta, full) => {} }) 逐段回调真实模型文本；Promise 仍返回完整结果", batchResult: "{results:[{ok:true,text,model,profileId,usage}|{ok:false,error}],total,passed,failed}", imageInputs: "images 数组项可用 {data:Uint8Array,mimeType}、{blobId} 或 {directory:{grantId,relativePath}}；视觉调用需 ai.roles 包含 vision" },
               localCompute: { capability: "compute: worker", api: "Web Worker", scope: "同源房间文件；沙箱内无 Node.js/Electron", useFor: ["排序", "Markdown 合并", "哈希", "CPU 密集型批处理"] },
               hostTools: { capability: "tools: [tool-id@version]", sdk: "window.room.tools", methods: ["list", "call"], builtIns: ["document.markdown-to-pdf@1", "artifact.list@1"], note: "插件可向统一工具注册表增加处理器；房间必须逐工具声明和授权" },
               credentials: { capability: "credentials: [alias]", sdk: "window.room.credentials.list", networkOption: "credentialAlias", note: "宿主只向绑定的精确服务源注入请求头；明文不返回房间" },
@@ -1771,7 +1808,7 @@ ${currentContext}`;
           theme: Type.Optional(Type.String({ maxLength: 30 })),
           icon: Type.Optional(Type.Object({ glyph: Type.String({ minLength: 1, maxLength: 2 }), background: Type.String({ pattern: "^#[0-9A-Fa-f]{6}$" }), foreground: Type.String({ pattern: "^#[0-9A-Fa-f]{6}$" }) }, { additionalProperties: false })),
           useLatestImageAsIcon: Type.Optional(Type.Boolean({ description: "仅当用户明确要求时，把最近上传的 PNG/JPEG/WebP 图片随房间打包为图标" })),
-          hostModules: Type.Array(Type.String({ maxLength: 100 })),
+          hostModules: Type.Array(Type.String({ maxLength: 100, description: "仅填写 inspect_room_capabilities 返回的官方离线模块 ID；AI 不是模块，使用 capabilities.ai 申请" })),
           capabilities: Type.Object({ database: Type.Boolean(), ai: Type.Union([Type.Boolean(), Type.Object({ roles: Type.Array(Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")])), slots: Type.Optional(Type.Record(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }), Type.Object({ role: Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")]), requiresImages: Type.Optional(Type.Boolean()), minimumContextWindow: Type.Optional(Type.Integer({ minimum: 0 })) }, { additionalProperties: false }))) }, { additionalProperties: false })]), files: Type.Array(Type.Union([Type.Literal("pick"), Type.Literal("pickMany"), Type.Literal("directoryRead"), Type.Literal("directoryWrite"), Type.Literal("export"), Type.Literal("largeText")])), compute: Type.Optional(Type.Array(Type.Literal("worker"))), tools: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9.-]{1,79}@\\d+$" }))), credentials: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }))), network: Type.Array(Type.String()), browser: Type.Optional(Type.Array(Type.String())) }, { additionalProperties: false })
         }, { additionalProperties: false }),
         executionMode: "sequential",
@@ -1852,7 +1889,7 @@ ${currentContext}`;
       {
         name: "write_custom_room_file",
         label: TOOL_LABELS.write_custom_room_file,
-        description: "保存单个源码文件。html、css、javascript 是三个入口逻辑名；还可写 modules/store.js、views/editor.js、assets/defaults.json 等任意安全相对路径。content 是原始文本，不要 JSON 二次转义。",
+        description: "保存单个源码文件。html、css、javascript 是三个入口逻辑名；还可写 modules/store.js、views/editor.js、assets/defaults.json 等任意安全相对路径。content 是原始文本，不要 JSON 二次转义。不同文件可在同一轮共用 expectedRevision；再次修改同一文件则使用最新 revision。",
         parameters: Type.Object({ file: Type.String({ minLength: 1 }), content: Type.String(), expectedRevision: Type.Integer({ minimum: 1 }), find: Type.Optional(Type.String({ minLength: 1 })) }, { additionalProperties: false }),
         executionMode: "sequential",
         execute: async (_id, params, signal) => {
@@ -2026,7 +2063,8 @@ ${currentContext}`;
               room: publicRoom(room),
               hostModules: room.hostModules,
               checks: contract.checks,
-              warnings: checkpointWarning ? [`MinGit 检查点创建失败：${checkpointWarning}`] : [],
+              warnings: details.quality?.warnings?.map(item => typeof item === "string" ? item : item.message).filter(Boolean) || [],
+              aiModelSelection: details.aiModelSelection || null,
               instruction: "自由房间已经通过 Harness 并成功安装。请用自然语言总结实际实现的玩法、操作方式和离线能力，不要再次调用工具，除非用户提出新修改。"
             }) }],
             details
@@ -2291,9 +2329,15 @@ ${currentContext}`;
           systemPrompt: await this.systemPrompt(session),
           model: runtime.model,
           thinkingLevel: runtime.thinkingLevel || "medium",
-          tools: this.createTools(session, runtime).filter((tool) =>
-            !(isMaintenanceSession(session) && tool.name === "propose_room_plan") &&
-            (session.workflow?.phase === "implementing" || ["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name))),
+          tools: this.createTools(session, runtime).filter((tool) => {
+            if (isMaintenanceSession(session) && tool.name === "propose_room_plan") return false;
+            if (session.workflow?.phase === "implementing") {
+              if (!session.roomId && ["inspect_current_room", "read_current_room_file", "patch_current_room_file", "test_current_room_patch", "install_current_room_patch"].includes(tool.name)) return false;
+              if (!session.sourceProject && ["inspect_source_project", "read_source_project_file", "assess_project_migration"].includes(tool.name)) return false;
+              return true;
+            }
+            return ["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name);
+          }),
           messages: await this.hydrateAgentMessages(session)
         },
         streamFn: runtime.streamFn,
@@ -2547,6 +2591,7 @@ ${currentContext}`;
 
 module.exports = {
   RoomAgentService,
+  evaluateCustomRoomContract,
   SESSION_FORMAT_VERSION,
   SESSION_ID_PATTERN,
   TOOL_LABELS,

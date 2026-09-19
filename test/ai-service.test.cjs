@@ -15,7 +15,10 @@ test("connection verification is per-model, timestamped, and cleared on credenti
   const service = await new AiService(root).init();
   const profile = await service.saveProfile({ name: "Test", baseUrl: "http://127.0.0.1:8000/v1", model: "demo", apiKey: "not-a-real-key" });
   assert.equal(service.getPublicProfile(profile.id).connectionTest, null);
-  service.complete = async () => ({ text: "OK", model: "demo" });
+  service.complete = async (request) => {
+    assert.equal(request.maxTokens, 256);
+    return { text: "OK", model: "demo" };
+  };
   await service.testConnection(profile.id);
   assert.equal(service.getPublicProfile(profile.id).connectionTest.ok, true);
   assert.ok(service.getPublicProfile(profile.id).connectionTest.checkedAt);
@@ -179,6 +182,30 @@ test("AI completion accepts room token requests above 4000 and follows the selec
   );
 });
 
+test("AI completion forwards real text deltas while preserving its final result", async () => {
+  const service = new AiService(os.tmpdir());
+  const profile = { id: "stream-profile", providerId: "custom-openai-compatible", name: "Stream", protocol: "openai-completions", baseUrl: "http://127.0.0.1:8000/v1", model: "stream-model" };
+  service.profiles.set(profile.id, profile);
+  service.sessionApiKeys.set(profile.id, "test-key");
+  const deltas = [];
+  service.createRuntime = async () => ({
+    pi: { contentText: content => content[0].text },
+    model: { id: profile.model, input: ["text"], maxTokens: 8192 },
+    models: {
+      completeSimple: () => { throw new Error("expected streaming transport"); },
+      streamSimple: () => ({
+        async *[Symbol.asyncIterator]() {
+          yield { type: "text_delta", delta: "Hello" };
+          yield { type: "text_delta", delta: " world" };
+        },
+        result: async () => ({ stopReason: "stop", content: [{ type: "text", text: "Hello world" }], usage: {} })
+      })
+    }
+  });
+  const result = await service.complete({ prompt: "翻译", profileId: profile.id, onTextDelta: delta => deltas.push(delta) });
+  assert.deepEqual(deltas, ["Hello", " world"]);
+  assert.equal(result.text, "Hello world");
+});
 test("MiMo compatibility disables thinking and requests JSON objects for structured generation", async (t) => {
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-ai-mimo-test-"));
   let capturedPayload = null;

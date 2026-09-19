@@ -19,8 +19,10 @@ function normalizeQuestions(input, { ensureAudience = false, minimum = 2 } = {})
     const options = legacy ? ["你来推荐"] : entry.options;
     if (!Array.isArray(options) || options.length < (legacy ? 1 : 2) || options.length > 5 || options.some((s) => typeof s !== "string" || !s.trim() || s.length > 150)) throw new Error("每题需要 2–5 个简短选项");
     const choices = [...new Set(options.map((s) => s.trim()))];
-    const recommended = legacy ? "你来推荐" : entry.recommended;
-    if (!choices.includes(recommended)) throw new Error("推荐答案必须来自本题选项");
+    const requestedRecommendation = legacy ? "你来推荐" : String(entry.recommended || "").trim();
+    const recommended = choices.includes(requestedRecommendation)
+      ? requestedRecommendation
+      : choices.find((choice) => requestedRecommendation && (requestedRecommendation.includes(choice) || choice.includes(requestedRecommendation))) || choices[0];
     if (!choices.includes("你来推荐")) choices.push("你来推荐");
     return { id: `q${index + 1}`, selection, topic: entry?.topic || "other", title: title.trim(), options: choices, recommended, example: legacy ? "可选择你来推荐，或填写自己的情况。" : String(entry.example || "").slice(0, 300) };
   });

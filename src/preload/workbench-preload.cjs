@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("workbench", Object.freeze({
   cancelImport: (token) => ipcRenderer.invoke("workbench:cancelImport", token),
   confirmImport: (token, selectedKeys) => ipcRenderer.invoke("workbench:confirmImport", token, selectedKeys),
   getRoomPermissions: (roomId) => ipcRenderer.invoke("workbench:getRoomPermissions", roomId),
+  getRoomAiModels: (roomId) => ipcRenderer.invoke("workbench:getRoomAiModels", roomId),
+  selectRoomAiModel: (roomId, profileId) => ipcRenderer.invoke("workbench:selectRoomAiModel", roomId, profileId),
   setRoomPermissions: (roomId, selectedKeys) => ipcRenderer.invoke("workbench:setRoomPermissions", roomId, selectedKeys),
   getRoomHistory: (roomId) => ipcRenderer.invoke("workbench:getRoomHistory", roomId),
   createCheckpoint: (roomId, label) => ipcRenderer.invoke("workbench:createCheckpoint", roomId, label),

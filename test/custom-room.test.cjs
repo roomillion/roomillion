@@ -60,6 +60,17 @@ test("custom room lint reports injection line numbers and requires portable pers
   assert.equal(inspectCustomRoomSpec(spec).report.passed, true);
 });
 
+test("custom room reports malformed declared scenarios before Electron startup", () => {
+  const spec = billiardsSpec();
+  spec.files["room-tests.json"] = "[内容已由 Harness 保存；需要复查时使用读取工具]";
+  let report = inspectCustomRoomSpec(spec).report;
+  assert.equal(report.passed, false);
+  assert.equal(report.errors.find(error => error.code === "tests.invalid")?.file, "room-tests.json");
+  spec.files["room-tests.json"] = JSON.stringify({ version: 1, scenarios: [{ name: "重开", actions: [{ type: "assertExists", selector: "#restart" }] }] });
+  report = inspectCustomRoomSpec(spec).report;
+  assert.equal(report.passed, true);
+});
+
 test("room-app@1 accepts material offline code and expands only built-in modules", () => {
   const inspected = inspectCustomRoomSpec(billiardsSpec());
   assert.equal(inspected.report.passed, true);

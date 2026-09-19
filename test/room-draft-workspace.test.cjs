@@ -6,7 +6,8 @@ const { compare, assertWorkbenchCompatible } = require("../src/main/workbench-co
 test("draft files persist independently, reject stale revisions and support exact local patches", () => {
   let draft = createWorkspace({ name: "测试房间", description: "测试分文件保存", hostModules: [], capabilities: {} });
   draft = writeFile(draft, { file: "javascript", content: 'const quote = "JSON 不需再次转义";\nconst other = 1;', expectedRevision: 1 });
-  assert.throws(() => writeFile(draft, { file: "html", content: "<main></main>", expectedRevision: 1 }), /草稿已更新/);
+  assert.throws(() => writeFile(draft, { file: "javascript", content: "void 0;", expectedRevision: 1 }), /草稿文件已更新/);
+  assert.throws(() => writeFile(draft, { file: "room-tests.json", content: "[内容已由 Harness 保存；需要复查时使用读取工具]", expectedRevision: draft.revision }), /不能把 Harness 的省略标记/);
   assert.throws(() => writeFile(draft, { file: "../secret", content: "a", expectedRevision: 2 }), /只能写入/);
   assert.throws(() => writeFile(draft, { file: "javascript", find: "const", content: "let", expectedRevision: 2 }), /唯一/);
   const patched = writeFile(draft, { file: "javascript", find: "other = 1", content: "other = 2", expectedRevision: 2 });
@@ -23,6 +24,26 @@ test("draft files persist independently, reject stale revisions and support exac
   files = deleteFile(files, { file: "services/page.js", expectedRevision: files.revision });
   assert.equal(Object.hasOwn(files.files, "services/page.js"), false);
   assert.throws(() => deleteFile(files, { file: "javascript", expectedRevision: files.revision }), /入口文件/);
+});
+test("independent file writes in one tool batch accept the same starting revision", () => {
+  let draft = createWorkspace({ name: "翻译房间", description: "左右翻译", hostModules: [], capabilities: {} });
+  draft = writeFile(draft, { file: "html", content: "<main></main>", expectedRevision: 1 });
+  draft = writeFile(draft, { file: "css", content: "main { display: flex; }", expectedRevision: 1 });
+  draft = writeFile(draft, { file: "javascript", content: 'import "./views/translate.js";', expectedRevision: 1 });
+  draft = writeFile(draft, { file: "views/translate.js", content: "export const translate = true;", expectedRevision: 1 });
+  assert.equal(draft.revision, 5);
+  assert.deepEqual(Object.keys(draft.files).sort(), ["css", "html", "javascript", "views/translate.js"]);
+  assert.throws(() => writeFile(draft, { file: "html", content: "<main>覆盖</main>", expectedRevision: 1 }), /草稿文件已更新/);
+  assert.throws(() => writeFile(draft, { file: "services/other.js", content: "ok", expectedRevision: 6 }), /草稿文件已更新/);
+  const restored = JSON.parse(JSON.stringify(draft));
+  const extended = writeFile(restored, { file: "services/other.js", content: "ok", expectedRevision: 1 });
+  assert.equal(extended.files["services/other.js"], "ok");
+  const legacy = { ...draft };
+  delete legacy.fileRevisions;
+  assert.throws(() => writeFile(legacy, { file: "html", content: "旧会话覆盖", expectedRevision: 1 }), /草稿文件已更新/);
+  const resumed = writeFile(legacy, { file: "services/new.js", content: "export const ready = true;", expectedRevision: legacy.revision });
+  const updatedExisting = writeFile(resumed, { file: "html", content: "<main>恢复后修改</main>", expectedRevision: legacy.revision });
+  assert.equal(updatedExisting.files.html, "<main>恢复后修改</main>");
 });
 test("workbench versions compare prereleases numerically and reject newer required runtimes", () => {
   assert.equal(compare("0.3.0-alpha.10", "0.3.0-alpha.9"), 1);
