@@ -18,10 +18,10 @@
       }
     ],
     "component": {
-      "bom-ref": "roomillion@0.3.0-alpha.48",
+      "bom-ref": "roomillion@0.3.0-alpha.49",
       "type": "application",
       "name": "roomillion",
-      "version": "0.3.0-alpha.48",
+      "version": "0.3.0-alpha.49",
       "author": "千万间 Roomillion 项目",
       "description": "千万间 Roomillion 跨平台技术预览：离线优先、可分享、可备份、可回退的受控 AI 房间平台",
       "licenses": [
@@ -31,7 +31,7 @@
           }
         }
       ],
-      "purl": "pkg:npm/roomillion@0.3.0-alpha.48"
+      "purl": "pkg:npm/roomillion@0.3.0-alpha.49"
     },
     "properties": [
       {
@@ -13504,7 +13504,7 @@
       "dependsOn": []
     },
     {
-      "ref": "roomillion@0.3.0-alpha.48",
+      "ref": "roomillion@0.3.0-alpha.49",
       "dependsOn": [
         "@dimforge/rapier3d-compat@0.20.0",
         "@earendil-works/pi-agent-core@0.85.1",
