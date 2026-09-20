@@ -15,6 +15,7 @@ const { normalizeRoomTestDefinition, runDeclaredScenarios } = require("./room-te
 const { RoomDocumentService } = require("./room-document-service.cjs");
 const { RoomToolService } = require("./room-tool-service.cjs");
 const { createRoomRuntimeAiMock } = require("./room-runtime-ai-mock.cjs");
+const { RoomAiRequests } = require("./room-ai-requests.cjs");
 
 function start(input, schemeRegistered = false) {
   if (!path.isAbsolute(input) || path.basename(input) !== "input.json") throw new Error("运行检查路径无效");
@@ -71,14 +72,16 @@ function start(input, schemeRegistered = false) {
     handle("room:aiSelectSlot", (_slot, profileId) => ({ profileId }), runtimeAiPermission);
     handle("room:aiClearSlot", slot => ({ slot, profileId: null }), runtimeAiPermission);
     const aiMock = createRoomRuntimeAiMock(testDefinition?.mocks?.ai);
-    handle("room:aiGenerate", (event, _prompt, options = {}) => {
-      const result = aiMock.generate();
-      if (options?.streamRequestId) {
-        for (const delta of result.text.match(/[\s\S]{1,3}/g) || []) {
-          event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, delta });
-        }
-      }
-      return result;
+    const aiRequests = new RoomAiRequests();
+    let aiRequestIndex = 0;
+    handle("room:aiCancel", (event, requestId) => aiRequests.cancel(event.sender, room.id, requestId), runtimeAiPermission, true);
+    handle("room:aiGenerate", async (event, _prompt, options = {}) => {
+      const request = aiRequests.start(event.sender, room.id, options.requestId === undefined ? `mock-${++aiRequestIndex}` : options.requestId);
+      try {
+        return await aiMock.stream({ signal: request.signal, onTextDelta: options.streamRequestId ? delta => {
+          if (!event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, delta });
+        } : undefined });
+      } finally { request.finish(); }
     }, runtimeAiPermission, true);
     handle("room:aiBatch", (requests, options) => aiMock.batch(requests, options), runtimeAiPermission);
     handle("room:credentialList", () => []);
@@ -108,6 +111,9 @@ function start(input, schemeRegistered = false) {
     handle("room:jobTransition", (id, input) => jobs.transition(room.id, id, input), ["database"]);
     handle("room:jobRecover", () => jobs.recover(room.id), ["database"]);
     const view = views.createView(room.id);
+    // This window is intentionally hidden. Chromium otherwise stretches short test waits
+    // to background timer intervals, letting streams finish before the cancel click.
+    view.webContents.setBackgroundThrottling(false);
     view.webContents.session.webRequest.onBeforeRequest({ urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }, (_details, callback) => callback({ cancel: true }));
     view.webContents.on("render-process-gone", (_event, details) => {
       report.rendererCrashed = true;

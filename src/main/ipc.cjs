@@ -16,6 +16,7 @@ const { RoomDocumentService } = require("./room-document-service.cjs");
 const { RoomToolService } = require("./room-tool-service.cjs");
 const { RoomImportLocation } = require("./room-import-location.cjs");
 const { buildRoomAgentExport } = require("./room-agent-export.cjs");
+const { RoomAiRequests } = require("./room-ai-requests.cjs");
 
 const DEFAULT_BINARY_EXTENSIONS = Object.freeze([
   "pdf", "docx", "xlsx", "xls", "pptx", "zip", "png", "jpg", "jpeg", "webp"
@@ -112,6 +113,7 @@ function registerIpcHandlers({
   toolService
 }) {
   const importLocation = new RoomImportLocation(roomStore.dataRoot || process.cwd());
+  const roomAiRequests = new RoomAiRequests();
   const vectors = new RoomVectorService(database);
   const binaryFiles = new BinaryFileService();
   const directoryFiles = fileAccess || new RoomFileAccessService(roomStore.dataRoot || process.cwd());
@@ -1249,6 +1251,11 @@ function registerIpcHandlers({
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     return aiService.selectRoomModel(room.id, profileId);
   });
+  handle("room:aiCancel", async (event, requestId) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    return roomAiRequests.cancel(event.sender, room.id, requestId);
+  });
   handle("room:aiGenerate", async (event, prompt, options = {}) => {
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
@@ -1257,35 +1264,39 @@ function registerIpcHandlers({
     if (streamRequestId !== undefined && (typeof streamRequestId !== "string" || !/^r[a-z0-9-]{1,80}$/.test(streamRequestId))) {
       throw new Error("AI 流式请求标识无效");
     }
-    const images = await resolveAiImages(room, options.images);
-    if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
-    const requestedMaxTokens = options.maxTokens === undefined ? 2000 : Number(options.maxTokens);
-    if (!Number.isSafeInteger(requestedMaxTokens) || requestedMaxTokens <= 0) {
-      throw new Error("AI 最大输出 Token 必须是正整数");
-    }
-    const temperature = options.temperature === undefined ? undefined : Number(options.temperature);
-    if (temperature !== undefined && !Number.isFinite(temperature)) throw new Error("AI temperature 必须是有限数字");
-    const timeoutMs = options.timeoutMs === undefined ? 120_000 : Number(options.timeoutMs);
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("AI 请求超时必须是正整数毫秒");
-    const profileId = aiService.resolveRoomModelProfile(room.id, { profileId: options.profileId === undefined ? undefined : String(options.profileId), slot: options.slot });
-    await validateAiSlotProfile(room, options.slot, profileId);
-    const maxRetries = options.maxRetries === undefined ? 2 : Number(options.maxRetries);
-    if (!Number.isSafeInteger(maxRetries) || maxRetries < 0 || maxRetries > 5) throw new Error("AI 自动重试次数必须是 0–5 的整数");
-    const result = await aiService.complete({
-      systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”提供帮助。不要声称能够访问未提供的文件或系统资源。`,
-      prompt,
-      images,
-      maxTokens: requestedMaxTokens,
-      temperature,
-      structuredOutput: options.structuredOutput === true,
-      timeoutMs,
-      maxRetries,
-      profileId,
-      onTextDelta: streamRequestId ? delta => {
-        if (!event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: streamRequestId, delta });
-      } : undefined
-    });
-    return { text: result.text, model: result.model, profileId, usage: result.usage };
+    const request = roomAiRequests.start(event.sender, room.id, options.requestId === undefined ? crypto.randomUUID() : options.requestId);
+    try {
+      const images = await resolveAiImages(room, options.images);
+      if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
+      const requestedMaxTokens = options.maxTokens === undefined ? 2000 : Number(options.maxTokens);
+      if (!Number.isSafeInteger(requestedMaxTokens) || requestedMaxTokens <= 0) {
+        throw new Error("AI 最大输出 Token 必须是正整数");
+      }
+      const temperature = options.temperature === undefined ? undefined : Number(options.temperature);
+      if (temperature !== undefined && !Number.isFinite(temperature)) throw new Error("AI temperature 必须是有限数字");
+      const timeoutMs = options.timeoutMs === undefined ? 120_000 : Number(options.timeoutMs);
+      if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("AI 请求超时必须是正整数毫秒");
+      const profileId = aiService.resolveRoomModelProfile(room.id, { profileId: options.profileId === undefined ? undefined : String(options.profileId), slot: options.slot });
+      await validateAiSlotProfile(room, options.slot, profileId);
+      const maxRetries = options.maxRetries === undefined ? 2 : Number(options.maxRetries);
+      if (!Number.isSafeInteger(maxRetries) || maxRetries < 0 || maxRetries > 5) throw new Error("AI 自动重试次数必须是 0–5 的整数");
+      const result = await aiService.complete({
+        systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”提供帮助。不要声称能够访问未提供的文件或系统资源。`,
+        prompt,
+        images,
+        maxTokens: requestedMaxTokens,
+        temperature,
+        structuredOutput: options.structuredOutput === true,
+        timeoutMs,
+        maxRetries,
+        profileId,
+        signal: request.signal,
+        onTextDelta: streamRequestId ? delta => {
+          if (!request.signal.aborted && !event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: streamRequestId, delta });
+        } : undefined
+      });
+      return { text: result.text, model: result.model, profileId, usage: result.usage };
+    } finally { request.finish(); }
   });
 
   handle("room:aiBatch", async (event, requests, options = {}) => {

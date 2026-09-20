@@ -78,3 +78,71 @@ document.getElementById("translate").addEventListener("click", async () => {
   assert.equal(result.passed, true, JSON.stringify(result));
   assert.equal(result.checks.find(check => check.id === "declared-scenarios")?.passed, true);
 });
+
+test("business scenarios distinguish durable storage from memory across reload", async () => {
+  const spec = {
+    formatVersion: "room-app@1", kind: "custom", name: "持久化回归", description: "测试页面重载后的私有存储", theme: "light",
+    hostModules: [], capabilities: { database: true, files: [], ai: false },
+    files: {
+      html: '<main><button id="save">保存测试记录</button><output id="result"></output></main>',
+      css: 'body{padding:20px}main{display:grid;gap:20px}',
+      javascript: `const result = document.getElementById("result");
+window.room.storage.get("record").then(value => { result.textContent = value || "空"; });
+document.getElementById("save").addEventListener("click", async () => {
+  await window.room.storage.set("record", "合成记录");
+  result.textContent = "合成记录";
+});`,
+      "room-tests.json": JSON.stringify({ version: 1, scenarios: [{ name: "保存并重载", actions: [
+        { type: "click", selector: "#save" }, { type: "wait", ms: 150 },
+        { type: "assertText", selector: "#result", value: "合成记录" },
+        { type: "reload" }, { type: "wait", ms: 150 },
+        { type: "assertText", selector: "#result", value: "合成记录" }
+      ] }] })
+    }
+  };
+  const persisted = await validateRoomRuntime({ spec });
+  assert.equal(persisted.passed, true, JSON.stringify(persisted));
+  spec.files.javascript = `const result = document.getElementById("result");
+result.textContent = "空";
+document.getElementById("save").addEventListener("click", () => { result.textContent = "合成记录"; });`;
+  const memoryOnly = await validateRoomRuntime({ spec });
+  assert.equal(memoryOnly.passed, false);
+  assert.match(memoryOnly.checks.find(check => check.id === "declared-scenarios").error, /实际为 "空"/);
+});
+
+test("room cancellation crosses the real preload bridge and a new translation can finish", async () => {
+  const spec = {
+    formatVersion: "room-app@1", kind: "custom", name: "取消回归", description: "测试增量请求取消", theme: "light",
+    hostModules: [], capabilities: { database: false, files: [], ai: true },
+    files: {
+      html: '<main><button id="run">翻译</button><button id="cancel">取消</button><output id="result"></output></main>',
+      css: 'body{padding:20px}main{display:grid;gap:20px}',
+      javascript: `const out = document.getElementById("result"); let active, count = 0;
+document.getElementById("run").addEventListener("click", async () => {
+  if (active) return;
+  const id = "test-" + (++count); active = id; out.textContent = "";
+  try {
+    const result = await window.room.ai.generate("synthetic", { requestId: id, onChunk: (_delta, full) => { if (active === id) out.textContent = full; } });
+    if (active === id) out.textContent = result.text;
+  } catch (error) { if (active === id) out.textContent = error.message; }
+  finally { if (active === id) active = null; }
+});
+document.getElementById("cancel").addEventListener("click", async () => {
+  const id = active; if (!id) return; active = null;
+  const result = await window.room.ai.cancel(id); out.textContent = result.cancelled ? "已取消" : "未取消";
+});`,
+      "room-tests.json": JSON.stringify({ version: 1, mocks: { ai: [{ text: "partial translation", chunkDelayMs: 80 }, { text: "new complete" }] }, scenarios: [
+        { name: "取消后不再追加", actions: [
+          { type: "click", selector: "#run", count: 12 }, { type: "click", selector: "#cancel", count: 12 },
+          { type: "wait", ms: 300 }, { type: "assertText", selector: "#result", value: "已取消" }
+        ] },
+        { name: "新请求成功", actions: [
+          { type: "click", selector: "#run" }, { type: "wait", ms: 100 },
+          { type: "assertText", selector: "#result", value: "new complete" }
+        ] }
+      ] })
+    }
+  };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+});

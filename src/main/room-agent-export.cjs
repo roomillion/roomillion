@@ -78,6 +78,7 @@ function buildRoomAgentExport(session, { appVersion, exportedAt = new Date().toI
       limits: run.limits,
       requests: run.requests,
       toolErrors: run.toolErrors || 0,
+      streamRetries: run.streamRetries || 0,
       tokens: run.tokens,
       limitReason: run.limitReason || ""
     }))

@@ -3127,7 +3127,7 @@ function renderAgentUsage(session) {
     const cost = run.estimatedCostUsd > 0 ? `目录估算 $${run.estimatedCostUsd.toFixed(4)}${run.missingCost ? '（部分）' : ''}` : "费用未知";
     return `${seconds === null ? '耗时未知' : seconds + ' 秒'} · ${tokens} · ${cost}`;
   };
-  summary.textContent = (runs.length ? `最近一轮：${describe(runs[runs.length - 1])}` : "本轮用量：尚无调用记录；历史缺失用量不追溯估算") + " · 默认保护：每方案 24 万已返回 Token（含缓存）/ 30 次请求，每轮 12 分钟 / 4 次工具错误；单个请求可能超出剩余额度";
+  summary.textContent = (runs.length ? `最近一轮：${describe(runs[runs.length - 1])}` : "本轮用量：尚无调用记录；历史缺失用量不追溯估算") + " · 任务预算和重试可用 /runtime 查看与调整；用量以模型返回为准";
   history.replaceChildren();
   for (const run of [...runs].reverse()) {
     const row = document.createElement("p");
@@ -3230,7 +3230,7 @@ function renderAgentHeader() {
     : status === "error" || status === "interrupted"
       ? (session?.error || "可以继续发送消息让 Agent 重试")
       : session?.roomId
-        ? "房间已关联；修改前会先澄清需求并请你确认方案"
+        ? "房间已关联；描述修改要求，AI 将直接修改、测试，仅在必要时提问"
         : "先聊清需求，再确认方案，最后开始创建");
   syncAgentSessionSummary();
   renderAgentSessions();

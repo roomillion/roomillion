@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
     clearSlot: (slot) => ipcRenderer.invoke("room:aiClearSlot", slot),
     selectModel: (profileId) => ipcRenderer.invoke("room:aiSelectModel", profileId),
     generate: generateAi,
+    cancel: (requestId) => ipcRenderer.invoke("room:aiCancel", requestId),
     batch: (requests, options = {}) => ipcRenderer.invoke("room:aiBatch", requests, options),
     onModelsChanged: (callback) => {
       if (typeof callback !== "function") throw new TypeError("模型目录监听器必须是函数");

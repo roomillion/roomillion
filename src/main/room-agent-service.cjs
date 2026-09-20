@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { setTimeout: sleep } = require("node:timers/promises");
 const { shortTaskTitle, normalizeQuestions, accumulateUsage } = require("./room-agent-ux.cjs");
 const { createWorkspace, writeFile: writeDraftFile, deleteFile: deleteDraftFile, moveFile: moveDraftFile, searchFiles: searchDraftFiles, describeWorkspace } = require("./room-draft-workspace.cjs");
 const { validateRoomRuntime, validateInstalledProgramRuntime } = require("./room-runtime-validator.cjs");
@@ -1129,7 +1130,15 @@ class RoomAgentService {
     if (!entry) throw new Error("当前房间没有该程序文件");
     if (!entry.readable) throw new Error("该房间文件不是可读文本");
     const target = await this.roomStore.resolveProgramFile(room.id, entry.path);
-    const content = await fsp.readFile(target, "utf8");
+    let content = await fsp.readFile(target, "utf8");
+    const draft = session.programPatch;
+    const activePatch = draft?.roomId === room.id && draft.baseVersion === room.version;
+    if (activePatch) {
+      for (const operation of draft.operations.filter(item => item.path === normalizedPath)) {
+        if (content.split(operation.find).length - 1 !== 1) throw new Error("已保存补丁无法在当前文件中唯一重放，请核对房间版本");
+        content = content.replace(operation.find, operation.replacement);
+      }
+    }
     const start = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
     if (start > content.length) throw new Error("读取位置超过文件长度");
     const end = Math.min(content.length, start + CURRENT_ROOM_READ_CHARS);
@@ -1137,6 +1146,8 @@ class RoomAgentService {
       roomId: room.id,
       version: room.version,
       path: entry.path,
+      source: activePatch ? "patch-draft" : "installed",
+      patchRevision: activePatch ? draft.revision : null,
       offset: start,
       content: content.slice(start, end),
       nextOffset: end < content.length ? end : null,
@@ -1492,7 +1503,7 @@ ${currentContext}`;
       },
       {
         name: "read_current_room_file", label: TOOL_LABELS.read_current_room_file,
-        description: "分页读取 inspect_current_room 列出的当前房间程序文本文件。路径始终限制在该房间 program 内，不提供房间数据或任意磁盘读取。",
+        description: "分页读取当前房间程序工作副本，包含本会话已保存但尚未安装的 patch_current_room_file 补丁，返回 source 和 patchRevision。路径始终限制在房间 program 内；自由草稿另用 read_custom_room 读取。",
         parameters: Type.Object({
           path: Type.String({ minLength: 1, description: "inspect_current_room 返回的相对路径，如 app/store.js" }),
           offset: Type.Optional(Type.Integer({ minimum: 0 }))
@@ -1558,7 +1569,7 @@ ${currentContext}`;
       },
       {
         name: "install_current_room_patch", label: TOOL_LABELS.install_current_room_patch,
-        description: "安装已通过临时副本测试的多文件修改。安装前后创建 MinGit 检查点，保留原房间 ID、数据和现有权限。",
+        description: "安装已通过临时副本测试的 patch_current_room_file 修改。只包含补丁路径的改动，不会合并 write_custom_room_file 的独立自由草稿；代码和测试文件应沿同一写入路径。安装前后创建 MinGit 检查点，保留房间 ID 和数据。",
         parameters: Type.Object({}, { additionalProperties: false }),
         executionMode: "sequential",
         execute: async (_id, _params, signal, onUpdate) => {
@@ -1755,11 +1766,11 @@ ${currentContext}`;
               vectorDatabase: { sdk: "window.room.vector", permission: "database: private", methods: ["create", "list", "upsert", "search", "remove", "drop"], metric: "cosine", capacity: "disk-backed; no product count/byte/dimension ceiling", persistence: "room.db，随应用+数据导出", embeddings: "window.room.ai.embed(texts, { profileId?, model?, dimensions? })；模型和任务决定批量与维度" },
               largeBinaryFiles: { sdk: "window.room.files", permissions: ["pick", "pickMany", "directoryRead", "directoryWrite"], methods: ["openBinary", "readBinary", "closeBinary", "pickMany", "openDirectory", "listDirectoryGrants", "listDirectory", "readDirectoryFile", "writeDirectoryFile", "revokeDirectory"], maxChunkBytes: 67108864, note: "pickMany 返回 {token,name,size,maxChunkBytes} 数组；listDirectory 返回 {grant,entries,cursor,nextCursor,total}；readDirectoryFile 返回 {data,nextOffset,eof,size}。目录句柄不暴露真实路径；批量内容应逐项分块处理" },
               durableData: { blobs: "window.room.blobs", artifacts: "window.room.artifacts", jobs: "window.room.jobs", note: "大文件、中间制品和任务检查点持久保存在房间私有数据中" },
-              aiRuntime: { sdk: "window.room.ai", roles: ["general", "coding", "vision"], methods: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "batch", "onModelsChanged"], concurrency: "1–8", retries: "0–5", batchSize: "1–500", generateResult: "{text,model,profileId,usage}", generateStreaming: "generate(prompt, { onChunk: (delta, full) => {} }) 逐段回调真实模型文本；Promise 仍返回完整结果", batchResult: "{results:[{ok:true,text,model,profileId,usage}|{ok:false,error}],total,passed,failed}", imageInputs: "images 数组项可用 {data:Uint8Array,mimeType}、{blobId} 或 {directory:{grantId,relativePath}}；视觉调用需 ai.roles 包含 vision" },
+              aiRuntime: { sdk: "window.room.ai", roles: ["general", "coding", "vision"], methods: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "cancel", "batch", "onModelsChanged"], concurrency: "1–8", retries: "0–5", batchSize: "1–500", generateResult: "{text,model,profileId,usage}", generateStreaming: "generate(prompt, { requestId, onChunk: (delta, full) => {} }) 逐段回调真实模型文本；Promise 仍返回完整结果。每次传唯一 requestId，再用 cancel(requestId) 真正取消模型连接；取消后 Promise 拒绝，不应保存不完整历史或接受旧回调。requestId 为 1–101 个字母、数字、点、下划线、冒号、连字符，首位字母或数字；不要传 AbortSignal", batchResult: "{results:[{ok:true,text,model,profileId,usage}|{ok:false,error}],total,passed,failed}", imageInputs: "images 数组项可用 {data:Uint8Array,mimeType}、{blobId} 或 {directory:{grantId,relativePath}}；视觉调用需 ai.roles 包含 vision" },
               localCompute: { capability: "compute: worker", api: "Web Worker", scope: "同源房间文件；沙箱内无 Node.js/Electron", useFor: ["排序", "Markdown 合并", "哈希", "CPU 密集型批处理"] },
               hostTools: { capability: "tools: [tool-id@version]", sdk: "window.room.tools", methods: ["list", "call"], builtIns: ["document.markdown-to-pdf@1", "artifact.list@1"], note: "插件可向统一工具注册表增加处理器；房间必须逐工具声明和授权" },
               credentials: { capability: "credentials: [alias]", sdk: "window.room.credentials.list", networkOption: "credentialAlias", note: "宿主只向绑定的精确服务源注入请求头；明文不返回房间" },
-              declaredTests: { file: "room-tests.json", scenarios: "1–20", actions: ["click", "input", "wait", "assertExists", "assertText"], aiMocks: true },
+              declaredTests: { file: "room-tests.json", scenarios: "1–20", actions: ["click", "input", "wait", "reload", "assertExists", "assertText"], clickBurst: "click 动作可加 count:1–30，对同一控件同步连续点击，可验证重试按钮在首次点击后移除时的重入保护", aiMocks: true, aiMockDelay: "mocks.ai 项可加 chunkDelayMs（0–1000），每 3 字符延时，便于测试流式取消和重复点击；{error:消息} 模拟一次失败，后续 mock 可验证重试恢复", persistence: "保存后使用 reload，再等待异步加载并断言；不能用同一页面的内存回填代替持久化检查" },
               streamingExport: { methods: ["beginExport(name)", "writeExport(token, chunk)", "finishExport(token)", "abortExport(token)"], note: "逐块直接写盘，不受便捷导出接口的内存大小影响" },
               runtimeDownloads: false,
               network: {
@@ -1781,7 +1792,7 @@ ${currentContext}`;
                 largeText: ["open", "readNext", "reset", "setEncoding", "startSearch", "cancelTask", "close", "onTaskEvent"],
                 blobs: ["list", "put", "begin", "write", "finish", "abort", "read", "remove"], artifacts: ["list", "put", "begin", "write", "finish", "abort", "read", "remove", "exportToDirectory"],
                 tools: ["list", "call"], documents: ["markdownToPdf"], jobs: ["create", "list", "get", "transition", "recover"],
-                ai: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "batch", "onModelsChanged"],
+                ai: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "cancel", "batch", "onModelsChanged"],
                 credentials: ["list"], network: ["getStatus", "request", "open", "read", "close", "onStatusChanged"],
                 browser: ["getState", "createTab", "closeTab", "activateTab", "navigate", "goBack", "goForward", "reload", "stop", "setViewport", "clearData", "respondToPermission", "onStateChanged", "onDownload", "onPermissionRequest"]
               },
@@ -1889,7 +1900,7 @@ ${currentContext}`;
       {
         name: "write_custom_room_file",
         label: TOOL_LABELS.write_custom_room_file,
-        description: "保存单个源码文件。html、css、javascript 是三个入口逻辑名；还可写 modules/store.js、views/editor.js、assets/defaults.json 等任意安全相对路径。content 是原始文本，不要 JSON 二次转义。不同文件可在同一轮共用 expectedRevision；再次修改同一文件则使用最新 revision。",
+        description: "保存单个自由草稿源码文件，用 test_custom_room/install_custom_room 测试安装；不会写入独立的当前房间补丁。html、css、javascript 是入口逻辑名，也可写安全相对路径。content 必须是完整原始文本，历史摘要的 contentOmitted/contentCharacters 不是有效写入参数。不同文件可共用 expectedRevision；同文件再次修改用最新 revision。",
         parameters: Type.Object({ file: Type.String({ minLength: 1 }), content: Type.String(), expectedRevision: Type.Integer({ minimum: 1 }), find: Type.Optional(Type.String({ minLength: 1 })) }, { additionalProperties: false }),
         executionMode: "sequential",
         execute: async (_id, params, signal) => {
@@ -2351,6 +2362,22 @@ ${currentContext}`;
       this.activeAgents.set(session.id, agent);
       limitTimer = setTimeout(() => this.stopForLimit(session, agent, run, "已达到本任务配置的运行时间；草稿已保存，可以调整预算后继续"), limits.timeoutMs);
       await agent.prompt(prompt, await this.attachmentBlocks(session, attachments));
+      // Provider SDK retries do not cover a connection ending midway through an SSE response.
+      // Only discard that failed assistant response: completed tool calls stay in the transcript.
+      for (let attempt = 0; attempt < limits.maxRetries && !run.stopRequested; attempt += 1) {
+        const failed = agent.state.messages.at(-1);
+        if (failed?.role !== "assistant" || failed.stopReason !== "error"
+          || !/Stream ended without finish_reason|premature close|ECONNRESET|other side closed/i.test(failed.errorMessage || "")) break;
+        run.streamRetries = attempt + 1;
+        session.status = "working";
+        session.error = "";
+        this.emit(session, "activity", { label: `模型响应流中断，正在重试 ${attempt + 1}/${limits.maxRetries}；已完成的文件与工具结果保留` });
+        await this.persist(session);
+        await sleep(500 * (2 ** attempt));
+        if (run.stopRequested) break;
+        agent.replaceMessages(agent.state.messages.slice(0, -1));
+        await agent.continue();
+      }
     } catch (error) {
       session.status = "error";
       session.error = run.limitReason || cleanText(error.message || "Agent 运行失败", 1000);

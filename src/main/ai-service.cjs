@@ -804,8 +804,10 @@ class AiService {
     structuredOutput = false,
     sessionId = crypto.randomUUID(),
     onTextDelta,
+    signal,
     profileId = this.activeProfileId
   }) {
+    signal?.throwIfAborted();
     if (typeof prompt !== "string" || prompt.length === 0) {
       throw new Error("AI 提示内容长度无效");
     }
@@ -864,13 +866,14 @@ class AiService {
       temperature,
       timeoutMs: effectiveTimeoutMs,
       maxRetries: effectiveMaxRetries,
+      signal,
       onPayload
     };
     let response;
     if (typeof onTextDelta === "function") {
       const stream = models.streamSimple(model, context, requestOptions);
       for await (const event of stream) {
-        if (event.type === "text_delta" && typeof event.delta === "string" && event.delta) {
+        if (!signal?.aborted && event.type === "text_delta" && typeof event.delta === "string" && event.delta) {
           try { onTextDelta(event.delta); } catch {}
         }
       }
@@ -878,6 +881,7 @@ class AiService {
     } else {
       response = await models.completeSimple(model, context, requestOptions);
     }
+    signal?.throwIfAborted();
     if (response.stopReason === "error" || response.stopReason === "aborted") {
       throw new Error(response.errorMessage || "AI 请求失败");
     }

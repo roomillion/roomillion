@@ -102,7 +102,7 @@ function analyzeJavascript(javascript, allowedNetworkOrigins = [], browserCapabi
     ["js.eval", /\beval\s*\(/, "不允许 eval"],
     ["js.function-constructor", /(?:\bnew\s+Function\b|\bFunction\s*\()/, "不允许 Function 构造器"],
     ["js.dynamic-import", /\bimport\s*\(/, "app.js 不允许自行动态导入模块；使用 hostModules"],
-    ["js.node", /(?:\brequire\s*\(|\bprocess\s*\.|\bBuffer\s*\.|\bmodule\.exports\b|\bnode:|\bchild_process\b|\belectron\b)/, "不允许 Node.js、Electron 或系统命令能力"],
+    ["js.node", /(?:\brequire\s*\(|\bprocess\s*\.|\bBuffer\s*\.|\bmodule\.exports\b|["'`]node:|\bchild_process\b|\belectron\b)/, "不允许 Node.js、Electron 或系统命令能力"],
     ["js.network", /(?:\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b|\bnavigator\.sendBeacon\b|\bRTCPeerConnection\b)/, "不允许直接网络 API"],
     ["js.privileged-worker", /(?:\bServiceWorker\b|\bSharedWorker\b|\bserviceWorker\b|\bimportScripts\s*\()/, "不允许 Service Worker、SharedWorker 或 importScripts"],
     ["js.navigation", /(?:\bwindow\.open\s*\(|\blocation\.(?:assign|replace)\s*\(|\blocation\.href\s*=)/, "不允许打开窗口或导航"],

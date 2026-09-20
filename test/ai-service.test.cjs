@@ -108,6 +108,41 @@ async function startFakeOpenAiServer() {
   return server;
 }
 
+test("cancelling AI completion closes the live provider stream without retrying", async t => {
+  for (const streaming of [true, false]) await t.test(streaming ? "onChunk" : "ordinary completion", async t => {
+    let seen = 0;
+    let started, closed;
+    const startedPromise = new Promise(resolve => { started = resolve; });
+    const closedPromise = new Promise(resolve => { closed = resolve; });
+    const server = http.createServer((req, res) => {
+      seen += 1;
+      req.resume();
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.write(`data: ${JSON.stringify({ id: "test", object: "chat.completion.chunk", created: 1, model: "test-model", choices: [{ index: 0, delta: { role: "assistant", content: "partial" }, finish_reason: null }] })}\n\n`);
+        res.on("close", closed);
+        started();
+      });
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-ai-abort-"));
+    t.after(async () => { server.closeAllConnections(); server.close(); await fsp.rm(root, { recursive: true, force: true }); });
+    const service = await new AiService(root).init();
+    await service.saveProfile({ name: "Abort test", baseUrl: `http://127.0.0.1:${server.address().port}/v1`, model: "test-model", apiKey: "test-key" });
+    const controller = new AbortController();
+    const pending = service.complete({ prompt: "synthetic", signal: controller.signal, ...(streaming ? { onTextDelta: () => {} } : {}) });
+    const rejected = assert.rejects(pending, /cancelled by test/);
+    await startedPromise;
+    controller.abort(new Error("cancelled by test"));
+    await rejected;
+    await closedPromise;
+    assert.equal(seen, 1);
+    await assert.rejects(service.complete({ prompt: "synthetic", signal: controller.signal }), /cancelled by test/);
+    assert.equal(seen, 1);
+  });
+});
+
 test("Pi AI adapter calls an OpenAI-compatible endpoint", async (t) => {
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-ai-test-"));
   const server = await startFakeOpenAiServer();

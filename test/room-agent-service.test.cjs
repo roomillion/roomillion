@@ -238,6 +238,10 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   await invoke("read_current_room_file", { path: "app/app.js" });
   await invoke("patch_current_room_file", { path: "app/app.js", find: "speed=.08", replacement: "speed=.12", expectedRevision: 1 });
   assert.doesNotMatch(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.12/);
+  const workingCopy = JSON.parse((await invoke("read_current_room_file", { path: "app/app.js" })).content[0].text);
+  assert.match(workingCopy.content, /speed=\.12/);
+  assert.equal(workingCopy.source, "patch-draft");
+  assert.equal(workingCopy.patchRevision, 2);
   await invoke("test_current_room_patch");
   assert.equal(validationRoots.length, 1);
   await invoke("install_current_room_patch");
@@ -245,6 +249,9 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   assert.match(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.12/);
   assert.deepEqual(store.getRoom(built.room.id).grantedPermissions.files, ["pick"]);
   assert.equal(session.programPatch, null);
+  const installedCopy = JSON.parse((await invoke("read_current_room_file", { path: "app/app.js" })).content[0].text);
+  assert.equal(installedCopy.source, "installed");
+  assert.equal(installedCopy.patchRevision, null);
   assert.equal(session.workflow.phase, "implementing");
   await invoke("inspect_current_room");
   await invoke("read_current_room_file", { path: "app/app.js" });
@@ -719,6 +726,55 @@ class FakeAgent {
     await this.emit({ type: "agent_end", messages: this.state.messages });
   }
 }
+
+test("interrupted model streams retry in-place with bounds, preserve tools, and respect stop", async t => {
+  const pi = await import("@earendil-works/pi-ai");
+  for (const mode of ["recover", "exhaust", "authentication", "stop"]) await t.test(mode, async t => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-stream-retry-"));
+    t.after(() => fsp.rm(root, { recursive: true, force: true }));
+    const roomStore = await new RoomStore(root).init();
+    let attempts = 0;
+    class InterruptedAgent extends FakeAgent {
+      replaceMessages(messages) { this.state.messages = messages; }
+      async prompt(prompt) {
+        this.state.messages.push({ role: "user", content: prompt, timestamp: Date.now() });
+        this.state.messages.push({ role: "assistant", content: [{ type: "toolCall", id: "saved", name: "read_custom_room", arguments: {} }], stopReason: "toolUse", timestamp: Date.now() });
+        this.state.messages.push({ role: "toolResult", toolCallId: "saved", toolName: "read_custom_room", content: [{ type: "text", text: "existing draft" }], isError: false, timestamp: Date.now() });
+        await this.respond();
+      }
+      async continue() {
+        assert.equal(this.state.messages.at(-1).toolCallId, "saved");
+        assert.equal(this.state.messages.filter(m => m.role === "user").length, 1);
+        assert.equal(this.state.messages.filter(m => m.role === "toolResult").length, 1);
+        await this.respond();
+      }
+      async respond() {
+        attempts += 1;
+        await this.emit({ type: "agent_start" });
+        const failed = mode !== "recover" || attempts === 1;
+        const message = { role: "assistant", content: [{ type: "text", text: failed ? "partial" : "continued" }], timestamp: Date.now(), stopReason: failed ? "error" : "stop", ...(failed ? { errorMessage: mode === "authentication" ? "401 Invalid API Key" : "Stream ended without finish_reason" } : {}) };
+        this.state.messages.push(message);
+        await this.emit({ type: "message_end", message });
+        await this.emit({ type: "agent_end", messages: this.state.messages });
+      }
+    }
+    let service;
+    service = await new RoomAgentService({ roomStore, gitService: {},
+      aiService: {
+        getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
+        createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn: () => {} })
+      },
+      agentModuleLoader: async () => ({ Agent: InterruptedAgent }),
+      onEvent: event => { if (mode === "stop" && event.type === "activity" && event.label.includes("正在重试")) void service.abort(event.sessionId); }
+    }).init();
+    const session = await service.createSession();
+    await service.send(session.id, { prompt: "继续测试任务", runtime: { maxRetries: 2 } });
+    const result = await service.waitForIdle(session.id);
+    assert.equal(attempts, mode === "recover" ? 2 : mode === "exhaust" ? 3 : 1);
+    assert.equal(result.runs.at(-1).status, mode === "stop" ? "stopped" : mode === "recover" ? "complete" : "error");
+    assert.equal(result.status, mode === "recover" || mode === "stop" ? "idle" : "error");
+  });
+});
 
 class CustomRoomFakeAgent extends FakeAgent {
   async prompt(prompt) {

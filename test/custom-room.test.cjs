@@ -71,6 +71,16 @@ test("custom room reports malformed declared scenarios before Electron startup",
   assert.equal(report.passed, true);
 });
 
+test("a local node property is allowed while Node module specifiers stay forbidden", () => {
+  const spec = billiardsSpec();
+  spec.files.javascript = 'const live = { text: "", node: null }; live.node = document.createElement("p");';
+  assert.equal(inspectCustomRoomSpec(spec).report.passed, true);
+  for (const literal of ['"node:fs"', "'node:fs'", '`node:fs`']) {
+    spec.files.javascript = `const moduleName = ${literal};`;
+    assert.ok(inspectCustomRoomSpec(spec).report.errors.some(error => error.code === "js.node"));
+  }
+});
+
 test("room-app@1 accepts material offline code and expands only built-in modules", () => {
   const inspected = inspectCustomRoomSpec(billiardsSpec());
   assert.equal(inspected.report.passed, true);
