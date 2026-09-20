@@ -2,12 +2,17 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
+const { pipeline } = require("node:stream/promises");
+const yazl = require("yazl");
 const { DataBackupService } = require("../src/main/data-backup-service.cjs");
 const { RoomDatabaseService } = require("../src/main/database.cjs");
-const { packDirectory } = require("../src/main/room-package.cjs");
+const { RoomBlobService } = require("../src/main/room-blob-service.cjs");
+const { RoomJobService } = require("../src/main/room-job-service.cjs");
+const { packDirectory, extractZip, walkFiles, sha256 } = require("../src/main/room-package.cjs");
 const { RoomStore } = require("../src/main/room-store.cjs");
 
 async function createInstalledRoom(root, id = "cn.zhibian.backup-test") {
@@ -29,6 +34,14 @@ async function createInstalledRoom(root, id = "cn.zhibian.backup-test") {
   const store = await new RoomStore(path.join(root, "workbench-data")).init();
   const room = await store.installPackage(packagePath, { source: "local-generated" });
   return { room, store };
+}
+
+async function zipFiles(root, destination) {
+  const zip = new yazl.ZipFile();
+  const completed = pipeline(zip.outputStream, fs.createWriteStream(destination, { flags: "wx" }));
+  for (const file of await walkFiles(root)) zip.addFile(file.fullPath, file.relativePath);
+  zip.end();
+  await completed;
 }
 
 test("encrypted zdata restores a room and preserves a pre-restore recovery point", async (t) => {
@@ -271,6 +284,13 @@ for (const protectedTransfer of [false, true]) {
     });
     await sourceDatabase.run(source.room.id, "CREATE TABLE records(value TEXT NOT NULL)");
     await sourceDatabase.run(source.room.id, "INSERT INTO records(value) VALUES('TRANSFERRED_DATA')");
+    const sourceBlobs = new RoomBlobService(source.store);
+    const sourceJobs = new RoomJobService(source.store);
+    const page = await sourceBlobs.put(source.room.id, { name: "第001页.png", mimeType: "image/png" }, Buffer.from("FAKE_SCAN_PAGE"));
+    const markdown = await sourceBlobs.put(source.room.id, { name: "整本书.md", mimeType: "text/markdown", kind: "artifact" }, "# 测试书籍\n");
+    const job = await sourceJobs.create(source.room.id, { type: "ocr", payload: { pageId: page.id }, total: 1 });
+    await sourceJobs.transition(source.room.id, job.id, { state: "running", checkpoint: { done: 0 } });
+    await fsp.writeFile(path.join(source.store.getDataRoot(source.room.id), "files", "private-note.txt"), "MIGRATED_FILE", "utf8");
     const output = path.join(sourceRoot, `app-and-data-${suffix}.room`);
     const sourceTransfers = await new DataBackupService(source.store, sourceDatabase).init();
     const exported = await sourceTransfers.createRoomTransfer(source.room.id, {
@@ -300,5 +320,125 @@ for (const protectedTransfer of [false, true]) {
       await targetDatabase.query(installed.id, "SELECT value FROM records"),
       [{ value: "TRANSFERRED_DATA" }]
     );
+    const targetBlobs = new RoomBlobService(targetStore);
+    const targetJobs = new RoomJobService(targetStore);
+    assert.deepEqual((await targetBlobs.list(installed.id)).map((item) => item.id).sort(), [page.id, markdown.id].sort());
+    assert.equal(Buffer.from((await targetBlobs.read(installed.id, page.id)).data).toString(), "FAKE_SCAN_PAGE");
+    assert.equal(Buffer.from((await targetBlobs.read(installed.id, markdown.id)).data).toString(), "# 测试书籍\n");
+    assert.deepEqual((await targetJobs.get(installed.id, job.id)).checkpoint, { done: 0 });
+    assert.equal(await fsp.readFile(path.join(targetStore.getDataRoot(installed.id), "files", "private-note.txt"), "utf8"), "MIGRATED_FILE");
   });
 }
+
+test("app-and-data replaces prior blobs and rolls them back when database restore fails", async (t) => {
+  const sourceRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-transfer-replace-source-"));
+  const targetRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-transfer-replace-target-"));
+  const id = "cn.zhibian.transfer-replace";
+  const source = await createInstalledRoom(sourceRoot, id);
+  const target = await createInstalledRoom(targetRoot, id);
+  const sourceDatabase = await new RoomDatabaseService(source.store).init();
+  const targetDatabase = await new RoomDatabaseService(target.store).init();
+  t.after(async () => {
+    await sourceDatabase.closeAll();
+    await targetDatabase.closeAll();
+    await fsp.rm(sourceRoot, { recursive: true, force: true });
+    await fsp.rm(targetRoot, { recursive: true, force: true });
+  });
+  await sourceDatabase.run(id, "CREATE TABLE records(value TEXT NOT NULL)");
+  await sourceDatabase.run(id, "INSERT INTO records(value) VALUES('NEW_DATA')");
+  await targetDatabase.run(id, "CREATE TABLE records(value TEXT NOT NULL)");
+  await targetDatabase.run(id, "INSERT INTO records(value) VALUES('OLD_DATA')");
+  const sourceBlobs = new RoomBlobService(source.store);
+  const targetBlobs = new RoomBlobService(target.store);
+  const fresh = await sourceBlobs.put(id, { name: "new.md", kind: "artifact" }, "NEW_BLOB");
+  const stale = await targetBlobs.put(id, { name: "old.md", kind: "artifact" }, "OLD_BLOB");
+  const exportedPath = path.join(sourceRoot, "replace.room");
+  const sourceTransfers = await new DataBackupService(source.store, sourceDatabase).init();
+  const targetTransfers = await new DataBackupService(target.store, targetDatabase).init();
+  await sourceTransfers.createRoomTransfer(id, { includeData: true }, exportedPath);
+
+  let inspection = await targetTransfers.inspectRoomTransfer(exportedPath);
+  await target.store.commitImport(inspection.token, inspection.defaultSelectedKeys);
+  const originalReplace = targetDatabase.replaceSnapshot.bind(targetDatabase);
+  targetDatabase.replaceSnapshot = async () => { throw new Error("INJECTED_RESTORE_FAILURE"); };
+  await assert.rejects(() => targetTransfers.completeRoomTransferImport(inspection.token, id), /INJECTED_RESTORE_FAILURE/);
+  targetDatabase.replaceSnapshot = originalReplace;
+  assert.deepEqual(await targetDatabase.query(id, "SELECT value FROM records"), [{ value: "OLD_DATA" }]);
+  assert.deepEqual((await targetBlobs.list(id)).map((item) => item.id), [stale.id]);
+  assert.equal(Buffer.from((await targetBlobs.read(id, stale.id)).data).toString(), "OLD_BLOB");
+
+  inspection = await targetTransfers.inspectRoomTransfer(exportedPath);
+  await target.store.commitImport(inspection.token, inspection.defaultSelectedKeys);
+  await targetTransfers.completeRoomTransferImport(inspection.token, id);
+  assert.deepEqual(await targetDatabase.query(id, "SELECT value FROM records"), [{ value: "NEW_DATA" }]);
+  assert.deepEqual((await targetBlobs.list(id)).map((item) => item.id), [fresh.id]);
+  assert.equal(Buffer.from((await targetBlobs.read(id, fresh.id)).data).toString(), "NEW_BLOB");
+});
+
+test("legacy 0.2 app-and-data transfers remain importable without replacing newer data files", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-transfer-legacy-"));
+  const source = await createInstalledRoom(path.join(root, "source"), "cn.zhibian.transfer-legacy");
+  const target = await createInstalledRoom(path.join(root, "target"), source.room.id);
+  const sourceDatabase = await new RoomDatabaseService(source.store).init();
+  const targetDatabase = await new RoomDatabaseService(target.store).init();
+  t.after(async () => {
+    await sourceDatabase.closeAll();
+    await targetDatabase.closeAll();
+    await fsp.rm(root, { recursive: true, force: true });
+  });
+  await sourceDatabase.run(source.room.id, "CREATE TABLE records(value TEXT)");
+  await sourceDatabase.run(source.room.id, "INSERT INTO records(value) VALUES('LEGACY')");
+  const retained = await new RoomBlobService(target.store).put(source.room.id, { name: "retained.bin" }, "RETAINED");
+  const bundleRoot = path.join(root, "bundle");
+  await fsp.mkdir(bundleRoot);
+  const appPath = path.join(bundleRoot, "room.zroom");
+  await source.store.exportRoom(source.room.id, appPath);
+  const dbPath = path.join(bundleRoot, "data.roomdb");
+  const databaseBuffer = await sourceDatabase.exportSnapshot(source.room.id);
+  await fsp.writeFile(dbPath, databaseBuffer);
+  const appBuffer = await fsp.readFile(appPath);
+  await fsp.writeFile(path.join(bundleRoot, "bundle.json"), JSON.stringify({
+    kind: "zhibian-room-transfer",
+    formatVersion: "0.2",
+    contents: "app-and-data",
+    room: { id: source.room.id, name: source.room.name, version: source.room.version },
+    createdAt: new Date().toISOString(),
+    app: { path: "room.zroom", bytes: appBuffer.length, sha256: sha256(appBuffer) },
+    data: { path: "data.roomdb", bytes: databaseBuffer.length, sha256: sha256(databaseBuffer) }
+  }));
+  const legacyPath = path.join(root, "legacy.room");
+  await zipFiles(bundleRoot, legacyPath);
+  const transfers = await new DataBackupService(target.store, targetDatabase).init();
+  const inspection = await transfers.inspectRoomTransfer(legacyPath);
+  assert.equal(inspection.transfer.formatVersion, "0.2");
+  await target.store.commitImport(inspection.token, inspection.defaultSelectedKeys);
+  await transfers.completeRoomTransferImport(inspection.token, source.room.id);
+  assert.deepEqual(await targetDatabase.query(source.room.id, "SELECT value FROM records"), [{ value: "LEGACY" }]);
+  assert.deepEqual((await new RoomBlobService(target.store).list(source.room.id)).map((item) => item.id), [retained.id]);
+});
+
+test("tampered room Blob is rejected before import confirmation", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-transfer-blob-tamper-"));
+  const source = await createInstalledRoom(path.join(root, "source"), "cn.zhibian.transfer-tamper");
+  const sourceDatabase = await new RoomDatabaseService(source.store).init();
+  const targetStore = await new RoomStore(path.join(root, "target", "workbench-data")).init();
+  const targetDatabase = await new RoomDatabaseService(targetStore).init();
+  t.after(async () => {
+    await sourceDatabase.closeAll();
+    await targetDatabase.closeAll();
+    await fsp.rm(root, { recursive: true, force: true });
+  });
+  const item = await new RoomBlobService(source.store).put(source.room.id, { name: "scan.png" }, "ORIGINAL_IMAGE");
+  const normal = path.join(root, "normal.room");
+  const sourceTransfers = await new DataBackupService(source.store, sourceDatabase).init();
+  await sourceTransfers.createRoomTransfer(source.room.id, { includeData: true }, normal);
+  const unpacked = path.join(root, "unpacked");
+  await extractZip(normal, unpacked);
+  await fsp.writeFile(path.join(unpacked, "data", "blobs", `${item.id}.bin`), "TAMPERED_IMAGE");
+  const tampered = path.join(root, "tampered.room");
+  await zipFiles(unpacked, tampered);
+  const targetTransfers = await new DataBackupService(targetStore, targetDatabase).init();
+  await assert.rejects(() => targetTransfers.inspectRoomTransfer(tampered), /完整性校验失败/);
+  assert.equal(targetStore.pendingImports.size, 0);
+  assert.equal(targetTransfers.pendingRoomBundles.size, 0);
+});

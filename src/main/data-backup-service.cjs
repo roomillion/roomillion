@@ -8,7 +8,7 @@ const { promisify } = require("node:util");
 const { pipeline } = require("node:stream/promises");
 const yazl = require("yazl");
 const { assertRoomId } = require("./room-store.cjs");
-const { MAX_PACKAGE_BYTES, MAX_UNPACKED_BYTES, MAX_ENTRIES, extractZip, sha256 } = require("./room-package.cjs");
+const { MAX_PACKAGE_BYTES, MAX_UNPACKED_BYTES, MAX_ENTRIES, extractZip, sha256, walkFiles } = require("./room-package.cjs");
 
 const scryptAsync = promisify(crypto.scrypt);
 const BACKUP_KIND = "zhibian-room-data";
@@ -21,7 +21,8 @@ const RESTORE_TTL_MS = 15 * 60 * 1000;
 const SCRYPT_OPTIONS = Object.freeze({ N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
 const ROOM_TRANSFER_KIND = "zhibian-room-transfer";
 const ROOM_TRANSFER_ENCRYPTED_KIND = "zhibian-room-transfer-encrypted";
-const ROOM_TRANSFER_FORMAT_VERSION = "0.2";
+const ROOM_TRANSFER_FORMAT_VERSION = "0.3";
+const LEGACY_ROOM_TRANSFER_FORMAT_VERSION = "0.2";
 const ROOM_TRANSFER_EXTENSION = ".room";
 const LEGACY_ROOM_TRANSFER_EXTENSION = ".zroom";
 const ROOM_TRANSFER_EXTENSIONS = new Set([ROOM_TRANSFER_EXTENSION, LEGACY_ROOM_TRANSFER_EXTENSION]);
@@ -49,6 +50,89 @@ function validateBundleFileRecord(record, expectedPath, maximumBytes) {
   return { path: expectedPath, bytes: record.bytes, sha256: record.sha256 };
 }
 
+function validateAssetRecord(record) {
+  const assetPath = record?.path;
+  const segments = typeof assetPath === "string" ? assetPath.split("/") : [];
+  const allowed = assetPath === "data/jobs.json" ||
+    assetPath === "data/blobs/index.json" ||
+    /^data\/blobs\/[a-f0-9]{32}\.bin$/.test(assetPath || "") ||
+    (segments[0] === "data" && segments[1] === "files" && segments.length > 2 &&
+      segments.slice(2).every((part) => part && part !== "." && part !== ".." && !/[\\\u0000-\u001f:]/.test(part)));
+  if (!allowed || assetPath.length > 1200) throw new Error("房间数据文件路径无效");
+  if (!Number.isSafeInteger(record.bytes) || record.bytes < 0 || record.bytes > MAX_DATABASE_BYTES) {
+    throw new Error(`房间数据文件大小无效：${assetPath}`);
+  }
+  if (typeof record.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.sha256)) {
+    throw new Error(`房间数据文件哈希无效：${assetPath}`);
+  }
+  return { path: assetPath, bytes: record.bytes, sha256: record.sha256 };
+}
+
+async function stageRoomAssets(roomStore, roomId, stagingRoot) {
+  const dataRoot = roomStore.getDataRoot(roomId);
+  const assetPaths = [];
+  const exists = async (filePath) => fsp.lstat(filePath).then((stats) => {
+    if (!stats.isFile()) throw new Error(`房间数据不是普通文件：${filePath}`);
+    return true;
+  }, (error) => {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  });
+  const indexPath = path.join(dataRoot, "blobs", "index.json");
+  if (await exists(indexPath)) {
+    const index = JSON.parse(await fsp.readFile(indexPath, "utf8"));
+    if (index?.formatVersion !== 1 || !Array.isArray(index.items)) throw new Error("Blob 索引无效，无法完整导出房间数据");
+    const ids = new Set();
+    assetPaths.push("data/blobs/index.json");
+    for (const item of index.items) {
+      if (!/^[a-f0-9]{32}$/.test(item?.id || "") || ids.has(item.id)) throw new Error("Blob 索引包含无效或重复 ID");
+      ids.add(item.id);
+      assetPaths.push(`data/blobs/${item.id}.bin`);
+    }
+  }
+  if (await exists(path.join(dataRoot, "jobs.json"))) assetPaths.push("data/jobs.json");
+  const filesRoot = path.join(dataRoot, "files");
+  const filesStat = await fsp.lstat(filesRoot).catch((error) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (filesStat) {
+    if (!filesStat.isDirectory()) throw new Error("房间 files 数据目录无效");
+    for (const file of await walkFiles(filesRoot)) assetPaths.push(`data/files/${file.relativePath}`);
+  }
+  assetPaths.sort((a, b) => a.localeCompare(b, "en"));
+  if (assetPaths.length > MAX_ENTRIES - 3) throw new Error("房间数据文件数量超过传输包限制");
+  const records = [];
+  let totalBytes = 0;
+  for (const assetPath of assetPaths) {
+    validateAssetRecord({ path: assetPath, bytes: 0, sha256: "0".repeat(64) });
+    const relative = assetPath.slice("data/".length).split("/");
+    const sourcePath = path.join(dataRoot, ...relative);
+    const targetPath = path.join(stagingRoot, ...assetPath.split("/"));
+    await fsp.mkdir(path.dirname(targetPath), { recursive: true });
+    await fsp.copyFile(sourcePath, targetPath, fs.constants.COPYFILE_EXCL);
+    const stats = await fsp.stat(targetPath);
+    totalBytes += stats.size;
+    if (totalBytes > MAX_ROOM_TRANSFER_UNPACKED_BYTES) throw new Error("房间数据超过传输包解压大小限制");
+    records.push(validateAssetRecord({ path: assetPath, bytes: stats.size, sha256: await sha256File(targetPath) }));
+  }
+  const blobIndexRecord = records.find((record) => record.path === "data/blobs/index.json");
+  if (blobIndexRecord) {
+    const index = JSON.parse(await fsp.readFile(path.join(stagingRoot, "data", "blobs", "index.json"), "utf8"));
+    for (const item of index.items) {
+      const record = records.find((entry) => entry.path === `data/blobs/${item.id}.bin`);
+      if (!record || !Number.isSafeInteger(item.size) || record.bytes !== item.size) {
+        throw new Error("Blob 索引与文件大小不一致，无法完整导出房间数据");
+      }
+    }
+  }
+  if (records.some((record) => record.path === "data/jobs.json")) {
+    const jobs = JSON.parse(await fsp.readFile(path.join(stagingRoot, "data", "jobs.json"), "utf8"));
+    if (jobs?.formatVersion !== 1 || !Array.isArray(jobs.jobs)) throw new Error("房间任务检查点无效，无法完整导出房间数据");
+  }
+  return records;
+}
+
 function validateRoomRecord(input, label = "房间") {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error(`${label}信息无效`);
   assertRoomId(input.id);
@@ -59,24 +143,33 @@ function validateRoomRecord(input, label = "房间") {
 
 function validateTransferManifest(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("房间传输清单无效");
-  if (input.kind !== ROOM_TRANSFER_KIND || input.formatVersion !== ROOM_TRANSFER_FORMAT_VERSION) {
+  if (input.kind !== ROOM_TRANSFER_KIND || ![ROOM_TRANSFER_FORMAT_VERSION, LEGACY_ROOM_TRANSFER_FORMAT_VERSION].includes(input.formatVersion)) {
     throw new Error("不支持的房间传输格式版本");
   }
   if (!["app-only", "app-and-data"].includes(input.contents)) throw new Error("房间传输内容类型无效");
   if (typeof input.createdAt !== "string" || !Number.isFinite(Date.parse(input.createdAt))) throw new Error("房间传输创建时间无效");
   const result = {
     kind: ROOM_TRANSFER_KIND,
-    formatVersion: ROOM_TRANSFER_FORMAT_VERSION,
+    formatVersion: input.formatVersion,
     contents: input.contents,
     room: validateRoomRecord(input.room, "房间传输"),
     createdAt: new Date(input.createdAt).toISOString(),
     app: validateBundleFileRecord(input.app, ROOM_TRANSFER_APP_FILE, MAX_PACKAGE_BYTES),
-    data: null
+    data: null,
+    assets: null
   };
   if (input.contents === "app-and-data") {
     result.data = validateBundleFileRecord(input.data, ROOM_TRANSFER_DATA_FILE, MAX_DATABASE_BYTES);
   } else if (input.data !== undefined && input.data !== null) {
     throw new Error("仅应用房间包不得包含数据记录");
+  }
+  if (input.formatVersion === ROOM_TRANSFER_FORMAT_VERSION) {
+    if (!Array.isArray(input.assets) || input.assets.length > MAX_ENTRIES - 3) throw new Error("房间数据文件清单无效");
+    result.assets = input.assets.map(validateAssetRecord);
+    if (new Set(result.assets.map((item) => item.path)).size !== result.assets.length) throw new Error("房间数据文件路径重复");
+    if (input.contents === "app-only" && result.assets.length) throw new Error("仅应用房间包不得包含数据文件");
+  } else if (input.assets !== undefined) {
+    throw new Error("旧版房间包不得包含数据文件清单");
   }
   return result;
 }
@@ -288,7 +381,7 @@ function aadForTransferEnvelope(envelope) {
 
 function validateEncryptedTransferEnvelope(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("加密房间包格式无效");
-  if (input.kind !== ROOM_TRANSFER_ENCRYPTED_KIND || input.formatVersion !== ROOM_TRANSFER_FORMAT_VERSION) {
+  if (input.kind !== ROOM_TRANSFER_ENCRYPTED_KIND || ![ROOM_TRANSFER_FORMAT_VERSION, LEGACY_ROOM_TRANSFER_FORMAT_VERSION].includes(input.formatVersion)) {
     throw new Error("不支持的加密房间包格式版本");
   }
   if (!["app-only", "app-and-data"].includes(input.contents)) throw new Error("加密房间包内容类型无效");
@@ -307,7 +400,7 @@ function validateEncryptedTransferEnvelope(input) {
   const ciphertext = parseBase64(input.payload, "payload", MAX_ROOM_TRANSFER_ARCHIVE_BYTES);
   return {
     kind: ROOM_TRANSFER_ENCRYPTED_KIND,
-    formatVersion: ROOM_TRANSFER_FORMAT_VERSION,
+    formatVersion: input.formatVersion,
     contents: input.contents,
     room: validateRoomRecord(input.room, "加密房间包"),
     createdAt: new Date(input.createdAt).toISOString(),
@@ -429,12 +522,14 @@ class DataBackupService {
     const appStats = await fsp.stat(appPath);
     const appSha256 = await sha256File(appPath);
     let databaseBuffer = null;
+    let assets = [];
     if (includeData) {
       databaseBuffer = await this.database.exportSnapshot(room.id);
       if (!databaseBuffer.length || databaseBuffer.length > MAX_DATABASE_BYTES) {
         throw new Error("房间数据库为空或超过当前运行时可寻址范围");
       }
       await this.database.validateSnapshot(databaseBuffer);
+      assets = await stageRoomAssets(this.roomStore, room.id, stagingRoot);
     }
     const createdAt = new Date().toISOString();
     const manifest = {
@@ -448,7 +543,8 @@ class DataBackupService {
         path: ROOM_TRANSFER_DATA_FILE,
         bytes: databaseBuffer.length,
         sha256: sha256(databaseBuffer)
-      } : null
+      } : null,
+      assets
     };
     const manifestBuffer = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     const zipFile = new yazl.ZipFile();
@@ -457,6 +553,9 @@ class DataBackupService {
     zipFile.addFile(appPath, ROOM_TRANSFER_APP_FILE, { mtime: ROOM_TRANSFER_MTIME, mode: 0o100644, compress: false });
     if (databaseBuffer) {
       zipFile.addBuffer(databaseBuffer, ROOM_TRANSFER_DATA_FILE, { mtime: ROOM_TRANSFER_MTIME, mode: 0o100644, compress: false });
+    }
+    for (const asset of assets) {
+      zipFile.addFile(path.join(stagingRoot, ...asset.path.split("/")), asset.path, { mtime: ROOM_TRANSFER_MTIME, mode: 0o100644, compress: false });
     }
     zipFile.end();
     await completed;
@@ -563,15 +662,15 @@ class DataBackupService {
       }
       const manifest = validateTransferManifest(JSON.parse(await fsp.readFile(bundlePath, "utf8")));
       if (expected && (
+        manifest.formatVersion !== expected.formatVersion ||
         manifest.contents !== expected.contents ||
         manifest.room.id !== expected.room.id ||
         manifest.room.name !== expected.room.name ||
         manifest.room.version !== expected.room.version
       )) throw new Error("加密房间包外层信息与内部清单不一致");
-      const expectedFiles = ["bundle.json", ROOM_TRANSFER_APP_FILE, ...(manifest.data ? [ROOM_TRANSFER_DATA_FILE] : [])].sort();
-      const entries = await fsp.readdir(stagingPath, { withFileTypes: true });
-      const names = entries.map((entry) => entry.name).sort();
-      if (entries.some((entry) => !entry.isFile()) || names.join("|") !== expectedFiles.join("|")) {
+      const expectedFiles = ["bundle.json", ROOM_TRANSFER_APP_FILE, ...(manifest.data ? [ROOM_TRANSFER_DATA_FILE] : []), ...(manifest.assets || []).map((asset) => asset.path)].sort();
+      const names = (await walkFiles(stagingPath)).map((file) => file.relativePath).sort();
+      if (JSON.stringify(names) !== JSON.stringify(expectedFiles)) {
         throw new Error("房间传输包包含清单之外的文件");
       }
       const appPath = path.join(stagingPath, ROOM_TRANSFER_APP_FILE);
@@ -588,6 +687,33 @@ class DataBackupService {
         }
         await this.database.validateSnapshot(databaseBuffer);
       }
+      for (const asset of manifest.assets || []) {
+        const assetPath = path.join(stagingPath, ...asset.path.split("/"));
+        const stats = await fsp.stat(assetPath);
+        if (stats.size !== asset.bytes || await sha256File(assetPath) !== asset.sha256) {
+          throw new Error(`房间数据文件完整性校验失败：${asset.path}`);
+        }
+      }
+      if (manifest.assets?.some((asset) => asset.path.startsWith("data/blobs/"))) {
+        const indexPath = path.join(stagingPath, "data", "blobs", "index.json");
+        const index = JSON.parse(await fsp.readFile(indexPath, "utf8"));
+        if (index?.formatVersion !== 1 || !Array.isArray(index.items)) throw new Error("房间 Blob 索引无效");
+        const expectedBlobPaths = new Set(["data/blobs/index.json"]);
+        for (const item of index.items) {
+          if (!/^[a-f0-9]{32}$/.test(item?.id || "") || !Number.isSafeInteger(item.size) || item.size < 0) throw new Error("房间 Blob 索引条目无效");
+          expectedBlobPaths.add(`data/blobs/${item.id}.bin`);
+          const record = manifest.assets.find((asset) => asset.path === `data/blobs/${item.id}.bin`);
+          if (!record || record.bytes !== item.size) throw new Error("房间 Blob 索引与文件不匹配");
+        }
+        const actualBlobPaths = (manifest.assets || []).filter((asset) => asset.path.startsWith("data/blobs/")).map((asset) => asset.path);
+        if (expectedBlobPaths.size !== actualBlobPaths.length || actualBlobPaths.some((asset) => !expectedBlobPaths.has(asset))) {
+          throw new Error("房间 Blob 索引与文件清单不匹配");
+        }
+      }
+      if (manifest.assets?.some((asset) => asset.path === "data/jobs.json")) {
+        const jobs = JSON.parse(await fsp.readFile(path.join(stagingPath, "data", "jobs.json"), "utf8"));
+        if (jobs?.formatVersion !== 1 || !Array.isArray(jobs.jobs)) throw new Error("房间任务检查点无效");
+      }
       roomInspection = await this.roomStore.inspectPackage(appPath, { source });
       if (
         roomInspection.room.id !== manifest.room.id ||
@@ -596,9 +722,11 @@ class DataBackupService {
       ) throw new Error("房间传输清单与应用不匹配");
       this.pendingRoomBundles.set(roomInspection.token, {
         kind: "transfer",
+        roomId: manifest.room.id,
         stagingPath,
         dataPath,
         dataRecord: manifest.data,
+        assets: manifest.assets,
         protected: isProtected,
         createdAtMs: Date.now()
       });
@@ -729,13 +857,58 @@ class DataBackupService {
     const pending = this.pendingRoomBundles.get(importToken);
     if (!pending) return null;
     try {
+      if (pending.roomId !== expectedRoomId) throw new Error("随包数据与目标房间不匹配");
       if (!pending.dataPath) return { kind: "app-only", protected: pending.protected };
       const databaseBuffer = await fsp.readFile(pending.dataPath);
       if (
         databaseBuffer.length !== pending.dataRecord.bytes ||
         sha256(databaseBuffer) !== pending.dataRecord.sha256
       ) throw new Error("随包数据在安装前发生变化");
-      const restored = await this.restorePlainSnapshot(expectedRoomId, databaseBuffer);
+      await this.database.validateSnapshot(databaseBuffer);
+      for (const asset of pending.assets || []) {
+        const assetPath = path.join(pending.stagingPath, ...asset.path.split("/"));
+        const stats = await fsp.stat(assetPath);
+        if (stats.size !== asset.bytes || await sha256File(assetPath) !== asset.sha256) {
+          throw new Error(`随包数据文件在安装前发生变化：${asset.path}`);
+        }
+      }
+      if (pending.assets === null) {
+        const restored = await this.restorePlainSnapshot(expectedRoomId, databaseBuffer);
+        return { kind: "data-restored", protected: pending.protected, ...restored };
+      }
+      const dataRoot = this.roomStore.getDataRoot(expectedRoomId);
+      const rollbackRoot = path.join(dataRoot, `.room-transfer-rollback-${importToken}`);
+      await fsp.mkdir(rollbackRoot, { recursive: true });
+      const moved = [];
+      let restored;
+      try {
+        for (const name of ["blobs", "files", "jobs.json"]) {
+          const target = path.join(dataRoot, name);
+          const incoming = path.join(pending.stagingPath, "data", name);
+          const backup = path.join(rollbackRoot, name);
+          const hadTarget = await fsp.lstat(target).then(() => true, (error) => {
+            if (error.code === "ENOENT") return false;
+            throw error;
+          });
+          const hasIncoming = await fsp.lstat(incoming).then(() => true, (error) => {
+            if (error.code === "ENOENT") return false;
+            throw error;
+          });
+          if (hadTarget) await fsp.rename(target, backup);
+          moved.push({ target, backup, hadTarget });
+          if (hasIncoming) await fsp.rename(incoming, target);
+        }
+        restored = await this.restorePlainSnapshot(expectedRoomId, databaseBuffer);
+      } catch (error) {
+        for (const item of moved.reverse()) {
+          await fsp.rm(item.target, { recursive: true, force: true });
+          if (item.hadTarget) await fsp.rename(item.backup, item.target);
+        }
+        await fsp.rm(rollbackRoot, { recursive: true, force: true });
+        throw error;
+      } finally {
+        if (restored) await fsp.rm(rollbackRoot, { recursive: true, force: true }).catch(() => {});
+      }
       return { kind: "data-restored", protected: pending.protected, ...restored };
     } finally {
       this.pendingRoomBundles.delete(importToken);

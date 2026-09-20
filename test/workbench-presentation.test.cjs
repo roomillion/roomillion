@@ -22,6 +22,10 @@ test("import copy separates program replacement from snapshot replacement for ev
       assert.doesNotMatch(notices.program, /保留现有业务数据|不会.*覆盖/);
       assert.match(notices.data, input.existing ? /替换.*不会合并/ : /初始化/);
       assert.equal(notices.button, input.existing ? "安装并替换数据" : "安装并恢复数据");
+      assert.match(notices.data, /Blob/);
+      const legacy = importNotices({ ...input, transfer: { ...input.transfer, formatVersion: "0.2" } });
+      assert.match(legacy.data, /旧版包/);
+      assert.doesNotMatch(legacy.data, /随包数据库、Blob/);
       const appOnly = importNotices({ ...input, transfer: { kind: "app-only" } });
       assert.match(appOnly.program, /保留现有业务数据/);
       assert.equal(appOnly.data, "");

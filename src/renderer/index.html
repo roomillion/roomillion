@@ -174,7 +174,7 @@
   <dialog id="backupDialog" class="modal dataModal">
     <form id="backupForm" method="dialog">
       <div class="modalHeader"><div><p class="eyebrow">加密数据备份</p><h2>导出 .zdata</h2></div><button type="button" class="closeButton" data-close="backupDialog">×</button></div>
-      <p class="modalIntro">备份只包含当前房间的业务数据库，不包含房间程序。密码不会保存；遗忘密码后工作台也无法解密。</p>
+      <p class="modalIntro">.zdata 只包含当前房间的业务数据库，不包含程序、图片 Blob、导出制品或任务文件。完整迁移请选择“导出房间 → 应用和数据一起导出”。密码不会保存；遗忘后无法解密。</p>
       <label>备份密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" required placeholder="至少 8 个字符"></label>
       <label>再次输入<input name="confirmPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" required></label>
       <div class="cryptoNote">scrypt 密钥派生 · AES-256-GCM 加密与防篡改</div>

@@ -16,6 +16,8 @@ const { RoomDocumentService } = require("./room-document-service.cjs");
 const { RoomToolService } = require("./room-tool-service.cjs");
 const { createRoomRuntimeAiMock } = require("./room-runtime-ai-mock.cjs");
 const { RoomAiRequests } = require("./room-ai-requests.cjs");
+const { BinaryFileService } = require("./binary-file-service.cjs");
+const { RoomFileAccessService } = require("./room-file-access-service.cjs");
 
 function start(input, schemeRegistered = false) {
   if (!path.isAbsolute(input) || path.basename(input) !== "input.json") throw new Error("运行检查路径无效");
@@ -65,12 +67,14 @@ function start(input, schemeRegistered = false) {
     for (const method of ["create", "list", "upsert", "search", "remove", "drop"]) handle(`room:vector:${method}`, (...args) => vectors[method](room.id, ...args), ["database"]);
     const runtimeAiRole = room.grantedPermissions?.ai?.roles?.[0];
     const runtimeAiPermission = ["ai", runtimeAiRole];
-    handle("room:aiListModels", () => [], runtimeAiPermission);
+    const fixtureModels = testDefinition?.mocks?.files?.length ? [{ id: "mock-profile", label: "隔离视觉测试模型", model: "mock-model", providerName: "离线模拟", ready: true, hasCredential: true, supportsImages: true, input: ["text", "image"], contextWindow: 128000 }] : [];
+    const fixtureSlots = {};
+    handle("room:aiListModels", () => fixtureModels, runtimeAiPermission);
     handle("room:aiGetSelection", () => ({ profileId: null }), runtimeAiPermission);
     handle("room:aiGetSlotDefinitions", () => room.requestedPermissions?.ai?.slots || {}, runtimeAiPermission);
-    handle("room:aiGetSlots", () => ({}), runtimeAiPermission);
-    handle("room:aiSelectSlot", (_slot, profileId) => ({ profileId }), runtimeAiPermission);
-    handle("room:aiClearSlot", slot => ({ slot, profileId: null }), runtimeAiPermission);
+    handle("room:aiGetSlots", () => ({ ...fixtureSlots }), runtimeAiPermission);
+    handle("room:aiSelectSlot", (slot, profileId) => { fixtureSlots[slot] = profileId; return { slot, profileId }; }, runtimeAiPermission);
+    handle("room:aiClearSlot", slot => { delete fixtureSlots[slot]; return { slot, profileId: null }; }, runtimeAiPermission);
     const aiMock = createRoomRuntimeAiMock(testDefinition?.mocks?.ai);
     const aiRequests = new RoomAiRequests();
     let aiRequestIndex = 0;
@@ -78,7 +82,7 @@ function start(input, schemeRegistered = false) {
     handle("room:aiGenerate", async (event, _prompt, options = {}) => {
       const request = aiRequests.start(event.sender, room.id, options.requestId === undefined ? `mock-${++aiRequestIndex}` : options.requestId);
       try {
-        return await aiMock.stream({ signal: request.signal, onTextDelta: options.streamRequestId ? delta => {
+        return await aiMock.stream({ signal: request.signal, options, onTextDelta: options.streamRequestId ? delta => {
           if (!event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, delta });
         } : undefined });
       } finally { request.finish(); }
@@ -86,15 +90,45 @@ function start(input, schemeRegistered = false) {
     handle("room:aiBatch", (requests, options) => aiMock.batch(requests, options), runtimeAiPermission);
     handle("room:credentialList", () => []);
     handle("room:networkGetStatus", () => ({ enabled: false, allowed: false, reason: "隔离检查禁止外网" }));
-    for (const channel of ["room:pickText", "room:pickBinary", "room:binaryOpen"]) handle(channel, () => null, ["files", "pick"]);
-    handle("room:filePickMany", () => [], ["files", "pickMany"]);
-    handle("room:directoryOpen", () => null);
-    handle("room:directoryGrants", () => []);
-    handle("room:directoryList", () => ({ entries: [], total: 0, nextCursor: null }));
-    handle("room:directoryRead", () => { throw new Error("隔离检查没有真实目录"); });
-    handle("room:directoryWrite", () => { throw new Error("隔离检查不写入真实目录"); });
-    handle("room:directoryRevoke", () => true);
-    for (const channel of ["room:exportText", "room:exportBinary"]) handle(channel, () => null, ["files", "export"]);
+    // Only declared synthetic bytes are materialized under this disposable worker's root.
+    // Reuse production file services so handles, paging and room isolation stay identical.
+    const fixtureRoot = path.join(jobRoot, "fixtures");
+    await fsp.mkdir(fixtureRoot, { recursive: true });
+    for (const file of testDefinition?.mocks?.files || []) await fsp.writeFile(path.join(fixtureRoot, file.name), Buffer.from(file.base64, "base64"));
+    const binaryFiles = new BinaryFileService();
+    const directoryFiles = new RoomFileAccessService(path.join(jobRoot, "fixture-grants"));
+    const fixtureNames = options => (testDefinition?.mocks?.files || []).filter(file => !options?.extensions?.length || options.extensions.includes(path.extname(file.name).slice(1).toLowerCase()));
+    for (const channel of ["room:pickText", "room:pickBinary"]) handle(channel, () => null, ["files", "pick"]);
+    handle("room:binaryOpen", async options => {
+      const file = fixtureNames(options)[0];
+      return file ? binaryFiles.open(room.id, path.join(fixtureRoot, file.name)) : null;
+    }, ["files", "pick"]);
+    handle("room:filePickMany", options => Promise.all(fixtureNames(options).map(file => binaryFiles.open(room.id, path.join(fixtureRoot, file.name)))), ["files", "pickMany"]);
+    handle("room:binaryRead", (token, options) => {
+      if (!hasPermission(room, "files", "pick") && !hasPermission(room, "files", "pickMany")) throw new Error("房间没有选择文件权限");
+      return binaryFiles.read(room.id, token, options);
+    });
+    handle("room:binaryClose", token => binaryFiles.close(room.id, token));
+    handle("room:directoryOpen", async (options = {}) => {
+      const mode = ["read", "write", "readwrite"].includes(options.mode) ? options.mode : "read";
+      if (mode !== "write" && !hasPermission(room, "files", "directoryRead")) throw new Error("房间没有读取文件夹权限");
+      if (mode !== "read" && !hasPermission(room, "files", "directoryWrite")) throw new Error("房间没有写入文件夹权限");
+      return testDefinition?.mocks?.files?.length ? directoryFiles.grant(room.id, fixtureRoot, mode) : null;
+    });
+    handle("room:directoryGrants", () => directoryFiles.listGrants(room.id));
+    handle("room:directoryList", (id, options) => directoryFiles.list(room.id, id, options), ["files", "directoryRead"]);
+    handle("room:directoryRead", (id, relativePath, options) => directoryFiles.read(room.id, id, relativePath, options), ["files", "directoryRead"]);
+    handle("room:directoryWrite", (id, relativePath, content) => directoryFiles.write(room.id, id, relativePath, content), ["files", "directoryWrite"]);
+    handle("room:directoryRevoke", id => directoryFiles.revoke(room.id, id));
+    handle("room:exportText", (_suggestedName, content) => {
+      if (typeof content !== "string") throw new Error("导出内容必须是文本");
+      return null; // Same result as canceling the production save dialog.
+    }, ["files", "export"]);
+    handle("room:exportBinary", (_suggestedName, content) => {
+      if (!(content instanceof ArrayBuffer) && !ArrayBuffer.isView(content)) throw new Error("导出内容必须是 ArrayBuffer 或 Uint8Array");
+      if (content.byteLength === 0) throw new Error("导出二进制内容不能为空");
+      return null;
+    }, ["files", "export"]);
     handle("room:blobList", options => blobs.list(room.id, options), ["database"]);
     handle("room:blobPut", (options, content) => blobs.put(room.id, options, content), ["database"]);
     handle("room:blobBegin", options => blobs.begin(room.id, options), ["database"]);
@@ -105,6 +139,11 @@ function start(input, schemeRegistered = false) {
     handle("room:blobRemove", id => blobs.remove(room.id, id), ["database"]);
     handle("room:toolList", () => roomTools.list(room));
     handle("room:toolCall", (id, input) => roomTools.call(room, id, input));
+    handle("room:documentMarkdownToPdf", (source, options = {}) => {
+      if (typeof source === "string") return documents.renderMarkdown(room.id, source, options);
+      if (source?.artifactId) return documents.renderMarkdownArtifact(room.id, String(source.artifactId), options);
+      throw new Error("PDF 源必须是 Markdown 文本或 Markdown 制品 ID");
+    }, ["database"]);
     handle("room:jobCreate", input => jobs.create(room.id, input), ["database"]);
     handle("room:jobList", options => jobs.list(room.id, options), ["database"]);
     handle("room:jobGet", id => jobs.get(room.id, id), ["database"]);

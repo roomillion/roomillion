@@ -24,6 +24,28 @@ class RoomAgentService extends ProductionRoomAgentService {
 }
 const { getTestGitToolchain } = require("../test-support/bundled-git.cjs");
 
+test("session persistence retries temporary Windows rename locks without losing the last save", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-persist-lock-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const service = { persistQueues: new Map(), sessionPath: () => path.join(root, "session.json") };
+  await fsp.writeFile(service.sessionPath(), JSON.stringify({ id: "test", message: "old" }));
+  const rename = fsp.rename;
+  let attempts = 0;
+  t.mock.method(fsp, "rename", async (...args) => {
+    attempts += 1;
+    if (attempts < 3) throw Object.assign(new Error("locked"), { code: "EPERM" });
+    return rename(...args);
+  });
+  await ProductionRoomAgentService.prototype.persist.call(service, { id: "test", message: "new" });
+  assert.equal(attempts, 3);
+  assert.equal(JSON.parse(await fsp.readFile(service.sessionPath(), "utf8")).message, "new");
+  t.mock.method(fsp, "rename", async () => { throw Object.assign(new Error("disk error"), { code: "EIO" }); });
+  await assert.rejects(ProductionRoomAgentService.prototype.persist.call(service, { id: "test", message: "lost" }), /disk error/);
+  assert.equal(JSON.parse(await fsp.readFile(service.sessionPath(), "utf8")).message, "new");
+  assert.deepEqual(await fsp.readdir(root), ["session.json"]);
+  t.mock.restoreAll();
+});
+
 test("multi-file room contract finds interaction logic in imported JavaScript modules", () => {
   const spec = {
     files: {
@@ -44,6 +66,25 @@ test("multi-file room contract finds interaction logic in imported JavaScript mo
   assert.equal(delayedEntry.checks.find((check) => check.id === "entry-init-timing").passed, false);
   const guardedEntry = evaluateCustomRoomContract({ ...spec, files: { ...spec.files, javascript: 'import { start } from "./views/translate.js"; if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();' } }, "用大模型翻译左侧文本并在右侧显示", { passed: true });
   assert.equal(guardedEntry.checks.find((check) => check.id === "entry-init-timing").passed, true);
+});
+
+test("turn-based games need input but no animation loop, and storage guidance does not turn them into browsers", () => {
+  const spec = {
+    files: {
+      html: '<main><h1>离线推箱子</h1><div id="board">玩家 箱子 目标</div><button id="reset">重新开始</button></main>',
+      javascript: 'const board = document.getElementById("board"); document.addEventListener("keydown", (event) => { if (event.key === "ArrowUp") board.textContent = "玩家向上移动"; }); document.getElementById("reset").addEventListener("click", () => { board.textContent = "重新开始"; });'
+    },
+    capabilities: { aiRoles: [], files: [], browser: [] },
+    hostModules: []
+  };
+  const turnBased = evaluateCustomRoomContract(spec, "创建一个离线推箱子游戏。使用 room.storage，浏览器 localStorage 不随数据迁移。", { passed: true });
+  assert.equal(turnBased.passed, true, turnBased.issues.join("；"));
+  assert.equal(turnBased.checks.find((check) => check.id === "game-loop-or-input").passed, true);
+  assert.equal(turnBased.checks.some((check) => check.id === "controlled-browser-capability"), false);
+  const browser = evaluateCustomRoomContract(spec, "创建一个浏览器房间，支持网页导航", { passed: true });
+  assert.equal(browser.checks.find((check) => check.id === "controlled-browser-capability").passed, false);
+  const realtime = evaluateCustomRoomContract(spec, "创建一个实时台球游戏", { passed: true });
+  assert.equal(realtime.checks.find((check) => check.id === "game-loop-or-input").passed, false);
 });
 
 test("creation plan supplies acceptance criteria when the model omits the optional field", async t => {
@@ -117,7 +158,7 @@ test("project migration requires assessment, explicit mode and approval; origina
   assert.equal((await readProjectFile(restored.requireSession(session.id).sourceProject, "index.html")).content, original);
 });
 
-test("split drafts survive restart and new requirements invalidate tests without losing files", async t => {
+test("split drafts survive restart and implementation feedback invalidates tests without losing approval", async t => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-draft-test-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const store = await new RoomStore(root).init();
@@ -143,7 +184,8 @@ test("split drafts survive restart and new requirements invalidate tests without
   await restored.send(session.id, "把标题改短一点，其他不改");
   assert.equal(restoredSession.customDraft.tested, false);
   assert.equal(restoredSession.customWorkspace.files.javascript, spec.files.javascript);
-  assert.equal(restoredSession.workflow.approvedPlanId, null);
+  assert.equal(restoredSession.workflow.approvedPlanId, "plan");
+  assert.equal(restoredSession.workflow.phase, "implementing");
   await service.dispose(); await restored.dispose();
 });
 
@@ -260,9 +302,60 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   await invoke("install_current_room_patch");
   assert.equal(store.getRoom(built.room.id).version, "1.0.2");
   assert.match(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.16/);
+  await invoke("inspect_current_room");
+  await invoke("read_current_room_file", { path: "app/index.html" });
+  await invoke("patch_current_room_file", { path: "app/index.html", find: "</h1>", replacement: '</h1><button id="csv-dedupe">去重</button>', expectedRevision: 1 });
+  const patchedHtml = await invoke("read_current_room_file", { path: "app/index.html" });
+  assert.match(JSON.parse(patchedHtml.content[0].text).content, /csv-dedupe/);
+  await assert.rejects(invoke("patch_current_room_file", { path: "app/index.html", find: "./bootstrap.mjs", replacement: "./other.mjs", expectedRevision: 2 }), /宿主/);
 });
 
-test("Agent context compaction removes old thinking signatures and saved source payloads", () => {
+test("installed permission patches preserve identity and require grants for new capabilities", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-permission-patch-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const store = await new RoomStore(root).init();
+  const { createCustomRoom } = require("../src/main/custom-room.cjs");
+  const spec = freeBilliardsSpec();
+  spec.capabilities.files = ["pick"];
+  const built = await createCustomRoom({ spec, roomStore: store });
+  const service = await new RoomAgentService({ roomStore: store,
+    aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) },
+    installedProgramValidator: async () => ({ passed: true })
+  }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession({ roomId: built.room.id })).id);
+  session.workflow = { phase: "implementing", mode: "maintenance", answered: true };
+  const tools = service.createTools(session, { pi: await import("@earendil-works/pi-ai") });
+  session.status = "working";
+  const invoke = (name, params = {}) => tools.find(tool => tool.name === name).execute(name, params, new AbortController().signal);
+  const read = async () => JSON.parse((await invoke("read_current_room_file", { path: "manifest.json" })).content[0].text);
+  const initial = await read();
+  const manifest = JSON.parse(initial.content);
+  const patch = replacement => invoke("patch_current_room_file", { path: "manifest.json", find: initial.content, replacement: JSON.stringify(replacement), expectedRevision: 1 });
+  await assert.rejects(patch({ ...manifest, id: "local.changed.identity" }), /身份/);
+  await assert.rejects(patch({ ...manifest, entry: "app/other.html" }), /身份/);
+  await assert.rejects(patch({ ...manifest, permissions: { ...manifest.permissions, files: ["arbitraryDisk"] } }), /不支持的文件权限/);
+  assert.equal(session.programPatch, null);
+  await patch({ ...manifest, permissions: { ...manifest.permissions, files: ["pick", "pickMany", "export"] } });
+  assert.deepEqual(store.getRoom(built.room.id).permissions.files, ["pick"]);
+  await assert.rejects(invoke("install_current_room_patch"), /最新测试/);
+  await invoke("test_current_room_patch");
+  const installed = JSON.parse((await invoke("install_current_room_patch")).content[0].text);
+  assert.deepEqual(installed.pendingPermissionKeys.sort(), ["files.export", "files.pickMany"]);
+  assert.match(installed.instruction, /房间设置/);
+  assert.deepEqual(store.getRoom(built.room.id).grantedPermissions.files, ["pick"]);
+  assert.equal(store.getRoom(built.room.id).id, built.room.id);
+  const next = await read();
+  const revoked = JSON.parse(next.content);
+  revoked.permissions.files = [];
+  await invoke("patch_current_room_file", { path: "manifest.json", find: next.content, replacement: JSON.stringify(revoked), expectedRevision: 1 });
+  await invoke("test_current_room_patch");
+  await invoke("install_current_room_patch");
+  assert.equal(store.hasPermission(built.room.id, "files", "pick"), false);
+  assert.equal(store.hasPermission(built.room.id, "files", "pickMany"), false);
+});
+
+test("Agent context compaction removes thinking but preserves valid recent source calls", () => {
   const huge = "x".repeat(30000);
   const compacted = compactAgentContext([
     { role: "user", content: "旧需求", timestamp: 1 },
@@ -273,10 +366,35 @@ test("Agent context compaction removes old thinking signatures and saved source 
     { role: "assistant", content: [{ type: "text", text: "继续测试" }], timestamp: 5 }
   ]);
   const serialized = JSON.stringify(compacted);
-  assert.ok(serialized.length < 5000);
+  assert.ok(serialized.length < 40000);
   assert.doesNotMatch(serialized, /thinkingSignature/);
-  assert.match(serialized, /contentOmitted/);
+  assert.equal(compacted.find(message => message.role === "assistant" && message.content.some(block => block.id === "write")).content.find(block => block.id === "write").arguments.content, huge);
+  assert.match(serialized, /saved/);
+  assert.doesNotMatch(serialized, /contentOmitted|contentCharacters/);
   assert.doesNotMatch(serialized, /内容已由 Harness 保存/);
+});
+
+test("write summaries preserve pending calls and paired reads while migrating legacy omissions", () => {
+  const history = [
+    { role: "user", content: "继续", timestamp: 1 },
+    { role: "assistant", stopReason: "toolUse", content: [
+      { type: "toolCall", id: "legacy", name: "write_custom_room_file", arguments: { file: "modules/data.js", contentOmitted: true, contentCharacters: 9000 } },
+      { type: "toolCall", id: "read", name: "read_custom_room", arguments: { file: "javascript" } }
+    ] },
+    { role: "toolResult", toolCallId: "legacy", toolName: "write_custom_room_file", isError: true, content: [{ type: "text", text: "revision conflict" }] },
+    { role: "toolResult", toolCallId: "read", toolName: "read_custom_room", content: [{ type: "text", text: "current source" }] },
+    { role: "assistant", stopReason: "toolUse", content: [{ type: "toolCall", id: "pending", name: "patch_current_room_file", arguments: { path: "app/app.js", find: "before", replacement: "x".repeat(2000), expectedRevision: 2 } }] }
+  ];
+  const original = JSON.stringify(history);
+  const compacted = compactAgentContext(history);
+  assert.equal(JSON.stringify(history), original);
+  const calls = compacted.filter(m => m.role === "assistant").flatMap(m => m.content).filter(b => b.type === "toolCall");
+  assert.deepEqual(calls.map(b => b.id), ["read", "pending"]);
+  assert.equal(calls[1].arguments.replacement.length, 2000);
+  assert.deepEqual(compacted.filter(m => m.role === "toolResult").map(m => m.toolCallId), ["read"]);
+  assert.match(JSON.stringify(compacted), /失败.*revision conflict/);
+  assert.doesNotMatch(JSON.stringify(compacted), /contentOmitted|contentCharacters/);
+  assert.deepEqual(compactAgentContext(compacted), compacted);
 });
 
 test("Agent context keeps recent file evidence when the user resumes after an error", async () => {
@@ -735,7 +853,6 @@ test("interrupted model streams retry in-place with bounds, preserve tools, and 
     const roomStore = await new RoomStore(root).init();
     let attempts = 0;
     class InterruptedAgent extends FakeAgent {
-      replaceMessages(messages) { this.state.messages = messages; }
       async prompt(prompt) {
         this.state.messages.push({ role: "user", content: prompt, timestamp: Date.now() });
         this.state.messages.push({ role: "assistant", content: [{ type: "toolCall", id: "saved", name: "read_custom_room", arguments: {} }], stopReason: "toolUse", timestamp: Date.now() });
@@ -774,6 +891,42 @@ test("interrupted model streams retry in-place with bounds, preserve tools, and 
     assert.equal(result.runs.at(-1).status, mode === "stop" ? "stopped" : mode === "recover" ? "complete" : "error");
     assert.equal(result.status, mode === "recover" || mode === "stop" ? "idle" : "error");
   });
+});
+
+test("stream retry works with the installed Pi Agent API", async t => {
+  const pi = await import("@earendil-works/pi-ai");
+  const agentModule = await import("@earendil-works/pi-agent-core");
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-real-pi-retry-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  let attempts = 0;
+  const contexts = [];
+  const streamFn = (_model, context) => {
+    contexts.push(JSON.parse(JSON.stringify(context.messages)));
+    attempts += 1;
+    const failed = attempts === 1;
+    const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: [{ type: "text", text: failed ? "partial" : "recovered" }], stopReason: failed ? "error" : "stop", ...(failed ? { errorMessage: "Stream ended without finish_reason" } : {}) };
+    const stream = pi.createAssistantMessageEventStream();
+    stream.push(failed ? { type: "error", reason: "error", error: message } : { type: "done", reason: "stop", message });
+    stream.end();
+    return stream;
+  };
+  const service = await new ProductionRoomAgentService({ roomStore, gitService: {},
+    aiService: {
+      getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
+      createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn })
+    }, agentModuleLoader: async () => agentModule
+  }).init();
+  t.after(() => service.dispose());
+  const session = await service.createSession();
+  await service.send(session.id, { prompt: "保留上下文继续", runtime: { maxRetries: 1 } });
+  const result = await service.waitForIdle(session.id);
+  assert.equal(attempts, 2);
+  assert.equal(result.status, "idle");
+  assert.equal(result.error, "");
+  assert.equal(result.runs.at(-1).streamRetries, 1);
+  assert.deepEqual(contexts[1], contexts[0]);
+  assert.ok(result.messages.some(message => message.content === "recovered"));
 });
 
 class CustomRoomFakeAgent extends FakeAgent {
@@ -844,7 +997,7 @@ class VisionFakeAgent extends FakeAgent {
   }
 }
 
-test("planning gate requires clarification, a current plan and explicit UI approval", async (t) => {
+test("planning gate requires a current plan and explicit UI approval", async (t) => {
   const dataRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-plan-gate-"));
   t.after(() => fsp.rm(dataRoot, { recursive: true, force: true }));
   const roomStore = await new RoomStore(dataRoot).init();
@@ -864,12 +1017,12 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   const propose = tools.find((tool) => tool.name === "propose_room_plan");
   const mutating = tools.filter((tool) => !["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "search_custom_room", "assess_project_migration", "ask_room_questions", "propose_room_plan"].includes(tool.name));
   for (const tool of mutating) await assert.rejects(() => tool.execute("bypass", {}), /用户确认/);
-  await assert.rejects(() => propose.execute("early", testPlan), /等待用户回答/);
+  await assert.rejects(() => propose.execute("early", testPlan), /先接收用户需求/);
   await service.send(created.id, "做一个台账，直接开始不要问我");
   const questioning = await service.waitForIdle(created.id);
   assert.equal(questioning.room, null);
   assert.equal(questioning.workflow.questions.length, 2);
-  await assert.rejects(() => propose.execute("self-answer", testPlan), /等待用户回答/);
+  await assert.rejects(() => propose.execute("self-answer", testPlan), /澄清问题尚未回答/);
   await service.send(created.id, "你来推荐，个人使用，百条记录");
   const reviewed = await service.waitForIdle(created.id);
   assert.equal(reviewed.workflow.phase, "review");
@@ -908,6 +1061,54 @@ test("planning gate requires clarification, a current plan and explicit UI appro
   await assert.rejects(() => ask.execute("too-many", { questions: [blockingQuestion, { ...blockingQuestion, title: "是否默认记住筛选条件？" }] }, new AbortController().signal), /最多问 1 个/);
   await ask.execute("one-question", { questions: [blockingQuestion] }, new AbortController().signal);
   await assert.rejects(() => ask.execute("repeat-question", { questions: [blockingQuestion] }, new AbortController().signal), /此前已经问过/);
+});
+
+test("a complete creation request can reach plan review without redundant clarification", async (t) => {
+  const dataRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-direct-plan-"));
+  t.after(() => fsp.rm(dataRoot, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(dataRoot).init();
+  const pi = await import("@earendil-works/pi-ai");
+  const service = await new RoomAgentService({
+    roomStore,
+    aiService: { getPublicProfile: () => ({ model: "fake", hasSessionKey: true }), createAgentRuntime: async () => ({ pi, model: { id: "fake" } }) },
+    agentModuleLoader: async () => ({ Agent: FakeAgent })
+  }).init();
+  const session = service.requireSession((await service.createSession()).id);
+  session.messages.push({ role: "user", content: "单人离线推箱子，两关、键盘和屏幕按键，room.storage 保存进度，不需要联网或 AI。" });
+  const tools = service.createTools(session, { pi });
+  const propose = tools.find((tool) => tool.name === "propose_room_plan");
+  await propose.execute("direct-plan", testPlan, new AbortController().signal);
+  assert.equal(session.workflow.phase, "review");
+  assert.equal(session.workflow.questions ?? null, null);
+  assert.equal(session.workflow.approvedPlanId, null);
+  await assert.rejects(() => tools.find((tool) => tool.name === "begin_custom_room").execute("before-approval", {}), /用户确认/);
+  const oneQuestion = { selection: "single", topic: "features", title: "胜利后自动进入下一关吗？", options: ["手动进入", "自动进入"], recommended: "手动进入" };
+  await tools.find((tool) => tool.name === "ask_room_questions").execute("one-question", { questions: [oneQuestion] }, new AbortController().signal);
+  assert.equal(session.workflow.questions.length, 1);
+  assert.equal(session.workflow.questions[0].topic, "features");
+});
+
+test("feedback on an approved unfinished creation draft keeps its plan and implementation tools", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-approved-draft-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const service = await new RoomAgentService({
+    roomStore,
+    aiService: {
+      getPublicProfile: () => ({ id: "test", model: "fake", hasSessionKey: true }),
+      createAgentRuntime: async () => { throw new Error("模拟模型初始化失败"); }
+    }
+  }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  session.workflow = { phase: "review", mode: "creation", answered: true, plan: { ...testPlan, id: "approved-plan" }, approvedPlanId: "approved-plan" };
+  session.customWorkspace = { revision: 3, files: {} };
+  await service.send(session.id, "碰撞测试的第三次向左才是撞墙，请修正测试并继续实施");
+  assert.equal(session.workflow.phase, "implementing");
+  assert.equal(session.workflow.plan.id, "approved-plan");
+  assert.equal(session.workflow.approvedPlanId, "approved-plan");
+  assert.match(session.latestUserGoal, /第三次向左/);
+  await service.waitForIdle(session.id);
 });
 
 test("maintenance failures and restored legacy sessions never resurface an old approval plan", async (t) => {

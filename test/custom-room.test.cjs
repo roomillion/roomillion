@@ -8,6 +8,7 @@ const test = require("node:test");
 const { RoomStore } = require("../src/main/room-store.cjs");
 const {
   applyCustomRuntimeCompatibility,
+  analyzeCustomIndexPatch,
   createCustomRoom,
   generatedCustomBootstrap,
   generatedCustomIndexHtml,
@@ -15,6 +16,18 @@ const {
   loadCustomRoomSpec,
   validateCustomRoomSpec
 } = require("../src/main/custom-room.cjs");
+
+test("installed HTML patches preserve the host shell and validate new body content", () => {
+  const spec = billiardsSpec();
+  const html = generatedCustomIndexHtml(spec);
+  assert.deepEqual(analyzeCustomIndexPatch(html, html.replace("</h1>", '</h1><button id="dedupe">去重</button>')), []);
+  for (const inserted of ['<script>alert(1)</script>', '<button onclick="alert(1)">x</button>', '<iframe src="x"></iframe>']) {
+    assert.ok(analyzeCustomIndexPatch(html, html.replace("</h1>", `</h1>${inserted}`)).some(item => item.severity === "error"));
+  }
+  for (const updated of [html.replace("./bootstrap.mjs", "./other.mjs"), html.replace('<meta charset="UTF-8">', '<script src="x"></script>'), html.replace('<body ', '<body onclick="alert(1)" ')]) {
+    assert.ok(analyzeCustomIndexPatch(html, updated).some(item => item.code === "html.host-shell"));
+  }
+});
 
 function billiardsSpec() {
   return {

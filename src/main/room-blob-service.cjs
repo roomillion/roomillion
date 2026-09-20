@@ -22,6 +22,7 @@ class RoomBlobService {
   constructor(roomStore) {
     this.roomStore = roomStore;
     this.writes = new Map();
+    this.indexLocks = new Map();
   }
 
   root(roomId) { return path.join(this.roomStore.getDataRoot(roomId), "blobs"); }
@@ -46,6 +47,24 @@ class RoomBlobService {
     const temporary = `${this.indexPath(roomId)}.tmp`;
     await fsp.writeFile(temporary, `${JSON.stringify({ formatVersion: 1, items }, null, 2)}\n`, "utf8");
     await fsp.rename(temporary, this.indexPath(roomId));
+  }
+
+  async mutateIndex(roomId, operation) {
+    const previous = this.indexLocks.get(roomId) || Promise.resolve();
+    let release;
+    const current = new Promise(resolve => { release = resolve; });
+    const tail = previous.then(() => current);
+    this.indexLocks.set(roomId, tail);
+    await previous;
+    try {
+      const items = await this.loadIndex(roomId);
+      const result = await operation(items);
+      await this.saveIndex(roomId, items);
+      return result;
+    } finally {
+      release();
+      if (this.indexLocks.get(roomId) === tail) this.indexLocks.delete(roomId);
+    }
   }
 
   publicItem(item) {
@@ -96,10 +115,8 @@ class RoomBlobService {
     const target = this.blobPath(roomId, item.id);
     await fsp.rename(item.temporaryPath, target);
     const now = Date.now();
-    const items = await this.loadIndex(roomId);
     const record = { id: item.id, name: item.name, mimeType: item.mimeType, kind: item.kind, metadata: item.metadata, size: item.size, createdAt: item.createdAt, updatedAt: now };
-    items.push(record);
-    await this.saveIndex(roomId, items);
+    await this.mutateIndex(roomId, items => { items.push(record); });
     return this.publicItem(record);
   }
 
@@ -139,12 +156,13 @@ class RoomBlobService {
   }
 
   async remove(roomId, id) {
-    const items = await this.loadIndex(roomId);
-    const next = items.filter((item) => item.id !== id);
-    if (next.length === items.length) return false;
-    await fsp.rm(this.blobPath(roomId, id), { force: true });
-    await this.saveIndex(roomId, next);
-    return true;
+    return this.mutateIndex(roomId, async items => {
+      const index = items.findIndex(item => item.id === id);
+      if (index < 0) return false;
+      await fsp.rm(this.blobPath(roomId, id), { force: true });
+      items.splice(index, 1);
+      return true;
+    });
   }
 
   async dispose() {

@@ -17,11 +17,16 @@
       downgrade: `将从 v${inspection.existing?.version} 降级到 v${inspection.room.version}，请确认数据兼容性。`,
       install: `将安装 v${inspection.room.version}。`
     }[inspection.versionChange] || "";
+    const legacyData = inspection.transfer?.formatVersion === "0.2";
     return {
       program: program + (withData ? "数据处理见下方说明。" : "仅安装应用，保留现有业务数据。"),
       data: withData ? (inspection.existing
-        ? "注意：随包数据库快照将替换本机现有业务数据，不会合并。替换前会自动保留原数据库检查点；可在房间设置的恢复检查点中找回。"
-        : "将以随包数据库快照初始化此房间的业务数据。") : "",
+        ? legacyData
+          ? "注意：旧版包只会替换本机数据库，不会合并；本机 Blob 和任务文件保持原样。替换前会保留原数据库检查点。"
+          : "注意：随包数据库、Blob、制品和任务文件将替换本机现有业务数据，不会合并。替换前仅保留原数据库检查点；原有图片、制品和任务文件不会进入该检查点。"
+        : legacyData
+          ? "旧版包将以随包数据库快照初始化此房间；不包含 Blob、制品或任务文件。"
+          : "将以随包数据库、Blob、制品和任务文件初始化此房间的业务数据。") : "",
       button: withData && inspection.existing ? "安装并替换数据" : withData ? "安装并恢复数据" : "确认并安装"
     };
   }

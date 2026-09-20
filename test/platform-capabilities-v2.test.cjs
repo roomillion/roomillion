@@ -8,7 +8,7 @@ const path = require("node:path");
 const { RoomFileAccessService } = require("../src/main/room-file-access-service.cjs");
 const { RoomBlobService } = require("../src/main/room-blob-service.cjs");
 const { RoomJobService } = require("../src/main/room-job-service.cjs");
-const { RoomDocumentService } = require("../src/main/room-document-service.cjs");
+const { RoomDocumentService, markdownBlocks } = require("../src/main/room-document-service.cjs");
 const { normalizeCustomRoomSpec, customRoomPermissions, inspectCustomRoomSpec } = require("../src/main/custom-room.cjs");
 const { RoomToolService } = require("../src/main/room-tool-service.cjs");
 
@@ -89,17 +89,55 @@ test("room blobs stream private data and artifacts without loading a whole proje
   assert.deepEqual(await service.list("room-a"), []);
 });
 
+test("PDF excludes metadata and comments without discarding ordinary book content", () => {
+  const blocks = markdownBlocks('---\ntitle: "测试"\n---\n# 书名\n<!-- 页1 -->\n正文\n---\n<!-- 结束\n标记 -->\n');
+  assert.deepEqual(blocks.filter(block => block.text).map(block => block.text), ["书名", "正文"]);
+});
+
+test("PDF recognizes Markdown tables and preserves cell content without treating code as a table", () => {
+  const input = '| 日期 | 温度 |\n| :--- | ---: |\n| 4月6日 | 21.5℃ |\n| a\\|b | x |';
+  assert.deepEqual(markdownBlocks(input), [{ table: { headers: ["日期", "温度"], rows: [["4月6日", "21.5℃"], ["a|b", "x"]] } }]);
+  assert.equal(markdownBlocks('```\n' + input + '\n```').some(block => block.table), false);
+});
+
 test("Markdown documents render to paginated Chinese PDF artifacts", async (t) => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-documents-v2-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const blobs = new RoomBlobService(store(root));
   const documents = new RoomDocumentService({ resourcesPath: path.resolve(__dirname, "..", "resources"), blobService: blobs });
-  const pdf = await documents.renderMarkdown("room-a", "# 第一章\n\n这是中文正文。\n\n## 小节\n\n- 项目一\n- 项目二", { title: "测试书籍", name: "book.pdf" });
+  const pdf = await documents.renderMarkdown("room-a", "# 第一章\n\n这是中文正文。\n\n## 小节\n\n- 项目一\n- 项目二\n\n| 日期 | 温度 |\n| --- | --- |\n| 4月6日 | 21.5℃ |" + "\n\n<!-- 空尾 -->\n".repeat(100), { title: "测试书籍", name: "book.pdf" });
   assert.equal(pdf.mimeType, "application/pdf");
   assert.equal(pdf.kind, "artifact");
-  assert.ok(pdf.metadata.pages >= 1);
+  assert.equal(pdf.metadata.pages, 1, "尾部空白不能产生额外空白页");
   const stored = await blobs.getFile("room-a", pdf.id);
   assert.equal((await fsp.readFile(stored.path)).subarray(0, 4).toString(), "%PDF");
+  const { PDFDocument, PDFName, decodePDFRawStream } = require("pdf-lib");
+  const loaded = await PDFDocument.load(await fsp.readFile(stored.path));
+  const fonts = loaded.getPages()[0].node.Resources().lookup(PDFName.of("Font"));
+  const descendant = fonts.lookup(fonts.keys()[0]).lookup(PDFName.of("DescendantFonts")).lookup(0);
+  assert.equal(descendant.get(PDFName.of("Subtype")).toString(), "/CIDFontType0");
+  const descriptor = descendant.lookup(PDFName.of("FontDescriptor"));
+  assert.equal(descriptor.has(PDFName.of("FontFile2")), false);
+  const fontStream = descriptor.lookup(PDFName.of("FontFile3"));
+  assert.equal(fontStream.dict.get(PDFName.of("Subtype")).toString(), "/OpenType");
+  // Preserve the actual CJK outlines, not merely the extractable Unicode map.
+  assert.deepEqual(Buffer.from(decodePDFRawStream(fontStream).decode()), await documents.fontBytes());
+});
+
+test("parallel OCR artifacts keep every index entry across writes, removals and restart", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-parallel-artifacts-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const service = new RoomBlobService(store(root));
+  const items = await Promise.all(Array.from({ length: 12 }, (_, i) => service.put("room-a", { name: `${i}.md`, kind: "artifact" }, `page ${i}`)));
+  assert.equal((await service.list("room-a")).length, 12);
+  const added = await Promise.all(items.slice(0, 6).map(async (item, i) => {
+    await service.remove("room-a", item.id);
+    return service.put("room-a", { name: `new${i}.md`, kind: "artifact" }, `new ${i}`);
+  }));
+  const restored = new RoomBlobService(store(root));
+  assert.deepEqual(new Set((await restored.list("room-a")).map(item => item.id)), new Set([...items.slice(6), ...added].map(item => item.id)));
+  for (const item of added) assert.match(Buffer.from((await restored.read("room-a", item.id)).data).toString(), /^new /);
+  await assert.rejects(restored.read("room-b", added[0].id), /不存在/);
 });
 
 test("durable jobs keep checkpoints and recover interrupted work to the queue", async (t) => {

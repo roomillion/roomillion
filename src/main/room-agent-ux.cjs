@@ -7,7 +7,7 @@ function shortTaskTitle(prompt) {
   return [...(first || "新房间对话")].slice(0, 18).join("");
 }
 
-function normalizeQuestions(input, { ensureAudience = false, minimum = 2 } = {}) {
+function normalizeQuestions(input, { ensureAudience = false, minimum = 1 } = {}) {
   const minimumQuestions = minimum === 1 ? 1 : 2;
   if (!Array.isArray(input) || input.length < minimumQuestions || input.length > 4) throw new Error(`请提供 ${minimumQuestions}–4 个清晰的问题`);
   const questions = input.map((entry, index) => {

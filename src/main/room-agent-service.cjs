@@ -16,8 +16,10 @@ const {
   inspectCustomRoomSpec,
   loadCustomRoomSpec
 } = require("./custom-room.cjs");
-const { analyzeHtml, analyzeCss, analyzeJavascript } = require("./custom-room.cjs");
+const { analyzeHtml, analyzeCustomIndexPatch, analyzeCss, analyzeJavascript } = require("./custom-room.cjs");
 const { keysForPermissions } = require("./permission-service.cjs");
+const { validateManifest } = require("./manifest.cjs");
+const { isDeepStrictEqual } = require("node:util");
 const { isRoomAiModifiable } = require("./room-store.cjs");
 const { getPublicRoomModuleCatalog, recommendRoomModules } = require("./room-module-catalog.cjs");
 const { snapshotProject, projectSummary, readProjectFile, migrationNotices } = require("./project-source.cjs");
@@ -200,25 +202,18 @@ function normalizeAgentMessageForRuntime(message) {
   return next;
 }
 
-function compactToolArguments(toolName, args) {
-  if (!args || typeof args !== "object") return args;
-  const next = clone(args);
+function completedWriteSummary(toolName, args) {
+  if (!args || typeof args !== "object") return null;
   const fields = toolName === "write_custom_room_file"
     ? ["content"]
     : toolName === "patch_current_room_file"
       ? ["find", "replacement"]
       : [];
-  for (const field of fields) {
-    const value = next[field];
-    if (typeof value !== "string") continue;
-    const alreadyOmitted = value === "[内容已由 Harness 保存；需要复查时使用读取工具]";
-    if (value.length > 1000 || alreadyOmitted) {
-      if (!alreadyOmitted) next[`${field}Characters`] = value.length;
-      delete next[field];
-      next[`${field}Omitted`] = true;
-    }
-  }
-  return next;
+  const needsSummary = fields.some(field => args[`${field}Omitted`] === true
+    || args[`${field}Omitted`] === "true"
+    || args[field] === "[内容已由 Harness 保存；需要复查时使用读取工具]");
+  if (!needsSummary) return null;
+  return `历史工具记录：${toolName}，文件 ${cleanText(args.file || args.path, 300) || "未知"}，请求修订 ${args.expectedRevision ?? "未指定"}。源码参数已从历史中省略；这是记录摘要，不是可执行调用。成功与否见随后结果；需要源码时读取当前草稿。`;
 }
 
 function compactAgentContext(messages) {
@@ -228,7 +223,7 @@ function compactAgentContext(messages) {
     let latestAssistant = -1;
     let latestToolResult = -1;
     for (let index = 0; index < source.length; index += 1) {
-      if (source[index]?.role === "user") userIndexes.push(index);
+      if (source[index]?.role === "user" && !source[index].harnessHistory) userIndexes.push(index);
       if (source[index]?.role === "assistant") latestAssistant = index;
       if (source[index]?.role === "toolResult") latestToolResult = index;
     }
@@ -248,15 +243,33 @@ function compactAgentContext(messages) {
       historical.push(normalizeAgentMessageForRuntime({ ...message, content: message.role === "assistant" ? [{ type: "text", text }] : text, timestamp: message.timestamp || Date.now() }));
     }
     const completedToolCalls = new Set(source.filter((message) => message?.role === "toolResult").map((message) => message.toolCallId));
+    // Migrate legacy schema-invalid calls as paired history records. Recent real
+    // writes keep their full arguments; valid examples and source matter to edits.
+    const summarizedCalls = new Map();
+    for (const message of source.slice(activeStart)) {
+      if (message?.role !== "assistant" || !Array.isArray(message.content)) continue;
+      for (const block of message.content) {
+        if (block?.type !== "toolCall" || !completedToolCalls.has(block.id)) continue;
+        const summary = completedWriteSummary(block.name, block.arguments);
+        if (summary) summarizedCalls.set(block.id, summary);
+      }
+    }
     const active = source.slice(activeStart).map((message, relativeIndex) => {
       const absoluteIndex = activeStart + relativeIndex;
       if (message?.role === "assistant" && Array.isArray(message.content)) {
         message.content = message.content.flatMap((block) => {
           if (block?.type === "thinking" && (absoluteIndex !== latestAssistant || completedToolCalls.has(message.content.find((candidate) => candidate?.type === "toolCall")?.id))) return [];
-          if (block?.type === "toolCall" && (absoluteIndex !== latestAssistant || completedToolCalls.has(block.id))) {
-            return [{ ...block, arguments: compactToolArguments(block.name, block.arguments) }];
+          if (block?.type === "toolCall" && summarizedCalls.has(block.id)) {
+            return [];
           }
           return [block];
+        });
+        if (message.stopReason === "toolUse" && !message.content.some(block => block?.type === "toolCall")) message.stopReason = "stop";
+      }
+      if (message?.role === "toolResult" && summarizedCalls.has(message.toolCallId)) {
+        return normalizeAgentMessageForRuntime({
+          role: "user", timestamp: message.timestamp, harnessHistory: true,
+          content: `以下是旧会话工具记录，不是新的用户请求或待执行动作。\n${summarizedCalls.get(message.toolCallId)}\n结果（${message.isError ? "失败" : "已返回"}）：\n${contentText(message.content)}`
         });
       }
       if (message?.role === "toolResult" && message.toolName === "inspect_room_capabilities" && absoluteIndex !== latestToolResult) {
@@ -265,7 +278,7 @@ function compactAgentContext(messages) {
       }
       return message;
     });
-    return [...historical, ...active];
+    return [...historical, ...active].filter(message => message?.role !== "assistant" || message.content.length > 0);
   } catch {
     return Array.isArray(messages) ? messages : [];
   }
@@ -487,7 +500,7 @@ function evaluateCustomRoomContract(spec, goal, staticReport) {
   const userGoal = cleanText(goal, 4000).toLowerCase();
   const isGame = /游戏|game|台球|乒乓|迷宫|跑酷|射击|棋|牌/.test(userGoal);
   const isThreeDimensional = /(?:\b3d\b|三维|立体)/i.test(userGoal);
-  const isBrowser = /浏览器|browser|网页浏览|多标签网页/.test(userGoal);
+  const isBrowser = /浏览器房间|网页浏览器|网页浏览|多标签网页|浏览器导航|browser\s*(?:room|app)|(?:做|创建|制作|开发|实现)(?:一个|一款|个)?[^。！？\n]{0,30}浏览器/.test(userGoal);
   const checks = [
     { id: "static-safety", passed: staticReport?.passed === true, message: "HTML、CSS、JavaScript 通过静态安全检查" },
     { id: "meaningful-ui", passed: html.length >= 80 && /<(?:main|section|canvas|form|button|div)\b/i.test(html), message: "包含可见且非空的用户界面" },
@@ -503,10 +516,11 @@ function evaluateCustomRoomContract(spec, goal, staticReport) {
     });
   }
   if (isGame) {
+    const needsRealtimeLoop = isThreeDimensional || /台球|乒乓|跑酷|射击|实时游戏|帧更新/.test(userGoal);
     checks.push({
       id: "game-loop-or-input",
-      passed: /requestAnimationFrame\s*\(/.test(javascript) && /(?:keydown|keyup|pointerdown|pointermove|click|touchstart)/i.test(javascript),
-      message: "游戏包含持续更新循环和玩家输入"
+      passed: (!needsRealtimeLoop || /requestAnimationFrame\s*\(/.test(javascript)) && /(?:keydown|keyup|pointerdown|pointermove|click|touchstart)/i.test(javascript),
+      message: needsRealtimeLoop ? "实时游戏包含持续更新循环和玩家输入" : "回合制游戏包含玩家输入"
     });
     checks.push({
       id: "restart-or-reset",
@@ -636,7 +650,17 @@ class RoomAgentService {
       const target = this.sessionPath(session.id);
       const temporary = `${target}.${crypto.randomBytes(4).toString("hex")}.tmp`;
       await fsp.writeFile(temporary, `${JSON.stringify(session, null, 2)}\n`, "utf8");
-      await fsp.rename(temporary, target);
+      try {
+        for (let attempt = 0; ; attempt += 1) {
+          try { await fsp.rename(temporary, target); break; }
+          catch (error) {
+            if (!["EPERM", "EACCES", "EBUSY"].includes(error.code) || attempt >= 4) throw error;
+            await sleep(25 * (attempt + 1));
+          }
+        }
+      } finally {
+        await fsp.rm(temporary, { force: true }).catch(() => {});
+      }
     });
     this.persistQueues.set(session.id, next);
     try {
@@ -791,7 +815,12 @@ class RoomAgentService {
       workflow: session.workflow || null,
       room: session.roomId ? publicRoom(this.roomStore.getRoom(session.roomId)) : null,
       sourceProject: projectSummary(session.sourceProject),
-      draft: describeWorkspace(session.customWorkspace),
+      draft: { ...describeWorkspace(session.customWorkspace), note: "独立自由草稿，可能早于已安装版本；不与当前房间补丁自动同步，不能据此覆盖最新房间" },
+      programPatch: session.programPatch ? {
+        roomId: session.programPatch.roomId, baseVersion: session.programPatch.baseVersion,
+        revision: session.programPatch.revision, tested: session.programPatch.tested,
+        files: [...new Set(session.programPatch.operations.map(operation => operation.path))]
+      } : null,
       conversation: visible
     }));
   }
@@ -875,7 +904,7 @@ class RoomAgentService {
       return this.appendCommandExchange(session, rawText, report.join("\n"));
     }
     if (command.name === "/tools") {
-      return this.appendCommandExchange(session, rawText, "Harness 能力分为：\n\n- 初始流程：首次创建或迁移时澄清需求并确认一次方案\n- 受控读取：完整分页项目索引、当前房间程序\n- 自由开发：多文件 HTML/CSS/JavaScript、任意安全相对路径模块、现有房间精确补丁\n- 运行能力：可配置 thinking 和自动重试，支持只读工具并行\n- 验证：静态安全、契约、隔离启动/重载、基础按钮交互、经授权的真实 AI 测试\n- 协作：可按任务需要委派只读子 Agent，主 Agent 汇总结论");
+      return this.appendCommandExchange(session, rawText, "Harness 能力分为：\n\n- 初始流程：首次创建或迁移时必要才澄清需求，确认一次方案\n- 受控读取：完整分页项目索引、当前房间程序\n- 自由开发：多文件 HTML/CSS/JavaScript、任意安全相对路径模块、现有房间精确补丁\n- 运行能力：可配置 thinking 和自动重试，支持只读工具并行\n- 验证：静态安全、契约、隔离启动/重载、基础按钮交互、经授权的真实 AI 测试\n- 协作：可按任务需要委派只读子 Agent，主 Agent 汇总结论");
     }
     if (command.name === "/models") {
       const profiles = this.aiService.listPublicProfiles?.() || [];
@@ -1160,7 +1189,7 @@ class RoomAgentService {
     const { room, files } = await this.currentRoomFileIndex(session);
     const normalizedPath = String(requestedPath || "").replace(/\\/g, "/");
     const entry = files.find((item) => item.path === normalizedPath);
-    if (!entry?.readable || !normalizedPath.startsWith("app/")) throw new Error("只允许修改当前房间 app/ 内已列出的文本程序文件");
+    if (!entry?.readable || (!normalizedPath.startsWith("app/") && normalizedPath !== "manifest.json")) throw new Error("只允许修改当前房间 app/ 内已列出的文本程序文件或 manifest.json 的权限声明");
     const inspection = session.currentRoomInspection;
     if (inspection?.roomId !== room.id || inspection.version !== room.version || !inspection.readFiles?.includes(normalizedPath)) {
       throw new Error("修改前必须先读取当前版本的这个文件，不能靠猜测替换");
@@ -1182,12 +1211,22 @@ class RoomAgentService {
     }
     const matches = content.split(find).length - 1;
     if (matches !== 1) throw new Error(matches === 0 ? "find 在当前草稿中不存在，请复制准确原文" : "find 在当前草稿中出现多次，请扩大上下文使其唯一");
+    const previousContent = content;
     content = content.replace(find, replacement);
+    if (normalizedPath === "manifest.json") {
+      const before = JSON.parse(previousContent);
+      const after = JSON.parse(content);
+      validateManifest(after);
+      const metadata = ({ permissions, ...rest }) => rest;
+      if (!isDeepStrictEqual(metadata(before), metadata(after))) throw new Error("清单补丁只允许修改 permissions；房间身份、版本、入口和依赖等字段必须保持不变");
+    }
     const extension = path.extname(normalizedPath).toLowerCase();
     let findings = [];
     if ([".js", ".mjs"].includes(extension)) findings = analyzeJavascript(content, room.permissions?.network || [], room.permissions?.browser || []);
     else if (extension === ".css") findings = analyzeCss(content);
-    else if ([".html", ".htm"].includes(extension)) findings = analyzeHtml(content);
+    else if ([".html", ".htm"].includes(extension)) findings = normalizedPath === "app/index.html" && /data-room-kind="custom"/.test(previousContent)
+      ? analyzeCustomIndexPatch(previousContent, content)
+      : analyzeHtml(content);
     const errors = findings.filter((finding) => finding.severity === "error");
     if (errors.length) throw new Error(`修改后的文件未通过安全检查：${errors.map((item) => item.message).join("；")}`);
     draft.operations.push({ path: normalizedPath, find, replacement });
@@ -1279,7 +1318,7 @@ class RoomAgentService {
     return `你是“千万间 Roomillion”的房间开发 Agent，运行在 Pi Agent 的有状态工具循环中。像编码 Agent 一样主动读取、修改、测试和完成任务。除首次创建或项目迁移的必要确认外，不要把实现选择推给用户，也不要为了遵循流程而停止工作。
 
 工作方式：
-- 首次创建空白房间时，先用 inspect_room_capabilities 了解能力，再用 ask_room_questions 一次提出 2–4 个真正影响产品方向的问题，覆盖使用者、核心操作和所需权限边界。用户回答后用 propose_room_plan 提交一份简洁可验收的方案，等待一次确认。
+- 首次创建空白房间时，先用 inspect_room_capabilities 了解能力。若用户已明确使用者、核心操作、数据方式和 AI/联网/文件等权限边界，直接用 propose_room_plan 提交可验收方案；只在真实歧义影响方向时用 ask_room_questions 提出 1–4 个针对性问题，不要询问已给出的信息或为了走流程凑题。方案等待一次确认。
 - 项目迁移先 inspect_source_project、read_source_project_file 和 assess_project_migration，说明需要保留与改写的部分，再按首次创建流程确认。只读取用户授权的快照，不修改或执行源项目。
 - 已有房间的开发和修复直接实施。先 inspect_current_room 并读取相关文件；小改动优先 patch_current_room_file → test_current_room_patch → install_current_room_patch。可以从源码和上下文判断的细节自行决定，只有一个无法推断且会实质改变功能、数据、权限或费用的问题真正阻塞时才询问，不重复历史问题。
 - 所有新房间统一使用自由多文件通道：inspect_room_capabilities → begin_custom_room → write_custom_room_file → test_custom_room → install_custom_room。没有声明式或 3D 模板工具。按实际职责创建 modules/、views/、services/ 和 assets/ 文件，不要把复杂程序挤进一个文件。
@@ -1523,7 +1562,7 @@ ${currentContext}`;
       },
       {
         name: "patch_current_room_file", label: TOOL_LABELS.patch_current_room_file,
-        description: "对已读取的当前房间 app/ 文本文件做一次唯一、精确替换，保存为可恢复修改草稿。适合修复多文件房间，不会直接改动已安装版本。",
+        description: "对已读取的当前房间 app/ 文本文件做一次唯一、精确替换，保存为可恢复修改草稿。expectedRevision 是整个补丁的版本，不是单个文件版本：每次成功修改任何文件后，下一次使用返回的最新 revision。也可修改 manifest.json 的 permissions 声明，其他清单字段不得改变。新增权限安装后仍需用户在房间设置授权，不会自动授予。不会直接改动已安装版本。",
         parameters: Type.Object({
           path: Type.String({ minLength: 1 }),
           find: Type.String({ minLength: 1, description: "从已读取源码复制的唯一原文" }),
@@ -1587,6 +1626,8 @@ ${currentContext}`;
               source: "local-generated",
               selectedKeys: retainedPermissionKeys(staged.room.grantedPermissions, staged.manifest.permissions)
             });
+            const granted = new Set(keysForPermissions(room.grantedPermissions));
+            const pendingPermissionKeys = keysForPermissions(staged.manifest.permissions).filter(key => !granted.has(key));
             await this.linkBuiltRoom(session, room);
             const checkpoint = await this.checkpoint(room.id, "Agent 修改完成", AGENT_CHECKPOINT_KINDS.updated, { required: false });
             const checkpointWarning = checkpoint?.warning || null;
@@ -1594,6 +1635,7 @@ ${currentContext}`;
               room, kind: "program-patch", phase: "install", updated: true,
               changedFiles: [...new Set(draft.operations.map((item) => item.path))],
               operationCount: draft.operations.length,
+              pendingPermissionKeys,
               runtimeCheck: draft.runtimeCheck,
               aiTest: draft.aiTest,
               quality: { passed: true, issues: [], warnings: checkpointWarning ? [checkpointWarning] : [] },
@@ -1601,7 +1643,7 @@ ${currentContext}`;
             };
             session.programPatch = null;
             await this.afterRoomBuilt(session, room, details);
-            return { content: [{ type: "text", text: JSON.stringify({ ok: true, action: "updated", room: publicRoom(room), changedFiles: details.changedFiles, warnings: checkpointWarning ? [`MinGit 检查点创建失败：${checkpointWarning}`] : [], instruction: "多文件房间已通过 Harness 并原位升级；请总结修复内容和实际测试边界。" }) }], details };
+            return { content: [{ type: "text", text: JSON.stringify({ ok: true, action: "updated", room: publicRoom(room), changedFiles: details.changedFiles, pendingPermissionKeys, warnings: checkpointWarning ? [`MinGit 检查点创建失败：${checkpointWarning}`] : [], instruction: `多文件房间已通过 Harness 并原位升级；请总结修复内容和实际测试边界。${pendingPermissionKeys.length ? "新增或未授权权限尚未授予，请明确提示用户打开房间设置，启用所需权限后再使用对应功能。" : ""}` }) }], details };
           } finally {
             await this.cleanupStagedProgram(staged);
           }
@@ -1654,7 +1696,7 @@ ${currentContext}`;
       {
         name: "ask_room_questions",
         label: TOOL_LABELS.ask_room_questions,
-        description: "在确有重大歧义时提出面向非程序员的需求问题并等待回复。首次创建问 2–4 个；已有房间维护最多问 1 个且不得重复已问内容。清楚的修复不要调用本工具。",
+        description: "仅在确有重大歧义时提出面向非程序员的需求问题并等待回复。首次创建可问 1–4 个，也可不问；已有房间维护最多问 1 个。不得重复已知需求或历史问题。",
         parameters: Type.Object({ title: Type.Optional(Type.String({ maxLength: 18, description: "简短任务名称，不复述用户整段需求" })), questions: Type.Array(Type.Object({
           selection: Type.Optional(Type.Union([Type.Literal("single"), Type.Literal("multiple"), Type.Literal("text")], { description: "互斥单选、功能多选、自由文本" })),
           topic: Type.Union([Type.Literal("audience"), Type.Literal("data"), Type.Literal("features"), Type.Literal("other")]),
@@ -1667,14 +1709,10 @@ ${currentContext}`;
         execute: async (_id, params, signal) => {
           signal?.throwIfAborted();
           const maintenance = isMaintenanceSession(session);
-          const normalized = normalizeQuestions(params.questions, {
-            ensureAudience: !maintenance && !session.workflow?.audienceChecked,
-            minimum: maintenance ? 1 : 2
-          });
+          const normalized = normalizeQuestions(params.questions, { minimum: 1 });
           const previousQuestions = [...(session.workflow?.questionHistory || []), ...(session.workflow?.questions || []).map(questionKey)].filter(Boolean);
           const previousKeys = new Set(previousQuestions);
           const questions = normalized.filter((question) => !previousKeys.has(questionKey(question)));
-          if (!maintenance && questions.length < 2) throw new Error("首次创建房间需要提出 2–4 个新的关键问题，并覆盖使用者和能力边界");
           if (maintenance && questions.length > 1) throw new Error("已有房间的维护一次最多问 1 个真正阻塞实施的问题，其余细节请自行采用合理默认值");
           if (!questions.length) throw new Error("这些问题此前已经问过。请使用对话中的已有答案继续，不要重复提问");
           if (typeof params.title === "string" && params.title.trim() && !session.manualTitle) session.title = shortTaskTitle(params.title);
@@ -1696,7 +1734,7 @@ ${currentContext}`;
       {
         name: "propose_room_plan",
         label: TOOL_LABELS.propose_room_plan,
-        description: "收到首次需求回答后提交简洁的功能与验收方案，然后停止，等待用户点击确认。",
+        description: "首次需求足够清楚，或必要的澄清已回答后，提交简洁的功能与验收方案，然后等待用户确认。",
         parameters: Type.Object({
           summary: Type.String({ minLength: 5, maxLength: 3000, description: "使用场景和要解决的问题" }),
           features: Type.String({ minLength: 5, maxLength: 3000, description: "第一版核心能力" }),
@@ -1711,7 +1749,12 @@ ${currentContext}`;
         execute: async (_id, params, signal) => {
           signal?.throwIfAborted();
           if (isMaintenanceSession(session)) throw new Error("已有房间的修改和修复无需重新提交实施方案，请直接实施并测试");
-          if (!session.workflow?.answered) throw new Error("先调用 ask_room_questions，等待用户回答后才能提交方案");
+          if (!session.messages.some((message) => message.role === "user") && !session.workflow?.answered && !session.sourceProject) {
+            throw new Error("先接收用户需求，再提交方案");
+          }
+          if (session.workflow?.questions?.length && !session.workflow?.answered) {
+            throw new Error("已提出的澄清问题尚未回答，请等待用户回答后再提交方案");
+          }
           const plan = {};
           if (session.roomId) {
             const room = this.roomStore.getRoom(session.roomId);
@@ -1766,12 +1809,18 @@ ${currentContext}`;
               vectorDatabase: { sdk: "window.room.vector", permission: "database: private", methods: ["create", "list", "upsert", "search", "remove", "drop"], metric: "cosine", capacity: "disk-backed; no product count/byte/dimension ceiling", persistence: "room.db，随应用+数据导出", embeddings: "window.room.ai.embed(texts, { profileId?, model?, dimensions? })；模型和任务决定批量与维度" },
               largeBinaryFiles: { sdk: "window.room.files", permissions: ["pick", "pickMany", "directoryRead", "directoryWrite"], methods: ["openBinary", "readBinary", "closeBinary", "pickMany", "openDirectory", "listDirectoryGrants", "listDirectory", "readDirectoryFile", "writeDirectoryFile", "revokeDirectory"], maxChunkBytes: 67108864, note: "pickMany 返回 {token,name,size,maxChunkBytes} 数组；listDirectory 返回 {grant,entries,cursor,nextCursor,total}；readDirectoryFile 返回 {data,nextOffset,eof,size}。目录句柄不暴露真实路径；批量内容应逐项分块处理" },
               durableData: { blobs: "window.room.blobs", artifacts: "window.room.artifacts", jobs: "window.room.jobs", note: "大文件、中间制品和任务检查点持久保存在房间私有数据中" },
+              blobUsage: { put: "await room.blobs.put({name:'page.png',mimeType:'image/png'},bytes) → 元数据对象 {id,name,mimeType,kind,size,...}；不要只传 bytes，不要把返回对象当 ID", read: "await room.blobs.read(id,{offset,length}) → {item,data:Uint8Array,offset,nextOffset,eof}；取 .data，按 nextOffset/eof 分块，不是直接返回 Uint8Array", streaming: "begin({name,mimeType}) → {token,id,...}；逐块 write(token,bytes)；finish(token) → 元数据；异常时 abort(token)", artifact: "await room.artifacts.put('page_001.md',markdown,{mimeType:'text/markdown'}) → 元数据；exportToDirectory(item.id,grant.id,'pages/page_001.md') 写到已授权输出目录" },
+              binaryFileUsage: { pickMany: "await room.files.pickMany({extensions:['csv']}) → Array<{token,name,size,maxChunkBytes}>；取消返回 []，需要 files.pickMany", readBinary: "await room.files.readBinary(handle.token,{offset,length}) → {data:Uint8Array,offset,nextOffset,eof}；按 nextOffset/eof 分块读取；句柄是纯数据，没有 text() 或 readBinary() 方法", decode: "TextDecoder.decode(new Uint8Array(chunk.data),{stream:true})，结束时 decode() 收尾；不要让每块独立解码破坏跨块中文", close: "finally 中 await room.files.closeBinary(handle.token)，所有打开的句柄均需关闭" },
+              fileExportUsage: { permission: "files.export", text: "await room.files.exportText(suggestedName, content)；两个位置参数，content 必须是字符串，不能传 {suggestedName,content} 对象", binary: "await room.files.exportBinary(suggestedName, content)；content 是非空 ArrayBuffer 或 Uint8Array", result: "成功返回路径字符串，用户取消返回 null；必须检查 null，取消不能报告保存成功。隔离测试模拟取消，但仍校验参数。" },
+              visionOcrUsage: { generate: "await room.ai.generate('识别书页', {profileId:model.id, images:[{blobId:image.id}], maxTokens:4096})；图片字段是 images，不是 input；选择模型用配置 ID profileId，不是 model", models: "await room.ai.listModels() 返回数组；按 ready && supportsImages 过滤，界面显示 label 或 providerName + model；getSlotDefinitions() 只返回槽位约束，getSlots() 返回 {槽位名:profileId}，selectSlot(slot,profileId) 返回 {slot,profileId}", persistentImage: "await room.blobs.put({name:'page.png',mimeType:'image/png'},bytes) → {id,...}；图片保存到 Blob 后再保存 id，文件句柄 token 不能跨重启恢复", directory: "await room.files.openDirectory({mode:'read'}) → {id,name,mode,...} 或 null；listDirectory(grant.id,{extensions:['png','jpg'],cursor,limit}) → {entries,nextCursor,total}；images:[{directory:{grantId:grant.id,relativePath:entry.relativePath}}] 可直接识别授权图片" },
               aiRuntime: { sdk: "window.room.ai", roles: ["general", "coding", "vision"], methods: ["embed", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "cancel", "batch", "onModelsChanged"], concurrency: "1–8", retries: "0–5", batchSize: "1–500", generateResult: "{text,model,profileId,usage}", generateStreaming: "generate(prompt, { requestId, onChunk: (delta, full) => {} }) 逐段回调真实模型文本；Promise 仍返回完整结果。每次传唯一 requestId，再用 cancel(requestId) 真正取消模型连接；取消后 Promise 拒绝，不应保存不完整历史或接受旧回调。requestId 为 1–101 个字母、数字、点、下划线、冒号、连字符，首位字母或数字；不要传 AbortSignal", batchResult: "{results:[{ok:true,text,model,profileId,usage}|{ok:false,error}],total,passed,failed}", imageInputs: "images 数组项可用 {data:Uint8Array,mimeType}、{blobId} 或 {directory:{grantId,relativePath}}；视觉调用需 ai.roles 包含 vision" },
               localCompute: { capability: "compute: worker", api: "Web Worker", scope: "同源房间文件；沙箱内无 Node.js/Electron", useFor: ["排序", "Markdown 合并", "哈希", "CPU 密集型批处理"] },
               hostTools: { capability: "tools: [tool-id@version]", sdk: "window.room.tools", methods: ["list", "call"], builtIns: ["document.markdown-to-pdf@1", "artifact.list@1"], note: "插件可向统一工具注册表增加处理器；房间必须逐工具声明和授权" },
+              pdfUsage: { sdk: "await room.documents.markdownToPdf(markdown,{title:'书名',name:'book.pdf'}) → PDF制品元数据 {id,name,mimeType,size,metadata:{pages,...},...}，不是字节数组", permission: "documents 专用接口需 database:private；通过 tools.call 使用同一功能时另需 tools:['document.markdown-to-pdf@1']", export: "await room.artifacts.read(pdf.id,{offset,length}) → {data,nextOffset,eof,...}；分块取 .data 合并后 exportBinary('book.pdf',bytes)，检查 null 取消；也可 exportToDirectory(pdf.id,grant.id,'book.pdf')", test: "隔离运行器也生成真实中文 PDF 制品，可断言制品大小、页数或读取 %PDF 文件头；不会打开系统保存窗口" },
               credentials: { capability: "credentials: [alias]", sdk: "window.room.credentials.list", networkOption: "credentialAlias", note: "宿主只向绑定的精确服务源注入请求头；明文不返回房间" },
-              declaredTests: { file: "room-tests.json", scenarios: "1–20", actions: ["click", "input", "wait", "reload", "assertExists", "assertText"], clickBurst: "click 动作可加 count:1–30，对同一控件同步连续点击，可验证重试按钮在首次点击后移除时的重入保护", aiMocks: true, aiMockDelay: "mocks.ai 项可加 chunkDelayMs（0–1000），每 3 字符延时，便于测试流式取消和重复点击；{error:消息} 模拟一次失败，后续 mock 可验证重试恢复", persistence: "保存后使用 reload，再等待异步加载并断言；不能用同一页面的内存回填代替持久化检查" },
+              declaredTests: { file: "room-tests.json", scenarios: "至少 1 个，无场景总数上限；保留旧回归，整轮受隔离运行超时保护", actions: ["click", "input", "wait", "reload", "assertExists", "assertText"], clickBurst: "click 动作可加 count:1–30，对同一控件同步连续点击，可验证重试按钮在首次点击后移除时的重入保护", aiMocks: true, aiMockDelay: "mocks.ai 项可加 chunkDelayMs（0–1000），每 3 字符延时，便于测试流式取消和重复点击；{error:消息} 模拟一次失败，后续 mock 可验证重试恢复", persistence: "保存后使用 reload，再等待异步加载并断言；不能用同一页面的内存回填代替持久化检查" },
               streamingExport: { methods: ["beginExport(name)", "writeExport(token, chunk)", "finishExport(token)", "abortExport(token)"], note: "逐块直接写盘，不受便捷导出接口的内存大小影响" },
+              fileTestFixtures: { syntax: "room-tests.json 的 mocks.files:[{name:'page1.png',base64:'...'}] 或 [{name:'data.csv',text:'列名\\n数据'}]；只能内联虚构数据，不引用主机路径", behavior: "声明后 pickMany/openBinary 返回真实形状的令牌，readBinary/closeBinary 和目录选择/分页/读取在隔离临时目录中执行；同时提供 mock-profile 视觉模型。未声明仍模拟取消选择。", limits: "最多20个安全单文件名、合计2MiB，仅限隔离测试样本，不是房间业务规模限制", visionAssertion: "mocks.ai:[{text:'识别文本',expectedImageCount:1}] 检查调用实际携带图片；测试应点击导入和识别按钮，再断言OCR正文，不要只检查面板存在" },
               runtimeDownloads: false,
               network: {
                 directBrowserNetwork: false,
@@ -1861,7 +1910,7 @@ ${currentContext}`;
       {
         name: "search_custom_room",
         label: TOOL_LABELS.search_custom_room,
-        description: "在自由房间草稿的全部文件或指定文件中搜索原文，返回精确行列位置。",
+        description: "只在独立的自由房间草稿中搜索原文，返回精确行列位置；不会搜索当前已安装房间或 patch_current_room_file 的待安装补丁。续改已安装房间应使用 read_current_room_file 分页读取当前工作副本，不要用旧自由草稿覆盖新补丁。",
         parameters: Type.Object({ query: Type.String({ minLength: 1, maxLength: 500 }), file: Type.Optional(Type.String()), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })) }, { additionalProperties: false }),
         executionMode: "parallel",
         execute: async (_id, params, signal) => {
@@ -2375,7 +2424,7 @@ ${currentContext}`;
         await this.persist(session);
         await sleep(500 * (2 ** attempt));
         if (run.stopRequested) break;
-        agent.replaceMessages(agent.state.messages.slice(0, -1));
+        agent.state.messages = agent.state.messages.slice(0, -1);
         await agent.continue();
       }
     } catch (error) {
@@ -2538,8 +2587,14 @@ ${currentContext}`;
       session.workflow.approvedPlanId = approval;
     } else {
       const workflow = session.workflow || { phase: "clarifying" };
+      const approvedDraftFollowup = !maintenance && workflow.plan?.id && workflow.approvedPlanId === workflow.plan.id
+        && (session.customWorkspace?.revision > 0 || session.customDraft || session.programPatch);
       const diagnosticFollowup = !maintenance && workflow.phase === "review" && workflow.plan?.id && workflow.approvedPlanId === workflow.plan.id && isImplementationStatusPrompt(effectivePrompt);
-      if (diagnosticFollowup) {
+      if (approvedDraftFollowup) {
+        if (session.customDraft) session.customDraft.tested = false;
+        session.workflow = { ...workflow, phase: "implementing" };
+        session.latestUserGoal = cleanText([session.latestUserGoal, effectivePrompt].filter(Boolean).join("\n补充需求："), 12000);
+      } else if (diagnosticFollowup) {
         session.workflow = { ...workflow, phase: "review" };
       } else if (maintenance) {
         if (session.customDraft) session.customDraft.tested = false;

@@ -34,6 +34,9 @@ test("room AI IPC validates permission and ownership and cancellation wins durin
   await assert.rejects(cancel(a, "test"), /权限/);
   await assert.rejects(generate(a, "test", {}), /权限/);
   allowed = true;
+  await assert.rejects(generate(a, "OCR", { input: [{ type: "image" }] }), /images.*不是 input/);
+  await assert.rejects(generate(a, "OCR", { model: "fake" }), /profileId/);
+  await assert.rejects(generate(a, "OCR", { signal: {} }), /requestId.*room.ai.cancel/);
   await assert.rejects(generate(a, "test", { requestId: "bad id" }), /标识无效/);
   await assert.rejects(generate(a, "test", { requestId: null }), /标识无效/);
   const pending = generate(a, "test", { requestId: "test" });

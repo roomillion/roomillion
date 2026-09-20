@@ -1,4 +1,5 @@
 "use strict";
+const { validateRoomAiOptions } = require("./room-ai-options.cjs");
 
 const fsp = require("node:fs/promises");
 const path = require("node:path");
@@ -887,7 +888,7 @@ function registerIpcHandlers({
   });
   handle("room:binaryRead", async (event, token, options = {}) => {
     const room = requireRoom(event);
-    if (!roomStore.hasPermission(room.id, "files", "pick")) { binaryFiles.closeRoom(room.id); throw new Error("房间没有选择文件权限"); }
+    if (!roomStore.hasPermission(room.id, "files", "pick") && !roomStore.hasPermission(room.id, "files", "pickMany")) { binaryFiles.closeRoom(room.id); throw new Error("房间没有选择文件权限"); }
     return binaryFiles.read(room.id, token, options);
   });
   handle("room:binaryClose", async (event, token) => binaryFiles.close(requireRoom(event).id, token));
@@ -1259,7 +1260,7 @@ function registerIpcHandlers({
   handle("room:aiGenerate", async (event, prompt, options = {}) => {
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
-    if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("AI 调用选项无效");
+    validateRoomAiOptions(options);
     const streamRequestId = options.streamRequestId;
     if (streamRequestId !== undefined && (typeof streamRequestId !== "string" || !/^r[a-z0-9-]{1,80}$/.test(streamRequestId))) {
       throw new Error("AI 流式请求标识无效");
@@ -1313,6 +1314,7 @@ function registerIpcHandlers({
         const request = requests[index];
         try {
           if (!request || typeof request.prompt !== "string" || !request.prompt) throw new Error("AI 提示内容不能为空");
+          validateRoomAiOptions(request);
           const images = await resolveAiImages(room, request.images);
           if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
           const requestedSlot = request.slot || options.slot;

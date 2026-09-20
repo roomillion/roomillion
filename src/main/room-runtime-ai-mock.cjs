@@ -1,13 +1,16 @@
 "use strict";
 
 const { setTimeout: sleep } = require("node:timers/promises");
+const { validateRoomAiOptions } = require("./room-ai-options.cjs");
 
 function createRoomRuntimeAiMock(mocks = []) {
   let index = 0;
-  const generate = () => {
+  const generate = (options = {}) => {
+    validateRoomAiOptions(options);
     const mock = mocks[index];
     if (!mock) throw new Error(`隔离检查不调用真实 AI；本次是第 ${index + 1} 次场景 AI 调用，但 room-tests.json 的 mocks.ai 只有 ${mocks.length} 条响应。请按所有场景的调用顺序，每次提供一条`);
     index += 1;
+    if (mock.expectedImageCount !== undefined && (options.images?.length || 0) !== mock.expectedImageCount) throw new Error(`模拟 OCR 期望 ${mock.expectedImageCount} 张图片，实际收到 ${options.images?.length || 0} 张；请检查 images 参数`);
     if (mock.error) throw new Error(mock.error);
     return { text: mock.text, model: "mock-model", profileId: "mock-profile", usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } };
   };
@@ -18,17 +21,17 @@ function createRoomRuntimeAiMock(mocks = []) {
     const results = requests.map((request) => {
       try {
         if (!request || typeof request.prompt !== "string" || !request.prompt) throw new Error("AI 提示内容不能为空");
-        return { ok: true, ...generate() };
+        return { ok: true, ...generate(request) };
       } catch (error) {
         return { ok: false, error: String(error.message || error).slice(0, 2000) };
       }
     });
     return { results, total: results.length, passed: results.filter((item) => item.ok).length, failed: results.filter((item) => !item.ok).length };
   };
-  const stream = async ({ signal, onTextDelta } = {}) => {
+  const stream = async ({ signal, onTextDelta, options = {} } = {}) => {
     signal?.throwIfAborted();
     const delay = mocks[index]?.chunkDelayMs || 0;
-    const result = generate();
+    const result = generate(options);
     for (const delta of result.text.match(/[\s\S]{1,3}/g) || []) {
       if (delay) await sleep(delay, undefined, { signal });
       signal?.throwIfAborted();

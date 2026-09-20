@@ -29,3 +29,15 @@ test("AI mock failure consumes one response and a retry can recover", async () =
   await assert.rejects(mock.stream(), /模拟服务暂时不可用/);
   assert.equal((await mock.stream()).text, "重试成功");
 });
+
+test("OCR mock checks image delivery and rejects guessed SDK option names", async () => {
+  const mock = createRoomRuntimeAiMock([{ text: "page", expectedImageCount: 1 }]);
+  await assert.rejects(mock.stream({ options: { input: [{}] } }), /images.*不是 input/);
+  await assert.rejects(mock.stream({ options: { model: "fake" } }), /profileId/);
+  await assert.rejects(mock.stream({ options: { signal: {} } }), /requestId.*room.ai.cancel/);
+  await assert.rejects(mock.stream(), /实际收到 0/);
+  mock.reset();
+  assert.equal((await mock.stream({ options: { images: [{ data: new Uint8Array([1]) }] } })).text, "page");
+  mock.reset();
+  assert.equal(mock.batch([{ prompt: "OCR", images: [{}] }]).passed, 1);
+});

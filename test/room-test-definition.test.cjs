@@ -33,3 +33,26 @@ test("declared scenarios return renderer failures as structured test results", a
   assert.equal(result.passed, false);
   assert.match(result.error, /文本断言失败/);
 });
+
+test("multi-round regression suites retain more than twenty scenarios", async () => {
+  const scenarios = Array.from({ length: 25 }, (_, index) => ({ name: `回归 ${index + 1}`, actions: [{ type: "assertExists", selector: "#result" }] }));
+  const definition = normalizeRoomTestDefinition({ version: 1, scenarios });
+  let calls = 0;
+  const result = await runDeclaredScenarios({ executeJavaScript: async () => { calls += 1; } }, definition);
+  assert.equal(result.passed, true);
+  assert.equal(calls, 25);
+  assert.deepEqual(result.scenarios, scenarios.map(scenario => scenario.name));
+  assert.throws(() => normalizeRoomTestDefinition({ version: 1, scenarios: [] }), /至少一个/);
+  assert.throws(() => normalizeRoomTestDefinition({ version: 1, scenarios: [...scenarios, { actions: [{ type: "shell" }] }] }), /不支持/);
+});
+
+test("synthetic test files are bounded inline bytes with safe unique names", () => {
+  const definition = files => normalizeRoomTestDefinition({ version: 1, mocks: { files }, scenarios: [{ actions: [{ type: "assertExists", selector: "main" }] }] });
+  assert.equal(Buffer.from(definition([{ name: "书页.csv", text: "页码,标题\n1,目录" }]).mocks.files[0].base64, "base64").toString(), "页码,标题\n1,目录");
+  for (const name of ["../secret", "C:\\key", "con.png", ".", "x.", "x ", "a/b"]) assert.throws(() => definition([{ name, text: "fake" }]), /文件名/);
+  assert.throws(() => definition([{ name: "a.png", text: "x" }, { name: "A.PNG", text: "y" }]), /重复/);
+  assert.throws(() => definition([{ name: "a.png", base64: "not base64" }]), /base64/);
+  assert.throws(() => definition([{ name: "a.png", text: "x", base64: "eA==" }]), /只能/);
+  assert.throws(() => definition([{ name: "a.txt", text: "x".repeat(2 * 1024 * 1024 + 1) }]), /2 MiB/);
+  assert.throws(() => definition(Array.from({ length: 21 }, (_, n) => ({ name: `${n}.txt`, text: "x" }))), /20 项/);
+});

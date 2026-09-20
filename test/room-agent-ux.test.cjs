@@ -11,9 +11,9 @@ test("feature questions default to multiple selection and explicit single/text m
   assert.equal(normalizeQuestions([{ ...question, topic: "features", selection: "single" }, question])[0].selection, "single");
   assert.throws(() => normalizeQuestions([{ ...question, selection: "code" }, question]), /回答类型/);
 });
-test("maintenance clarification can contain one question while creation still requires two", () => {
+test("clarification may contain one focused question", () => {
   assert.equal(normalizeQuestions([question], { minimum: 1 }).length, 1);
-  assert.throws(() => normalizeQuestions([question]), /2–4/);
+  assert.equal(normalizeQuestions([question]).length, 1);
 });
 test("structured questions preserve choices, examples and add missing audience coverage", () => {
   const questions = normalizeQuestions([question, { ...question, topic: "features" }], { ensureAudience: true });

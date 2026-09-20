@@ -4,8 +4,15 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { inspectCustomRoomSpec } = require("./custom-room.cjs");
+const { normalizeRoomTestDefinition } = require("./room-test-definition.cjs");
 
-async function validateRoomRuntime({ spec, signal, timeoutMs = 45000 }) {
+function declaredRuntimeTimeout(input) {
+  const definition = normalizeRoomTestDefinition(input);
+  const duration = (definition?.scenarios || []).flatMap(item => item.actions).reduce((total, action) => total + (action.type === "wait" ? action.ms : action.type === "reload" ? 12000 : action.type === "click" ? 100 : 0), 0);
+  return Math.min(300000, 45000 + duration);
+}
+
+async function validateRoomRuntime({ spec, signal, timeoutMs }) {
   signal?.throwIfAborted();
   const checked = inspectCustomRoomSpec(spec);
   if (!checked.report.passed) throw new Error("运行检查前必须通过静态检查");
@@ -13,7 +20,7 @@ async function validateRoomRuntime({ spec, signal, timeoutMs = 45000 }) {
   try {
     const input = path.join(jobRoot, "input.json");
     await fsp.writeFile(input, JSON.stringify(checked.spec));
-    await runWorker(input, signal, timeoutMs);
+    await runWorker(input, signal, timeoutMs ?? declaredRuntimeTimeout(checked.spec.files["room-tests.json"]));
     return await readResult(jobRoot);
   } finally {
     // Only the exact directory created above; never the user's room store.
@@ -21,7 +28,7 @@ async function validateRoomRuntime({ spec, signal, timeoutMs = 45000 }) {
   }
 }
 
-async function validateInstalledProgramRuntime({ programRoot, signal, timeoutMs = 45000 }) {
+async function validateInstalledProgramRuntime({ programRoot, signal, timeoutMs }) {
   signal?.throwIfAborted();
   const resolved = path.resolve(programRoot || "");
   const stats = await fsp.stat(resolved);
@@ -32,7 +39,10 @@ async function validateInstalledProgramRuntime({ programRoot, signal, timeoutMs 
     await fsp.cp(resolved, copiedProgram, { recursive: true, force: true });
     const input = path.join(jobRoot, "input.json");
     await fsp.writeFile(input, JSON.stringify({ mode: "installed-program", program: "program" }));
-    await runWorker(input, signal, timeoutMs);
+    let definition;
+    try { definition = await fsp.readFile(path.join(copiedProgram, "app", "room-tests.json"), "utf8"); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    await runWorker(input, signal, timeoutMs ?? declaredRuntimeTimeout(definition));
     return await readResult(jobRoot);
   } finally {
     await fsp.rm(jobRoot, { recursive: true, force: true, maxRetries: 3 });
@@ -68,7 +78,7 @@ async function runWorker(input, signal, timeoutMs, spawnWorker = spawn) {
       finish(error);
     };
     const abort = () => stop(new Error("运行检查已停止"));
-    const timer = setTimeout(() => stop(new Error("房间运行检查超时：可能出现死循环或资源初始化未完成")), timeoutMs);
+    const timer = setTimeout(() => stop(new Error(`房间运行检查超时（${Math.round(timeoutMs / 1000)} 秒）：请检查场景等待时长、初始化和未结束的异步任务`)), timeoutMs);
     child.once("error", finish);
     // Electron renderers can inherit stderr and keep the pipe open after the
     // browser process exits. Its exit is the completion signal, not pipe close.
@@ -86,4 +96,4 @@ async function readResult(jobRoot) {
   return result;
 }
 
-module.exports = { validateRoomRuntime, validateInstalledProgramRuntime, runWorker };
+module.exports = { validateRoomRuntime, validateInstalledProgramRuntime, runWorker, declaredRuntimeTimeout };

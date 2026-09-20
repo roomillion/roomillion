@@ -518,6 +518,18 @@ function extractCustomBody(indexHtml) {
   return match[1].trim();
 }
 
+function analyzeCustomIndexPatch(original, updated) {
+  // Installed entry pages include host-owned loaders. Permit body edits without
+  // allowing a patch to replace the shell or introduce another executable tag.
+  const parts = value => String(value).match(/^([\s\S]*?<body\b[^>]*>)([\s\S]*?)(\s*(?:<script src="\/_modules\/|<script type="module" src="\.\/bootstrap\.mjs")[\s\S]*)$/i);
+  const before = parts(original);
+  const after = parts(updated);
+  if (!before || !after || before[1] !== after[1] || before[3] !== after[3]) {
+    return [issue("html.host-shell", "当前房间 HTML 补丁只能修改 body 内的界面内容，不能改变宿主文档外壳或加载脚本", "index.html")];
+  }
+  return analyzeHtml(after[2]);
+}
+
 module.exports = {
   CUSTOM_FILE_LIMITS,
   CUSTOM_ROOM_FORMAT,
@@ -526,6 +538,7 @@ module.exports = {
   applyCustomRuntimeCompatibility,
   analyzeCss,
   analyzeHtml,
+  analyzeCustomIndexPatch,
   analyzeJavascript,
   createCustomRoom,
   customRoomPermissions,
