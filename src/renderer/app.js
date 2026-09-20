@@ -290,7 +290,7 @@ const WORKBENCH_THEMES = Object.freeze([
   Object.freeze({ id: "abyss-dark", name: "深海青", mode: "dark", modeLabel: "夜间" }),
   Object.freeze({ id: "brass-dark", name: "鎏金夜", mode: "dark", modeLabel: "夜间" }),
   Object.freeze({ id: "sakura-dark", name: "樱夜粉", mode: "dark", modeLabel: "夜间" }),
-  Object.freeze({ id: "terminal-dark", name: "复古终端", mode: "dark", modeLabel: "风格" }),
+  Object.freeze({ id: "studio-dark", name: "极简夜晚", mode: "dark", modeLabel: "风格" }),
   Object.freeze({ id: "prism-dark", name: "霓虹玻璃", mode: "dark", modeLabel: "风格" })
 ]);
 const WORKBENCH_THEME_MAP = new Map(WORKBENCH_THEMES.map((theme) => [theme.id, theme]));
@@ -307,6 +307,10 @@ const SIDEBAR_PRESENTATION = {
 function readStoredTheme() {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "terminal-dark") {
+      try { localStorage.setItem(THEME_STORAGE_KEY, "studio-dark"); } catch {}
+      return "studio-dark";
+    }
     return WORKBENCH_THEME_MAP.has(stored) ? stored : DEFAULT_WORKBENCH_THEME;
   } catch {
     return DEFAULT_WORKBENCH_THEME;
@@ -322,7 +326,7 @@ function renderThemeSelection() {
 }
 
 function applyWorkbenchTheme(themeId, { persist = true, broadcast = persist, announce = false } = {}) {
-  const theme = WORKBENCH_THEME_MAP.get(themeId) || WORKBENCH_THEME_MAP.get(DEFAULT_WORKBENCH_THEME);
+  const theme = WORKBENCH_THEME_MAP.get(themeId === "terminal-dark" ? "studio-dark" : themeId) || WORKBENCH_THEME_MAP.get(DEFAULT_WORKBENCH_THEME);
   state.themeId = theme.id;
   document.documentElement.dataset.theme = theme.id;
   document.documentElement.dataset.themeMode = theme.mode;

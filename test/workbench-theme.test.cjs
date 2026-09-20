@@ -15,7 +15,9 @@ test("workbench exposes color themes plus six visibly distinct style themes", ()
   assert.equal(themes.filter((theme) => theme.mode === "dark").length, 10);
   assert.equal(new Set(themes.map((theme) => theme.id)).size, 22);
   assert.equal(getWorkbenchTheme("ink-light").titlebarColor, "#f4f0e5");
+  assert.equal(getWorkbenchTheme("studio-dark").backgroundColor, "#151617");
   assert.equal(getWorkbenchTheme("prism-dark").mode, "dark");
+  assert.throws(() => getWorkbenchTheme("terminal-dark"), /主题无效/);
   assert.throws(() => getWorkbenchTheme("unknown-theme"), /主题无效/);
 });
 

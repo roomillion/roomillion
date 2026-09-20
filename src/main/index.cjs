@@ -821,6 +821,19 @@ async function runSmokeCheck(dataRoot) {
       brandRadius: getComputedStyle(document.querySelector(".brandMark")).borderRadius,
       fontFamily: getComputedStyle(document.documentElement).fontFamily
     };
+    localStorage.setItem("zhibian.appearance.theme.v1", "terminal-dark");
+    const migratedTheme = readStoredTheme();
+    const migratedStoredTheme = localStorage.getItem("zhibian.appearance.theme.v1");
+    document.querySelector('[data-theme-choice="studio-light"]')?.click();
+    const studioLightThumb = getComputedStyle(document.querySelector(".homePage"), "::-webkit-scrollbar-thumb").backgroundColor;
+    document.querySelector('[data-theme-choice="studio-dark"]')?.click();
+    const studioDarkStyle = {
+      sidebarBackground: getComputedStyle(document.querySelector(".sidebar")).backgroundColor,
+      thumb: getComputedStyle(document.querySelector(".homePage"), "::-webkit-scrollbar-thumb").backgroundColor,
+      cardShadow: getComputedStyle(document.querySelector(".welcomeCard")).boxShadow,
+      fontFamily: getComputedStyle(document.documentElement).fontFamily,
+      mode: document.documentElement.dataset.themeMode
+    };
     document.querySelector('[data-theme-choice="graphite-dark"]')?.click();
     const themeUi = {
       settingsButton: document.getElementById("workbenchSettingsButton")?.title,
@@ -830,6 +843,10 @@ async function runSmokeCheck(dataRoot) {
       darkCount: document.querySelectorAll('.themeOption[data-theme-mode="dark"]').length,
       styleCount: document.querySelectorAll('.themeOption[data-theme-style]').length,
       inkStyle,
+      migratedTheme,
+      migratedStoredTheme,
+      studioLightThumb,
+      studioDarkStyle,
       selected: document.documentElement.dataset.theme,
       mode: document.documentElement.dataset.themeMode,
       colorScheme: getComputedStyle(document.documentElement).colorScheme,
@@ -984,6 +1001,14 @@ async function runSmokeCheck(dataRoot) {
     workbenchResult.themeUi.inkStyle.sidebarColor !== "rgb(41, 39, 34)" ||
     workbenchResult.themeUi.inkStyle.brandRadius !== "3px" ||
     !workbenchResult.themeUi.inkStyle.fontFamily.includes("SimSun") ||
+    workbenchResult.themeUi.migratedTheme !== "studio-dark" ||
+    workbenchResult.themeUi.migratedStoredTheme !== "studio-dark" ||
+    workbenchResult.themeUi.studioLightThumb !== "rgb(138, 142, 137)" ||
+    workbenchResult.themeUi.studioDarkStyle.sidebarBackground !== "rgb(25, 27, 28)" ||
+    workbenchResult.themeUi.studioDarkStyle.thumb !== "rgb(137, 143, 138)" ||
+    workbenchResult.themeUi.studioDarkStyle.cardShadow !== "none" ||
+    !workbenchResult.themeUi.studioDarkStyle.fontFamily.includes("Inter") ||
+    workbenchResult.themeUi.studioDarkStyle.mode !== "dark" ||
     workbenchResult.themeUi.selected !== "graphite-dark" ||
     workbenchResult.themeUi.mode !== "dark" ||
     workbenchResult.themeUi.colorScheme !== "dark" ||
@@ -996,11 +1021,10 @@ async function runSmokeCheck(dataRoot) {
   }
   if (
     workbenchResult.sidebarUi.states.join(",") !== "full,compact,hidden" ||
-    workbenchResult.sidebarUi.fullWidth < 240 ||
-    workbenchResult.sidebarUi.compactWidth < 70 ||
-    workbenchResult.sidebarUi.compactWidth > 74 ||
+    Math.abs(workbenchResult.sidebarUi.fullWidth - 237) > 1 ||
+    Math.abs(workbenchResult.sidebarUi.compactWidth - 58) > 1 ||
     workbenchResult.sidebarUi.hiddenWidth > 1 ||
-    workbenchResult.sidebarUi.hiddenViewportWidth <= workbenchResult.sidebarUi.compactViewportWidth + 60 ||
+    workbenchResult.sidebarUi.hiddenViewportWidth < workbenchResult.sidebarUi.compactViewportWidth + workbenchResult.sidebarUi.compactWidth - 2 ||
     workbenchResult.sidebarUi.compactActionLabel !== "none" ||
     workbenchResult.sidebarUi.compactRoomText !== "none" ||
     !workbenchResult.sidebarUi.compactRoomIcon ||

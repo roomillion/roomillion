@@ -141,12 +141,12 @@ const WORKBENCH_THEMES = Object.freeze({
     titlebarColor: "#1d1219",
     symbolColor: "#f5dfe9"
   }),
-  "terminal-dark": Object.freeze({
-    id: "terminal-dark",
+  "studio-dark": Object.freeze({
+    id: "studio-dark",
     mode: "dark",
-    backgroundColor: "#07100b",
-    titlebarColor: "#09140d",
-    symbolColor: "#79ff9f"
+    backgroundColor: "#151617",
+    titlebarColor: "#191b1c",
+    symbolColor: "#e9ebe8"
   }),
   "prism-dark": Object.freeze({
     id: "prism-dark",

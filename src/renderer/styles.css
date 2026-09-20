@@ -24,62 +24,63 @@ button { cursor: pointer; }
 .agentWindow .windowTitlebar { padding-left: 12px; }
 .agentWindow .sidebarToggle { display: none; }
 
-.appShell { display: grid; grid-template-columns: 296px minmax(0, 1fr); height: auto; min-height: 0; overflow: hidden; transition: grid-template-columns .2s ease; }
-.appShell[data-sidebar-state="compact"] { grid-template-columns: 72px minmax(0, 1fr); }
+.appShell { display: grid; grid-template-columns: 237px minmax(0, 1fr); height: auto; min-height: 0; overflow: hidden; transition: grid-template-columns .2s ease; }
+.appShell[data-sidebar-state="compact"] { grid-template-columns: 58px minmax(0, 1fr); }
 .appShell[data-sidebar-state="hidden"] { grid-template-columns: 0 minmax(0, 1fr); }
-.sidebar { background: #173d32; color: white; padding: 24px 18px 18px; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; opacity: 1; transition: padding .2s ease, opacity .16s ease; }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 5px 22px; }
-.brandMark { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: #d7f36a; color: #153a30; font-size: 20px; font-weight: 900; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.sidebar { background: #173d32; color: white; padding: 19px 14px 14px; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; opacity: 1; font-size: 80%; transition: padding .2s ease, opacity .16s ease; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 4px 18px; }
+.brandMark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #d7f36a; color: #153a30; font-size: 16px; font-weight: 900; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 .brandMark img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: contain; }
 .brandText { min-width: 0; white-space: nowrap; }
-.brand h1 { font-size: 18px; margin: 0 0 3px; }
-.brand h1 span { margin-left: 3px; color: #d7f36a; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
-.brand p { margin: 0; font-size: 11px; color: #abc2ba; }
-.primaryActions { display: grid; gap: 9px; margin-bottom: 24px; }
-.primaryButton { border: 0; border-radius: 12px; padding: 12px 14px; background: #d7f36a; color: #173d32; font-weight: 850; box-shadow: 0 7px 18px rgba(8,26,20,.2); display: flex; align-items: center; justify-content: center; gap: 7px; }
+.brand h1 { font-size: 14.4px; margin: 0 0 2px; }
+.brand h1 span { margin-left: 2px; color: #d7f36a; font-size: 9.6px; font-weight: 800; letter-spacing: .02em; }
+.brand p { margin: 0; font-size: 8.8px; color: #abc2ba; }
+.primaryActions { display: grid; gap: 7px; margin-bottom: 19px; }
+.primaryButton { border: 0; border-radius: 10px; padding: 10px 11px; background: #d7f36a; color: #173d32; font-weight: 850; box-shadow: 0 7px 18px rgba(8,26,20,.2); display: flex; align-items: center; justify-content: center; gap: 6px; }
 .actionGlyph { display: inline-grid; place-items: center; flex: none; font-weight: 900; }
 .actionLabel { white-space: nowrap; }
-.primaryButton.compact { padding: 10px 15px; }
-.splitActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.splitActions button, .settingsButton { border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 9px 10px; background: rgba(255,255,255,.07); color: #ecf5f1; }
-.splitActions button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.primaryButton.compact { padding: 8px 12px; }
+.splitActions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.splitActions button, .settingsButton { border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 8px; background: rgba(255,255,255,.07); color: #ecf5f1; }
+.splitActions button { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .splitActions button:hover, .settingsButton:hover { background: rgba(255,255,255,.12); }
-.sectionHeader { display: flex; justify-content: space-between; align-items: center; padding: 0 5px 9px; color: #a9c1b8; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sectionHeader { display: flex; justify-content: space-between; align-items: center; padding: 0 4px 7px; color: #a9c1b8; font-size: 8.8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .countBadge { background: rgba(255,255,255,.1); border-radius: 999px; min-width: 22px; text-align: center; padding: 3px 7px; }
+.sidebar .countBadge { min-width: 18px; padding: 2px 6px; }
 .brand, .primaryActions, .sectionHeader, .sidebarFooter { flex: 0 0 auto; }
-.roomList { flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 5px; margin: 0 -3px; padding: 0 6px 14px 3px; scrollbar-width: thin; scrollbar-color: rgba(211,241,228,.46) transparent; scrollbar-gutter: stable; }
+.roomList { flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 4px; margin: 0 -2px; padding: 0 5px 11px 2px; scrollbar-width: thin; scrollbar-color: rgba(211,241,228,.46) transparent; scrollbar-gutter: stable; }
 .roomList::-webkit-scrollbar { width: 7px; height: 7px; }
 .roomList::-webkit-scrollbar-track { background: transparent; }
 .roomList::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: rgba(211,241,228,.32); background-clip: padding-box; }
 .roomList:hover::-webkit-scrollbar-thumb { background: rgba(211,241,228,.5); background-clip: padding-box; }
 .roomList::-webkit-scrollbar-thumb:hover { background: rgba(215,243,106,.72); background-clip: padding-box; }
 .roomItemRow { position: relative; min-width: 0; }
-.roomItem { width: 100%; text-align: left; border: 0; border-radius: 11px; padding: 11px 12px; background: transparent; color: #e8f1ee; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: center; }
+.roomItem { width: 100%; text-align: left; border: 0; border-radius: 9px; padding: 9px 10px; background: transparent; color: #e8f1ee; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; }
 .roomItem:hover, .roomItem.active { background: rgba(255,255,255,.11); }
-.roomIcon { width: 31px; height: 31px; border-radius: 9px; background: #2b594c; display: grid; place-items: center; color: #d7f36a; font-weight: 900; }
+.roomIcon { width: 25px; height: 25px; border-radius: 7px; background: #2b594c; display: grid; place-items: center; color: #d7f36a; font-weight: 900; }
 .roomIcon img, .installedRoomIcon img, .tabRoomIcon img, .tabOverviewItemIcon img, .agentRoomResultIcon img, #importRoomIcon img { width: 100%; height: 100%; display: block; border-radius: inherit; object-fit: cover; }
 .roomItemText { min-width: 0; }
 .roomItem strong, .roomItem small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roomItem strong { font-size: 13px; }
-.roomItem small { color: #9fb8af; margin-top: 3px; font-size: 10px; }
+.roomItem strong { font-size: 10.4px; }
+.roomItem small { color: #9fb8af; margin-top: 2px; font-size: 8px; }
 [hidden] { display: none !important; }
 .roomStandby { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; background: var(--ui-surface, #eef4f1); color: var(--ui-text-secondary, #5a7168); pointer-events: none; }
-.emptyRooms { color: #9fb8af; text-align: center; font-size: 12px; padding: 22px 10px; border: 1px dashed rgba(255,255,255,.14); border-radius: 12px; }
-.sidebarFooter { position: relative; z-index: 1; margin-top: auto; display: grid; gap: 10px; }
-.settingsButton { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; text-align: left; align-items: center; width: 100%; }
-.settingsGlyph { position: relative; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: rgba(255,255,255,.08); color: #d7f36a; font-size: 11px; font-weight: 900; }
+.emptyRooms { color: #9fb8af; text-align: center; font-size: 9.6px; padding: 18px 8px; border: 1px dashed rgba(255,255,255,.14); border-radius: 10px; }
+.sidebarFooter { position: relative; z-index: 1; margin-top: auto; display: grid; gap: 8px; }
+.settingsButton { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; text-align: left; align-items: center; width: 100%; }
+.settingsGlyph { position: relative; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: rgba(255,255,255,.08); color: #d7f36a; font-size: 8.8px; font-weight: 900; }
 .settingsGlyph .statusDot { position: absolute; right: -2px; bottom: -2px; border: 2px solid #244b40; }
 .settingsLabel { min-width: 0; }
 .settingsButton strong, .settingsButton small { display: block; }
-.settingsButton strong { font-size: 12px; }
-.settingsButton small { font-size: 10px; color: #a9c1b8; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; }
+.settingsButton strong { font-size: 9.6px; }
+.settingsButton small { font-size: 8px; color: #a9c1b8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; }
 .statusDot { width: 8px; height: 8px; border-radius: 50%; background: #7a938a; box-shadow: 0 0 0 3px rgba(255,255,255,.05); }
 .statusDot.online { background: #d7f36a; }
 .statusDot.diagnosticsDot { background: #73b79d; }
 .diagnosticsFieldList { margin: 8px 0 0; padding-left: 21px; color: #334b43; display: grid; gap: 7px; line-height: 1.45; }
 .diagnosticsFieldList li::marker { color: #328164; }
 .diagnosticsFieldList.excluded li::marker { color: #b76b55; }
-.sidebarFooter > p { margin: 0 5px; color: #78968b; font-size: 9px; }
+.sidebarFooter > p { margin: 0 4px; color: #78968b; font-size: 7.2px; }
 
 .workspace { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 68px minmax(0, 1fr); background: #edf2ef; }
 .workspaceHeader { position: relative; z-index: 20; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 10px; min-width: 0; padding: 0 14px 0 18px; background: rgba(250,252,251,.94); border-bottom: 1px solid #d9e3de; }
@@ -131,27 +132,27 @@ button { cursor: pointer; }
 .secondaryButton.dangerText:hover { border-color: #c67a69; background: #fcebe7; }
 .roomViewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 
-.appShell[data-sidebar-state="compact"] .sidebar { padding: 18px 10px 12px; }
-.appShell[data-sidebar-state="compact"] .brand { justify-content: center; padding: 0 0 18px; }
-.appShell[data-sidebar-state="compact"] .brandMark { width: 42px; height: 42px; flex: none; }
+.appShell[data-sidebar-state="compact"] .sidebar { padding: 14px 8px 10px; }
+.appShell[data-sidebar-state="compact"] .brand { justify-content: center; padding: 0 0 14px; }
+.appShell[data-sidebar-state="compact"] .brandMark { width: 34px; height: 34px; flex: none; }
 .appShell[data-sidebar-state="compact"] .brandText,
 .appShell[data-sidebar-state="compact"] .actionLabel,
 .appShell[data-sidebar-state="compact"] .sectionTitle,
 .appShell[data-sidebar-state="compact"] .settingsLabel,
 .appShell[data-sidebar-state="compact"] .sidebarFooter > p,
 .appShell[data-sidebar-state="compact"] .roomItemText { display: none; }
-.appShell[data-sidebar-state="compact"] .primaryActions { gap: 8px; margin-bottom: 18px; }
-.appShell[data-sidebar-state="compact"] .primaryButton { width: 46px; height: 44px; margin-inline: auto; padding: 0; }
-.appShell[data-sidebar-state="compact"] .splitActions { grid-template-columns: 1fr; justify-items: center; gap: 7px; }
-.appShell[data-sidebar-state="compact"] .splitActions button { width: 46px; height: 40px; padding: 0; }
-.appShell[data-sidebar-state="compact"] .sectionHeader { justify-content: center; padding: 0 0 8px; }
-.appShell[data-sidebar-state="compact"] .countBadge { min-width: 24px; padding: 3px 5px; font-size: 9px; }
-.appShell[data-sidebar-state="compact"] .roomList { margin: 0; padding: 0 0 12px; overflow-x: hidden; }
-.appShell[data-sidebar-state="compact"] .roomItem { width: 48px; margin-inline: auto; padding: 8px; display: grid; grid-template-columns: 32px; gap: 0; justify-content: center; }
-.appShell[data-sidebar-state="compact"] .emptyRooms { padding: 14px 4px; font-size: 0; }
-.appShell[data-sidebar-state="compact"] .emptyRooms::before { content: "空"; font-size: 12px; }
-.appShell[data-sidebar-state="compact"] .sidebarFooter { gap: 8px; }
-.appShell[data-sidebar-state="compact"] .settingsButton { grid-template-columns: 32px; justify-content: center; width: 46px; height: 42px; margin-inline: auto; padding: 4px 6px; }
+.appShell[data-sidebar-state="compact"] .primaryActions { gap: 6px; margin-bottom: 14px; }
+.appShell[data-sidebar-state="compact"] .primaryButton { width: 37px; height: 35px; margin-inline: auto; padding: 0; }
+.appShell[data-sidebar-state="compact"] .splitActions { grid-template-columns: 1fr; justify-items: center; gap: 6px; }
+.appShell[data-sidebar-state="compact"] .splitActions button { width: 37px; height: 32px; padding: 0; }
+.appShell[data-sidebar-state="compact"] .sectionHeader { justify-content: center; padding: 0 0 6px; }
+.appShell[data-sidebar-state="compact"] .countBadge { min-width: 19px; padding: 2px 4px; font-size: 7.2px; }
+.appShell[data-sidebar-state="compact"] .roomList { margin: 0; padding: 0 0 10px; overflow-x: hidden; }
+.appShell[data-sidebar-state="compact"] .roomItem { width: 38px; margin-inline: auto; padding: 6px; display: grid; grid-template-columns: 26px; gap: 0; justify-content: center; }
+.appShell[data-sidebar-state="compact"] .emptyRooms { padding: 11px 3px; font-size: 0; }
+.appShell[data-sidebar-state="compact"] .emptyRooms::before { content: "空"; font-size: 9.6px; }
+.appShell[data-sidebar-state="compact"] .sidebarFooter { gap: 6px; }
+.appShell[data-sidebar-state="compact"] .settingsButton { grid-template-columns: 26px; justify-content: center; width: 37px; height: 34px; margin-inline: auto; padding: 3px 5px; }
 .appShell[data-sidebar-state="hidden"] .sidebar { padding-inline: 0; opacity: 0; pointer-events: none; visibility: hidden; }
 .welcome { height: 100%; display: grid; align-content: center; justify-items: center; padding: 45px; text-align: center; background: radial-gradient(circle at 70% 15%, #f7f8d9 0, transparent 25%), radial-gradient(circle at 20% 85%, #dcefe7 0, transparent 27%); }
 .homePage { height: 100%; min-height: 0; align-content: start; justify-items: stretch; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 38px clamp(24px, 5vw, 72px) 60px; text-align: left; }
@@ -333,8 +334,8 @@ button { cursor: pointer; }
 .spacer { flex: 1; }
 .inlineStatus { min-height: 20px; font-size: 12px; color: #557067; white-space: pre-wrap; }
 .inlineStatus.error { color: #a6412d; }
-.agentModal[open] { position: fixed; inset: calc(var(--window-titlebar-height) + 68px) 0 0 296px; z-index: 12; width: auto; height: auto; max-width: none; max-height: none; margin: 0; border-radius: 0; overflow: hidden; background: #f8faf9; box-shadow: none; }
-.appShell[data-sidebar-state="compact"] ~ .agentModal[open] { left: 72px; }
+.agentModal[open] { position: fixed; inset: calc(var(--window-titlebar-height) + 68px) 0 0 237px; z-index: 12; width: auto; height: auto; max-width: none; max-height: none; margin: 0; border-radius: 0; overflow: hidden; background: #f8faf9; box-shadow: none; }
+.appShell[data-sidebar-state="compact"] ~ .agentModal[open] { left: 58px; }
 .appShell[data-sidebar-state="hidden"] ~ .agentModal[open] { left: 0; }
 .agentModal::backdrop { display: none; }
 .agentWindow #appShell { display: none; }
@@ -581,14 +582,14 @@ button { cursor: pointer; }
 body.dragging .dropOverlay { opacity: 1; }
 
 @media (max-width: 1050px) {
-  .appShell { grid-template-columns: 250px 1fr; }
+  .appShell { grid-template-columns: 200px 1fr; }
   .welcomeGrid { grid-template-columns: 1fr; max-width: 520px; }
   .examplesGrid { grid-template-columns: 1fr; }
   .welcome { align-content: start; overflow: auto; }
   .agentShell { grid-template-columns: 205px minmax(0, 1fr); }
   .agentSuggestions { grid-template-columns: 1fr; }
-  .appShell ~ .agentModal[open] { left: 250px; }
-  .appShell[data-sidebar-state="compact"] ~ .agentModal[open] { left: 72px; }
+  .appShell ~ .agentModal[open] { left: 200px; }
+  .appShell[data-sidebar-state="compact"] ~ .agentModal[open] { left: 58px; }
   .appShell[data-sidebar-state="hidden"] ~ .agentModal[open] { left: 0; }
 }
 
@@ -835,15 +836,14 @@ html[data-theme="sakura-dark"] {
   color-scheme: dark;
 }
 
-html[data-theme="terminal-dark"] {
-  --ui-bg: #07100b; --ui-surface: #0a160e; --ui-surface-soft: #0d1d13; --ui-surface-muted: #11281a; --ui-input: #050d08;
-  --ui-text: #b8f7c9; --ui-text-strong: #ddffe6; --ui-text-secondary: #78ba8b; --ui-muted: #568565; --ui-border: #285c38;
-  --ui-accent: #58e982; --ui-accent-strong: #79ff9f; --ui-accent-soft: #12351f; --ui-focus-ring: rgba(88,233,130,.24);
-  --ui-highlight: #79ff9f; --ui-on-highlight: #061009; --ui-sidebar: #050c08; --ui-sidebar-deep: #030805; --ui-sidebar-elevated: #12351f;
-  --ui-sidebar-text: #b8f7c9; --ui-sidebar-muted: #609c70; --ui-sidebar-hover: rgba(121,255,159,.10); --ui-titlebar: #09140d; --ui-header: rgba(7,16,11,.97);
-  --ui-home-background: linear-gradient(rgba(88,233,130,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(88,233,130,.035) 1px, transparent 1px), #07100b;
-  --ui-shadow: rgba(0,0,0,.60); --ui-overlay: rgba(0,0,0,.76);
-  font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
+html[data-theme="studio-dark"] {
+  --ui-bg: #151617; --ui-surface: #1c1e1f; --ui-surface-soft: #232526; --ui-surface-muted: #2c2f30; --ui-input: #181a1b;
+  --ui-text: #dedfdd; --ui-text-strong: #f7f8f6; --ui-text-secondary: #adb2ae; --ui-muted: #898f8a; --ui-border: #383c3a;
+  --ui-accent: #dfe2de; --ui-accent-strong: #f3f5f1; --ui-accent-soft: #2b2e2c; --ui-focus-ring: rgba(223,226,222,.18);
+  --ui-highlight: #e8ebe7; --ui-on-highlight: #171918; --ui-sidebar: #191b1c; --ui-sidebar-deep: #151617; --ui-sidebar-elevated: #2b2e2f;
+  --ui-sidebar-text: #e9ebe8; --ui-sidebar-muted: #a1a7a2; --ui-sidebar-hover: #282b2b; --ui-titlebar: #191b1c; --ui-header: rgba(28,30,31,.97);
+  --ui-home-background: linear-gradient(90deg, transparent calc(50% - .5px), rgba(255,255,255,.045) 50%, transparent calc(50% + .5px)), #151617;
+  --ui-shadow: rgba(0,0,0,.22); --ui-overlay: rgba(0,0,0,.68);
   color-scheme: dark;
 }
 
@@ -1158,13 +1158,13 @@ html[data-theme] .dropOverlay { border-color: var(--ui-highlight); background: v
 .themeOption[data-theme-choice="abyss-dark"] { --sample-sidebar: #071114; --sample-bg: #122024; --sample-accent: #5eead4; }
 .themeOption[data-theme-choice="brass-dark"] { --sample-sidebar: #100c07; --sample-bg: #201a12; --sample-accent: #f0c86b; }
 .themeOption[data-theme-choice="sakura-dark"] { --sample-sidebar: #120a10; --sample-bg: #241620; --sample-accent: #ffb9d9; }
-.themeOption[data-theme-choice="terminal-dark"] { --sample-sidebar: #050c08; --sample-bg: #07100b; --sample-accent: #79ff9f; }
+.themeOption[data-theme-choice="studio-dark"] { --sample-sidebar: #191b1c; --sample-bg: #151617; --sample-accent: #e8ebe7; }
 .themeOption[data-theme-choice="prism-dark"] { --sample-sidebar: #171331; --sample-bg: #24194c; --sample-accent: #7cf6ff; }
 .themeOption[data-theme-style="ink"] .themeSwatches { border-radius: 2px; background-image: repeating-linear-gradient(96deg, rgba(65,55,38,.06) 0 1px, transparent 1px 6px); }
 .themeOption[data-theme-style="celadon"] .themeSwatches { border-radius: 18px 5px 18px 5px; }
 .themeOption[data-theme-style="studio"] .themeSwatches { border-radius: 0; border-color: #aaa; }
 .themeOption[data-theme-style="editorial"] .themeSwatches { border: 2px solid #111; border-radius: 0; box-shadow: 3px 3px 0 #111; }
-.themeOption[data-theme-style="terminal"] .themeSwatches { border-radius: 0; border-color: #58e982; background-image: linear-gradient(rgba(88,233,130,.08) 1px, transparent 1px); background-size: 100% 7px; }
+.themeOption[data-theme-choice="studio-dark"] .themeSwatches { border-color: #505454; }
 .themeOption[data-theme-style="prism"] .themeSwatches { border-radius: 15px; box-shadow: 0 0 13px rgba(124,246,255,.45); }
 
 /* Light-sidebar themes share readable controls instead of inheriting the original dark rail treatment. */
@@ -1216,8 +1216,18 @@ html[data-theme="studio-light"] :is(.brandMark, .roomIcon, .settingsGlyph, .tabH
 html[data-theme="studio-light"] :is(.primaryButton, .secondaryButton, .iconButton, .settingsButton, .splitActions button, .roomItem, .welcomeCard, .installedRoomCard, .exampleCard, .modal, .agentWorkflowCard) { border-radius: 6px; box-shadow: none; }
 html[data-theme="studio-light"] .sidebar { box-shadow: none; }
 html[data-theme="studio-light"] .brandMark { background: #fff; color: #111; border: 1px solid #111; }
+html[data-theme="studio-light"] .brand h1 span,
+html[data-theme="studio-dark"] .brand h1 span { color: var(--ui-text-secondary); }
 html[data-theme="studio-light"] .homePage { max-width: 1480px; margin-inline: auto; }
 html[data-theme="studio-light"] .homeHero :is(.eyebrow, h2) { letter-spacing: -.025em; }
+html[data-theme="studio-light"] .homePage,
+html[data-theme="studio-dark"] .homePage { scrollbar-width: thin; scrollbar-color: var(--ui-muted) transparent; }
+html[data-theme="studio-light"] .homePage::-webkit-scrollbar-track,
+html[data-theme="studio-dark"] .homePage::-webkit-scrollbar-track { background: transparent; }
+html[data-theme="studio-light"] .homePage::-webkit-scrollbar-thumb,
+html[data-theme="studio-dark"] .homePage::-webkit-scrollbar-thumb { background: var(--ui-muted); background-clip: padding-box; }
+html[data-theme="studio-light"] .homePage::-webkit-scrollbar-thumb:hover,
+html[data-theme="studio-dark"] .homePage::-webkit-scrollbar-thumb:hover { background: var(--ui-text-secondary); background-clip: padding-box; }
 
 /* 编辑部：报刊网格、硬边框和错位印刷感。 */
 html[data-theme="editorial-light"] :is(.brand h1, .homeHero h2, .modal h2, .installedRoomsHeader h3) { font-family: Georgia, "Times New Roman", "Microsoft YaHei", serif; letter-spacing: -.02em; }
@@ -1230,14 +1240,13 @@ html[data-theme="editorial-light"] .roomItem.active { border-color: #111; box-sh
 html[data-theme="editorial-light"] .workspaceHeader { border-bottom: 2px solid #111; }
 html[data-theme="editorial-light"] .tab.active { background: var(--ui-highlight); border-bottom-color: #111; }
 
-/* 复古终端：等宽信息密度、扫描网格和直角控件。 */
-html[data-theme="terminal-dark"] :is(.sidebar, .workspace, .welcome, .agentMain) { background-image: linear-gradient(rgba(88,233,130,.025) 1px, transparent 1px); background-size: 100% 4px; }
-html[data-theme="terminal-dark"] :is(.brandMark, .roomIcon, .settingsGlyph, .tabHomeIcon, .tabAgentIcon, .primaryButton, .secondaryButton, .iconButton, .settingsButton, .splitActions button, .roomItem, .welcomeCard, .installedRoomCard, .exampleCard, .modal, .agentWorkflowCard, input, textarea, select) { border-radius: 0; box-shadow: none; }
-html[data-theme="terminal-dark"] :is(.welcomeCard, .installedRoomCard, .exampleCard, .modal, .agentWorkflowCard) { border-color: var(--ui-border); }
-html[data-theme="terminal-dark"] .brandMark { border: 1px solid var(--ui-accent); background: transparent; color: var(--ui-highlight); }
-html[data-theme="terminal-dark"] .brand h1::before { content: "> "; color: var(--ui-highlight); }
-html[data-theme="terminal-dark"] .workspaceHeader { border-bottom-color: var(--ui-accent); }
-html[data-theme="terminal-dark"] .tab.active { background: var(--ui-accent-soft); }
+/* 极简夜晚：无界白的深色搭档，保留平面控件、细线和留白。 */
+html[data-theme="studio-dark"] :is(.brandMark, .roomIcon, .settingsGlyph, .tabHomeIcon, .tabAgentIcon, .installedRoomIcon, .exampleIcon) { border-radius: 4px; box-shadow: none; }
+html[data-theme="studio-dark"] :is(.primaryButton, .secondaryButton, .iconButton, .settingsButton, .splitActions button, .roomItem, .welcomeCard, .installedRoomCard, .exampleCard, .modal, .agentWorkflowCard) { border-radius: 6px; box-shadow: none; }
+html[data-theme="studio-dark"] .sidebar { border-right: 1px solid var(--ui-border); box-shadow: none; }
+html[data-theme="studio-dark"] .brandMark { background: var(--ui-sidebar); color: var(--ui-text-strong); border: 1px solid var(--ui-border); }
+html[data-theme="studio-dark"] .homePage { max-width: 1480px; margin-inline: auto; }
+html[data-theme="studio-dark"] .homeHero :is(.eyebrow, h2) { letter-spacing: -.025em; }
 
 /* 霓虹玻璃：半透明面板、彩色光晕和大圆角。 */
 html[data-theme="prism-dark"] :is(body, .workspace, .agentMain) { background: linear-gradient(145deg,#100d24,#171038 58%,#0c172d); }
@@ -1282,11 +1291,13 @@ html[data-theme-mode="dark"] .agentStopButton { border-color: #694039; backgroun
 .agentQuestionForm .agentQuestionOption input { width: 18px; height: 18px; margin: 2px 0 0; padding: 0; flex: 0 0 18px; }
 .agentQuestion textarea { display: block; width: 100%; margin-top: 6px; resize: vertical; }
 .agentQuestion:disabled { opacity: .65; }
-html[data-font-size] { --ui-body-font: 14px; --ui-small-font: 12px; }
-html[data-font-size="large"] { --ui-body-font: 16px; --ui-small-font: 14px; }
-html[data-font-size="extra"] { --ui-body-font: 18px; --ui-small-font: 16px; }
-html[data-font-size] :is(.agentMessageBody, .agentWorkflowCard, .modal label, .modal input, .modal select, .modal textarea, #generatePrompt, .agentSessionItem strong, .roomItem strong, .settingsButton strong, .tabLabel, .providerChoice, .providerModelOption, .providerProfileItem strong) { font-size: var(--ui-body-font); }
-html[data-font-size] :is(.agentHeaderIdentity small, .agentModelPicker, .agentModelPicker select, .agentSessionItem small, .agentMessageMeta, .agentToolInfo small, .agentToolState, .agentRunStatus, .agentUsagePanel, .agentActivity, .agentComposerMeta, .agentComposerMeta .inlineStatus, .fieldHint, .settingsButton small, .roomItem small, .sidebarFooter > p, .modal small) { font-size: var(--ui-small-font); }
+html[data-font-size] { --ui-body-font: 14px; --ui-small-font: 12px; --ui-sidebar-body-font: 11.2px; --ui-sidebar-small-font: 9.6px; }
+html[data-font-size="large"] { --ui-body-font: 16px; --ui-small-font: 14px; --ui-sidebar-body-font: 12.8px; --ui-sidebar-small-font: 11.2px; }
+html[data-font-size="extra"] { --ui-body-font: 18px; --ui-small-font: 16px; --ui-sidebar-body-font: 14.4px; --ui-sidebar-small-font: 12.8px; }
+html[data-font-size] :is(.agentMessageBody, .agentWorkflowCard, .modal label, .modal input, .modal select, .modal textarea, #generatePrompt, .agentSessionItem strong, .tabLabel, .providerChoice, .providerModelOption, .providerProfileItem strong) { font-size: var(--ui-body-font); }
+html[data-font-size] :is(.agentHeaderIdentity small, .agentModelPicker, .agentModelPicker select, .agentSessionItem small, .agentMessageMeta, .agentToolInfo small, .agentToolState, .agentRunStatus, .agentUsagePanel, .agentActivity, .agentComposerMeta, .agentComposerMeta .inlineStatus, .fieldHint, .modal small) { font-size: var(--ui-small-font); }
+html[data-font-size] .sidebar :is(.roomItem strong, .settingsButton strong) { font-size: var(--ui-sidebar-body-font); }
+html[data-font-size] .sidebar :is(.roomItem small, .settingsButton small, .sidebarFooter > p) { font-size: var(--ui-sidebar-small-font); }
 .fontSizeSetting { display: grid; gap: 8px; margin: 16px 0; }
 .agentShell:not(.historyOpen) .agentSidebar { display: none; }
 .agentShell.historyOpen { grid-template-columns: 220px minmax(0, 1fr); }
