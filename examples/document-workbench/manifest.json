@@ -1,0 +1,26 @@
+{
+  "formatVersion": "0.1",
+  "id": "cn.zhibian.example.document-workbench",
+  "name": "文档浏览与转换",
+  "version": "1.0.0",
+  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
+  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.3.0-alpha.51" },
+  "entry": "app/index.html",
+  "icon": "assets/icon.svg",
+  "permissions": {
+    "database": "private",
+    "files": ["pick", "export"],
+    "network": []
+  },
+  "hostModules": [
+    "security.sanitize@1",
+    "document.markdown@1",
+    "archive.zip@1",
+    "document.pdf.view@1",
+    "document.spreadsheet@1",
+    "document.word.write@1",
+    "document.word.read@1",
+    "document.word.preview@1"
+  ],
+  "embeddedDependencies": []
+}

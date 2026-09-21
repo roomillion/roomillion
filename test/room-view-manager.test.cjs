@@ -45,7 +45,8 @@ class FakeWebContents extends EventEmitter {
 }
 
 class FakeView {
-  constructor() {
+  constructor(options) {
+    this.options = options;
     this.webContents = new FakeWebContents(this);
     this.bounds = null;
   }
@@ -159,6 +160,13 @@ test("closing a room does not read webContents after Electron destroys it", () =
   assert.equal(manager.getRoomIdForSender(senderId), null);
   assert.equal(manager.views.has("cn.zhibian.test.room"), false);
   assert.doesNotThrow(() => manager.close("cn.zhibian.test.room"));
+});
+
+test("room renderers remain unthrottled while the workbench is in the background", () => {
+  const { manager } = fixture();
+  const view = manager.createView("cn.zhibian.test.room");
+  assert.equal(view.options.webPreferences.backgroundThrottling, false);
+  manager.close("cn.zhibian.test.room");
 });
 
 test("detaching and docking reparents the same live WebContentsView without reloading", async () => {

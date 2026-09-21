@@ -2754,6 +2754,7 @@ function syncAgentSessionSummary() {
 }
 
 function renderAgentSessions() {
+  const scrollTop = elements.agentSessionList.scrollTop;
   elements.agentSessionList.replaceChildren();
   if (!state.agentSessions.length) {
     const empty = document.createElement("div");
@@ -2781,6 +2782,7 @@ function renderAgentSessions() {
     button.addEventListener("click", () => loadAgentSession(session.id).catch((error) => showToast(formatError(error))));
     elements.agentSessionList.appendChild(button);
   }
+  elements.agentSessionList.scrollTop = scrollTop;
 }
 
 function createAgentMessageElement(message) {

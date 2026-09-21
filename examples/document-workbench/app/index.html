@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文档浏览与转换</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="/_modules/security.sanitize@1/purify.min.js"></script>
+  <script defer src="/_modules/document.markdown@1/marked.umd.js"></script>
+  <script defer src="/_modules/archive.zip@1/jszip.min.js"></script>
+  <script defer src="/_modules/document.spreadsheet@1/xlsx.full.min.js"></script>
+  <script defer src="/_modules/document.word.write@1/docx.iife.js"></script>
+  <script defer src="/_modules/document.word.read@1/mammoth.browser.min.js"></script>
+  <script defer src="/_modules/document.word.preview@1/docx-preview.min.js"></script>
+  <script defer src="./document-core.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="appShell">
+    <header class="topbar">
+      <div class="brand"><span class="brandIcon">文</span><div><p>ROOMILLION · DOCUMENT STUDIO</p><h1>文档浏览与转换</h1></div></div>
+      <div class="topActions"><span class="offlineBadge"><i></i>本机离线处理</span><button id="openFile" type="button" class="primaryButton">＋ 打开文档</button></div>
+    </header>
+    <main class="workspace">
+      <aside class="libraryPanel" aria-label="已打开文档">
+        <div class="panelHead"><div><small>LIBRARY</small><h2>已打开文档</h2></div><span id="documentCount">0</span></div>
+        <div id="documentList" class="documentList"><p class="emptyLibrary">还没有打开文档。<br>点击右上角的“打开文档”开始。</p></div>
+        <div class="libraryFoot"><strong>支持浏览</strong><p>Markdown / DOCX / XLSX / XLS / PPTX / PDF</p><span>文档仅保留在当前会话内；转换后的文件由你选择保存位置。</span></div>
+      </aside>
+      <section class="readerPanel" aria-label="文档预览">
+        <div class="readerHeader"><div class="readerTitle"><span id="fileKind" class="kindBadge">预览</span><div><h2 id="fileName">打开文档，开始阅读</h2><p id="fileMeta">格式清晰，转换顺手。</p></div></div><button id="closeDocument" class="subtleButton" type="button" hidden>关闭当前文档</button></div>
+        <div id="previewToolbar" class="previewToolbar" hidden>
+          <div id="pageControls" class="toolbarGroup" hidden><button id="previousPage" type="button" aria-label="上一页">←</button><span id="pageIndicator">1 / 1</span><button id="nextPage" type="button" aria-label="下一页">→</button></div>
+          <div id="sheetControls" class="toolbarGroup" hidden><label for="sheetPicker">工作表</label><select id="sheetPicker"></select><button id="previousRows" type="button" aria-label="上一组表格行">←</button><span id="rowIndicator">1–100</span><button id="nextRows" type="button" aria-label="下一组表格行">→</button></div>
+          <div id="zoomControls" class="toolbarGroup" hidden><button id="zoomOut" type="button" aria-label="缩小">－</button><span id="zoomValue">100%</span><button id="zoomIn" type="button" aria-label="放大">＋</button></div>
+        </div>
+        <div id="preview" class="previewArea"><div class="welcome"><span class="welcomeIcon">文</span><h3>把常用文档放在同一张桌面上</h3><p>浏览 Markdown、Word、Excel、演示文稿和 PDF；需要分享时，将 Markdown、Word 与 PDF 互相转换。</p><button id="openFromWelcome" type="button" class="secondaryButton">选择一个文档</button></div></div>
+        <div id="readerStatus" class="readerStatus" role="status">准备就绪</div>
+      </section>
+      <aside class="convertPanel" aria-label="格式转换">
+        <div class="panelHead"><div><small>CONVERT</small><h2>格式转换</h2></div><span class="convertSymbol">⇄</span></div>
+        <p class="convertIntro">选择文档后，转成所需格式并导出。转换在本机完成。</p>
+        <div class="flowCard"><div><small>原始格式</small><strong id="sourceFormat">尚未选择</strong></div><span>→</span><div><label for="targetFormat">目标格式</label><select id="targetFormat" disabled><option value="">先打开文档</option></select></div></div>
+        <button id="convertButton" class="primaryButton wide" type="button" disabled>转换并保存</button>
+        <p id="conversionHint" class="conversionHint">Markdown、Word（DOCX）和 PDF 支持互转。Excel 与 PPTX 当前提供浏览。</p>
+        <div class="qualityNote"><strong>转换说明</strong><p>Word / PDF 的文字可转为可编辑文档。PDF 的排版来源可能不规则，扫描版 PDF 如果没有文字层，需要先做 OCR；复杂图文版式不会逐像素复刻。</p></div>
+        <div class="privacyNote"><span>⌁</span><div><strong>文件留在你的电脑</strong><p>此房间不申请联网或 AI 权限，打开与转换都不上传内容。</p></div></div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

@@ -89,7 +89,8 @@ class AgentWindowManager {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
-        webSecurity: true
+        webSecurity: true,
+        backgroundThrottling: false
       }
     });
     this.window = detachedWindow;

@@ -21,3 +21,6 @@ resources/examples/*.room
 /user-data/
 /portable-data/
 /.codex-remote-attachments/
+
+# 本地宣传素材与截图工具，不属于源码发布内容。
+/marketing/

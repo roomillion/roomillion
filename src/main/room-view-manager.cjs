@@ -123,6 +123,7 @@ class RoomViewManager {
         sandbox: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        backgroundThrottling: false,
         partition: `room-${partitionHash}`
       }
     });

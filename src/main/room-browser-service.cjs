@@ -331,6 +331,7 @@ class RoomBrowserService {
         sandbox: true,
         webSecurity: true,
         allowRunningInsecureContent: false,
+        backgroundThrottling: false,
         partition: browserPartition(record.roomId)
       }
     });

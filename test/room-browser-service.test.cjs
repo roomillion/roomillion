@@ -67,6 +67,7 @@ class FakeGuestWebContents extends EventEmitter {
 class FakeGuestView {
   static sessions = new Map();
   constructor(options) {
+    this.options = options;
     const partition = options.webPreferences.partition;
     if (!FakeGuestView.sessions.has(partition)) FakeGuestView.sessions.set(partition, new FakeSession());
     this.webContents = new FakeGuestWebContents(FakeGuestView.sessions.get(partition));
@@ -124,6 +125,7 @@ test("browser tabs are isolated, network-gated and reparent with their ordinary 
   assert.equal(mainWindow.contentView.children.has(tab.view), true);
   assert.deepEqual(tab.view.bounds, { x: 296, y: 176, width: 900, height: 580 });
   assert.equal(tab.view.webContents.session.permissionRequestHandler instanceof Function, true);
+  assert.equal(tab.view.options.webPreferences.backgroundThrottling, false);
 
   const detachedParent = new FakeContentView();
   const detachedWindow = { contentView: detachedParent, isDestroyed: () => false, getContentBounds: () => ({ width: 1000, height: 720 }) };

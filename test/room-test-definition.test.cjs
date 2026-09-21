@@ -56,3 +56,10 @@ test("synthetic test files are bounded inline bytes with safe unique names", () 
   assert.throws(() => definition([{ name: "a.txt", text: "x".repeat(2 * 1024 * 1024 + 1) }]), /2 MiB/);
   assert.throws(() => definition(Array.from({ length: 21 }, (_, n) => ({ name: `${n}.txt`, text: "x" }))), /20 项/);
 });
+
+test("isolated export capture is explicit and type checked", () => {
+  const input = { version: 1, scenarios: [{ actions: [{ type: "assertExists", selector: "main" }] }] };
+  assert.equal(normalizeRoomTestDefinition(input).mocks.captureExports, false);
+  assert.equal(normalizeRoomTestDefinition({ ...input, mocks: { captureExports: true } }).mocks.captureExports, true);
+  assert.throws(() => normalizeRoomTestDefinition({ ...input, mocks: { captureExports: "yes" } }), /captureExports/);
+});

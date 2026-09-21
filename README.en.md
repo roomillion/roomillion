@@ -30,7 +30,9 @@ release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 
 Download published binaries from the matching GitHub Release and verify the attached SHA-256 checksum. The source repository excludes the local `release/` directory. Windows artifacts are currently unsigned.
 
-All three Windows distributions are self-contained and do not require Node.js, Git, SQLite, or npm packages on the target computer. The extracted portable ZIP stores rooms and workbench data in `Roomillion-data/` beside the executable by default. The single-file portable executable asks for a storage folder on first launch and creates `Roomillion-data/` there. The installer continues to use the current user's application data directory. You can view or change the location under Settings → Room location; changing it copies data on the next launch and retains the old directory. The room import picker starts in the last successfully used import folder. Copying the single executable alone does not carry rooms to another computer. API keys use system encryption and must be configured again on another computer.
+All three Windows distributions are self-contained and do not require Node.js, Git, SQLite, or npm packages on the target computer. The extracted portable ZIP stores rooms and workbench data in `Roomillion-data/` beside the executable by default. The single-file portable executable defaults to the current user's application data directory (usually `%APPDATA%\Roomillion\mvp-data`); on first launch, you may choose another folder, where it creates `Roomillion-data/`. Canceling the optional folder picker keeps the default. The installer continues to use the current user's application data directory. You can view or change the location under Settings → Room location; changing it copies data on the next launch and retains the old directory. The room import picker starts in the last successfully used import folder. Copying the single executable alone does not carry rooms to another computer. API keys use system encryption and must be configured again on another computer.
+
+When closing the workbench window, choose **Keep running in background**, **Quit completely**, or **Cancel**. Background mode hides the workbench and visible detached windows without destroying Rooms, AI tasks, or database connections. Click the Roomillion system-tray icon to restore the windows, or use its menu to quit completely.
 
 The `.room` format supports application-only exports, application-and-data exports, and optional password protection. Legacy `.zroom` packages can still be imported, while new exports use `.room`.
 
@@ -43,7 +45,7 @@ npm start
 
 ## Built-in example Rooms
 
-Roomillion includes exactly six public examples:
+Roomillion includes exactly seven public examples:
 
 | Room | Purpose | Main capabilities |
 |---|---|---|
@@ -53,10 +55,11 @@ Roomillion includes exactly six public examples:
 | AI Debate Arena | Multi-model debate with human participants, an independent judge, and history | Workbench models, database, Markdown export |
 | AI Model Capability Benchmark | Text and vision evaluations, custom cases, token statistics, and rankings | Workbench text and vision models, private database |
 | Roomillion Browser | Tabs, address search, bookmarks, history, downloads, and site permission prompts | Controlled browser navigation and downloads |
+| Document Browser & Converter | Offline viewing of Markdown, DOCX, XLS/XLSX, PPTX, and PDF; conversion among Markdown, Word, and PDF | Office modules, local file access, Chinese PDF export |
 
-The first five examples have no ordinary internet access. AI-enabled examples can only use models already configured in the workbench through its AI gateway. Roomillion Browser is the explicit exception: it can browse only after the user grants its permissions and enables the global Room networking switch. Web content cannot access the Room SDK, Room databases, or AI keys.
+The other six examples have no ordinary internet access. AI-enabled examples can only use models already configured in the workbench through its AI gateway. Roomillion Browser is the explicit exception: it can browse only after the user grants its permissions and enables the global Room networking switch. Web content cannot access the Room SDK, Room databases, or AI keys.
 
-The public repository and release builds contain only these six examples. Unpublished examples are excluded from source and packaging lists. Distribution configuration uses explicit package names and never collects arbitrary `.room` files from the resource directory.
+The public repository and release builds contain only these seven examples. Unpublished examples are excluded from source and packaging lists. Distribution configuration uses explicit package names and never collects arbitrary `.room` files from the resource directory.
 
 See the [built-in example library](docs/17-内置示例房间库.md) and [controlled browser specification](docs/37-room-browser-v1规范与浏览器房间.md).
 

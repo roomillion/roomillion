@@ -67,6 +67,7 @@ test("AI 创建工作区可打开独立窗口并允许两个工作台发送方",
   assert.equal(child.options.webPreferences.nodeIntegration, false);
   assert.equal(child.options.webPreferences.contextIsolation, true);
   assert.equal(child.options.webPreferences.sandbox, true);
+  assert.equal(child.options.webPreferences.backgroundThrottling, false);
   assert.equal(child.options.titleBarStyle, "hidden");
   assert.deepEqual(child.options.titleBarOverlay, {
     color: "#f7faf8",

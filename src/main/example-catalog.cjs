@@ -57,6 +57,15 @@ const EXAMPLE_CATALOG = Object.freeze([
     capabilities: Object.freeze(["3D 渲染", "物理碰撞", "键盘与触屏", "程序化音效"]),
     packageName: "offline-3d-collector.room",
     template: "game3d"
+  }),
+  Object.freeze({
+    id: "document-workbench",
+    roomId: "cn.zhibian.example.document-workbench",
+    name: "文档浏览与转换",
+    icon: "文",
+    description: "离线浏览 Markdown、Word、Excel、PPTX 和 PDF，并在 Markdown、Word、PDF 之间转换。",
+    capabilities: Object.freeze(["多格式浏览", "Markdown / Word / PDF 转换", "离线处理", "中文 PDF 导出"]),
+    packageName: "document-workbench.room"
   })
 ]);
 

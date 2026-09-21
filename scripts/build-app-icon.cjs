@@ -9,8 +9,24 @@ const generated = path.join(root, "build", "generated");
 const iconDirectory = path.join(generated, "icons");
 const sourceDirectory = path.join(root, "src", "renderer", "assets");
 const baseSize = 1024;
-const cream = [247, 244, 226];
-const lime = [218, 245, 112];
+const tile = [8, 13, 11];
+const deepGreen = [36, 107, 81];
+const litGreen = [159, 183, 126];
+const mutedEdge = [205, 210, 181];
+
+const leftFace = [[56, 104], [128, 42], [128, 108], [56, 164]];
+const rightFace = [[128, 42], [200, 98], [200, 150], [128, 108]];
+const leftStrokes = [
+  [56, 207, 56, 104],
+  [56, 104, 128, 42],
+  [56, 164, 128, 108]
+];
+const rightBorder = [
+  [128, 42, 200, 98],
+  [200, 98, 200, 150],
+  [200, 150, 128, 108],
+  [128, 108, 128, 42]
+];
 
 function clamp(value, low = 0, high = 1) {
   return Math.max(low, Math.min(high, value));
@@ -29,30 +45,35 @@ function segmentDistance(x, y, ax, ay, bx, by) {
   return Math.hypot(x - ax - t * dx, y - ay - t * dy);
 }
 
-function portal(left, top, right, bottom, radius) {
-  const points = [[left, bottom], [left, top + radius]];
-  for (let i = 1; i <= 8; i++) {
-    const angle = Math.PI - i * Math.PI / 16;
-    points.push([left + radius + radius * Math.cos(angle), top + radius - radius * Math.sin(angle)]);
-  }
-  points.push([right - radius, top]);
-  for (let i = 1; i <= 8; i++) {
-    const angle = Math.PI / 2 - i * Math.PI / 16;
-    points.push([right - radius + radius * Math.cos(angle), top + radius - radius * Math.sin(angle)]);
-  }
-  points.push([right, bottom]);
-  return points;
+function segmentSetDistance(x, y, segments) {
+  let distance = Infinity;
+  for (const segment of segments) distance = Math.min(distance, segmentDistance(x, y, ...segment));
+  return distance;
 }
 
-const backPortal = portal(64, 73, 169, 183, 25);
-const frontPortal = portal(110, 101, 198, 183, 22);
-
-function portalDistance(x, y, points) {
-  let distance = Infinity;
-  for (let i = 1; i < points.length; i++) {
-    distance = Math.min(distance, segmentDistance(x, y, ...points[i - 1], ...points[i]));
+function pointInPolygon(x, y, points) {
+  let inside = false;
+  for (let current = 0, previous = points.length - 1; current < points.length; previous = current++) {
+    const [cx, cy] = points[current];
+    const [px, py] = points[previous];
+    if ((cy > y) !== (py > y) && x < ((px - cx) * (y - cy)) / (py - cy) + cx) inside = !inside;
   }
-  return distance;
+  return inside;
+}
+
+function polygonCoverage(x, y, points, antialias) {
+  let distance = Infinity;
+  for (let index = 0; index < points.length; index++) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    distance = Math.min(distance, segmentDistance(x, y, ...current, ...next));
+  }
+  const signedDistance = pointInPolygon(x, y, points) ? distance : -distance;
+  return clamp(0.5 + signedDistance / antialias);
+}
+
+function strokeCoverage(x, y, segments, radius, antialias) {
+  return clamp(0.5 - (segmentSetDistance(x, y, segments) - radius) / antialias);
 }
 
 function blend(pixel, color, opacity) {
@@ -70,18 +91,18 @@ function renderBase() {
     const y = (row + 0.5) * antialias;
     for (let column = 0; column < baseSize; column++) {
       const x = (column + 0.5) * antialias;
-      const edge = roundedRectDistance(x, y, 128, 128, 120, 120, 47);
+      const edge = roundedRectDistance(x, y, 128, 128, 120, 120, 56);
       const coverage = clamp(0.5 - edge / antialias);
       if (coverage <= 0) continue;
-      const shade = clamp((x + y) / 512);
-      const glow = clamp(1 - Math.hypot(x - 49, y - 32) / 265) * 0.16;
-      pixel[0] = 31 - 13 * shade + 26 * glow;
-      pixel[1] = 79 - 28 * shade + 26 * glow;
-      pixel[2] = 65 - 20 * shade + 15 * glow;
-      const back = clamp(0.5 - (portalDistance(x, y, backPortal) - 9.5) / antialias);
-      if (back) blend(pixel, cream, back);
-      const front = clamp(0.5 - (portalDistance(x, y, frontPortal) - 8.5) / antialias);
-      if (front) blend(pixel, lime, front);
+      pixel[0] = tile[0];
+      pixel[1] = tile[1];
+      pixel[2] = tile[2];
+
+      blend(pixel, deepGreen, polygonCoverage(x, y, leftFace, antialias));
+      blend(pixel, deepGreen, strokeCoverage(x, y, leftStrokes, 5, antialias));
+      blend(pixel, mutedEdge, strokeCoverage(x, y, [[200, 146, 200, 207]], 5, antialias));
+      blend(pixel, litGreen, polygonCoverage(x, y, rightFace, antialias));
+      blend(pixel, mutedEdge, strokeCoverage(x, y, rightBorder, 5, antialias));
       const offset = (row * baseSize + column) * 4;
       data[offset] = Math.round(pixel[0]);
       data[offset + 1] = Math.round(pixel[1]);
@@ -183,11 +204,12 @@ function encodeIco(entries) {
 }
 
 function svgSource() {
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="千万间 Roomillion：相连的两道门廊">' +
-    '<defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#235746"/><stop offset="1" stop-color="#12372f"/></linearGradient></defs>' +
-    '<rect x="8" y="8" width="240" height="240" rx="47" fill="url(#tile)"/>' +
-    '<path d="M64 183V98a25 25 0 0 1 25-25h55a25 25 0 0 1 25 25v85" fill="none" stroke="#f7f4e2" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M110 183v-60a22 22 0 0 1 22-22h44a22 22 0 0 1 22 22v60" fill="none" stroke="#daf570" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>' +
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="千万间 Roomillion：深绿空间房屋">' +
+    '<rect x="8" y="8" width="240" height="240" rx="56" fill="#080D0B"/>' +
+    '<path d="M56 104 128 42V108L56 164Z" fill="#246B51"/>' +
+    '<path d="M56 207V104L128 42M56 164 128 108" fill="none" stroke="#246B51" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="M200 146V207" fill="none" stroke="#CDD2B5" stroke-width="10" stroke-linecap="round"/>' +
+    '<path d="M128 42 200 98V150L128 108Z" fill="#9FB77E" stroke="#CDD2B5" stroke-width="10" stroke-linejoin="round"/>' +
     '</svg>\n';
 }
 

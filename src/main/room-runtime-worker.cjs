@@ -2,6 +2,7 @@
 const { app, BrowserWindow, protocol, ipcMain } = require("electron");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { RoomStore } = require("./room-store.cjs");
 const { RoomDatabaseService } = require("./database.cjs");
 const { RoomViewManager } = require("./room-view-manager.cjs");
@@ -98,7 +99,14 @@ function start(input, schemeRegistered = false) {
     const binaryFiles = new BinaryFileService();
     const directoryFiles = new RoomFileAccessService(path.join(jobRoot, "fixture-grants"));
     const fixtureNames = options => (testDefinition?.mocks?.files || []).filter(file => !options?.extensions?.length || options.extensions.includes(path.extname(file.name).slice(1).toLowerCase()));
-    for (const channel of ["room:pickText", "room:pickBinary"]) handle(channel, () => null, ["files", "pick"]);
+    handle("room:pickText", () => null, ["files", "pick"]);
+    let nextBinaryPick = 0;
+    handle("room:pickBinary", async options => {
+      const file = fixtureNames(options)[nextBinaryPick++];
+      if (!file) return null;
+      const data = await fsp.readFile(path.join(fixtureRoot, file.name));
+      return { name: file.name, size: data.length, type: "application/octet-stream", data: new Uint8Array(data) };
+    }, ["files", "pick"]);
     handle("room:binaryOpen", async options => {
       const file = fixtureNames(options)[0];
       return file ? binaryFiles.open(room.id, path.join(fixtureRoot, file.name)) : null;
@@ -120,14 +128,81 @@ function start(input, schemeRegistered = false) {
     handle("room:directoryRead", (id, relativePath, options) => directoryFiles.read(room.id, id, relativePath, options), ["files", "directoryRead"]);
     handle("room:directoryWrite", (id, relativePath, content) => directoryFiles.write(room.id, id, relativePath, content), ["files", "directoryWrite"]);
     handle("room:directoryRevoke", id => directoryFiles.revoke(room.id, id));
-    handle("room:exportText", (_suggestedName, content) => {
+    const captureExports = testDefinition?.mocks?.captureExports === true;
+    const exportRoot = path.join(jobRoot, "exports");
+    const exportStreams = new Map();
+    const recordExport = async (name, target) => {
+      const stat = await fsp.stat(target);
+      const file = await fsp.open(target, "r");
+      let signature;
+      try {
+        const head = Buffer.alloc(Math.min(8, stat.size));
+        await file.read(head, 0, head.length, 0);
+        signature = head.toString("latin1");
+      } finally { await file.close(); }
+      const evidence = { name, bytes: stat.size, signature };
+      if (name.endsWith(".md")) evidence.excerpt = (await fsp.readFile(target, "utf8")).slice(0, 500);
+      if (name.endsWith(".docx")) {
+        const zip = await require("jszip").loadAsync(await fsp.readFile(target));
+        const documentXml = await zip.file("word/document.xml")?.async("string");
+        if (!documentXml) throw new Error("导出的 Word 缺少正文");
+        evidence.docxText = documentXml.replace(/<[^>]*>/g, "").slice(0, 500);
+      }
+      if (name.endsWith(".pdf")) evidence.pdfPages = (await require("pdf-lib").PDFDocument.load(await fsp.readFile(target))).getPageCount();
+      report.exports ||= [];
+      report.exports.push(evidence);
+    };
+    const exportTarget = async (name) => {
+      const safeName = path.basename(String(name || "export.bin")).slice(0, 120);
+      await fsp.mkdir(exportRoot, { recursive: true });
+      return { safeName, target: path.join(exportRoot, `${report.exports?.length || 0}-${safeName}`) };
+    };
+    handle("room:exportText", async (suggestedName, content) => {
       if (typeof content !== "string") throw new Error("导出内容必须是文本");
-      return null; // Same result as canceling the production save dialog.
+      if (!captureExports) return null; // Same result as canceling the production save dialog.
+      const { safeName, target } = await exportTarget(suggestedName);
+      await fsp.writeFile(target, content, "utf8");
+      await recordExport(safeName, target);
+      return target;
     }, ["files", "export"]);
-    handle("room:exportBinary", (_suggestedName, content) => {
+    handle("room:exportBinary", async (suggestedName, content) => {
       if (!(content instanceof ArrayBuffer) && !ArrayBuffer.isView(content)) throw new Error("导出内容必须是 ArrayBuffer 或 Uint8Array");
       if (content.byteLength === 0) throw new Error("导出二进制内容不能为空");
-      return null;
+      if (!captureExports) return null;
+      const { safeName, target } = await exportTarget(suggestedName);
+      await fsp.writeFile(target, Buffer.from(content instanceof ArrayBuffer ? content : content.buffer, content.byteOffset || 0, content.byteLength));
+      await recordExport(safeName, target);
+      return target;
+    }, ["files", "export"]);
+    handle("room:exportBegin", async suggestedName => {
+      if (!captureExports) return null;
+      const { safeName, target } = await exportTarget(suggestedName);
+      const token = crypto.randomUUID();
+      exportStreams.set(token, { safeName, target, handle: await fsp.open(target, "w"), bytes: 0 });
+      return { token, path: target, bytes: 0 };
+    }, ["files", "export"]);
+    handle("room:exportWrite", async (token, content) => {
+      const stream = exportStreams.get(String(token || ""));
+      if (!stream) throw new Error("隔离导出流不存在");
+      const buffer = typeof content === "string" ? Buffer.from(content, "utf8") : Buffer.from(content instanceof ArrayBuffer ? content : content.buffer, content.byteOffset || 0, content.byteLength);
+      if (buffer.length) { await stream.handle.write(buffer); stream.bytes += buffer.length; }
+      return { bytes: stream.bytes };
+    }, ["files", "export"]);
+    handle("room:exportFinish", async token => {
+      const stream = exportStreams.get(String(token || ""));
+      if (!stream) throw new Error("隔离导出流不存在");
+      exportStreams.delete(String(token));
+      await stream.handle.close();
+      await recordExport(stream.safeName, stream.target);
+      return { path: stream.target, bytes: stream.bytes };
+    }, ["files", "export"]);
+    handle("room:exportAbort", async token => {
+      const stream = exportStreams.get(String(token || ""));
+      if (!stream) return false;
+      exportStreams.delete(String(token));
+      await stream.handle.close();
+      await fsp.rm(stream.target, { force: true });
+      return true;
     }, ["files", "export"]);
     handle("room:blobList", options => blobs.list(room.id, options), ["database"]);
     handle("room:blobPut", (options, content) => blobs.put(room.id, options, content), ["database"]);
@@ -173,7 +248,7 @@ function start(input, schemeRegistered = false) {
         "  const seen = new WeakSet();",
         "  const tested = [];",
         "  const skipped = [];",
-        "  const capabilityPattern = /(?:\\bAI\\b|人工智能|模型|联网|网络请求|导入|上传|选择文件|打开文件|导出|下载|浏览网页)/i;",
+        "  const capabilityPattern = /(?:\\bAI\\b|人工智能|模型|联网|网络请求|导入|上传|选择文件|打开文件|打开文档|选择一个文档|导出|下载|浏览网页)/i;",
         "  const visible = (element) => {",
         "    const style = getComputedStyle(element);",
         "    const rect = element.getBoundingClientRect();",

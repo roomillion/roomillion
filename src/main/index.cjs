@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const http = require("node:http");
 const path = require("node:path");
-const { app, BrowserWindow, dialog, protocol, safeStorage, session } = require("electron");
+const { app, BrowserWindow, dialog, Menu, protocol, safeStorage, session, Tray } = require("electron");
 const { RoomStore } = require("./room-store.cjs");
 const { RoomDatabaseService } = require("./database.cjs");
 const { AiService } = require("./ai-service.cjs");
@@ -20,11 +20,12 @@ const { RoomViewManager } = require("./room-view-manager.cjs");
 const { RoomBrowserService } = require("./room-browser-service.cjs");
 const { AgentWindowManager } = require("./agent-window-manager.cjs");
 const { registerIpcHandlers } = require("./ipc.cjs");
-const { resolveExamplePackages } = require("./example-catalog.cjs");
+const { EXAMPLE_CATALOG, resolveExamplePackages } = require("./example-catalog.cjs");
 const { resolveRoomModuleAsset } = require("./room-module-service.cjs");
 const { ROOM_MODULE_CATALOG } = require("./room-module-catalog.cjs");
 const { resolveRoomillionUserDataPath } = require("./brand-profile.cjs");
 const { RoomStorageLocation } = require("./room-storage-location.cjs");
+const { BackgroundResidency } = require("./background-residency.cjs");
 const { createComposedRoom, createGeneratedRoom } = require("./generated-room.cjs");
 const { applyCustomRuntimeCompatibility, createCustomRoom } = require("./custom-room.cjs");
 const { bundleRoomDependency } = require("./room-dependency-bundler.cjs");
@@ -77,6 +78,7 @@ let diagnostics;
 let roomViews;
 let roomBrowser;
 let agentWindows;
+let backgroundResidency;
 let unregisterIpc;
 const ownsPrimaryInstance = Boolean(runtimeCheckInput) || smokeMode || previewMode || app.requestSingleInstanceLock();
 const pendingExternalRoomPaths = [];
@@ -85,6 +87,10 @@ let offlineNetworkAttempts = 0;
 
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (backgroundResidency) {
+    backgroundResidency.restore();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -181,18 +187,26 @@ function createMainWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      webSecurity: true
+      webSecurity: true,
+      backgroundThrottling: false
     }
   });
   mainWindow.removeMenu();
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   mainWindow.webContents.on("will-navigate", (event) => event.preventDefault());
   mainWindow.once("ready-to-show", () => mainWindow.show());
-  mainWindow.on("close", () => {
-    roomViews?.destroyAll();
-    agentWindows?.dispose();
-  });
   return mainWindow;
+}
+
+function getTrayIconPath() {
+  if (app.isPackaged) {
+    return process.platform === "linux"
+      ? path.join(process.resourcesPath, "app-icon.png")
+      : path.join(process.resourcesPath, "room.ico");
+  }
+  return process.platform === "linux"
+    ? path.join(__dirname, "..", "..", "build", "generated", "icons", "32x32.png")
+    : path.join(__dirname, "..", "..", "build", "generated", "app.ico");
 }
 
 function terminateSmoke(code) {
@@ -433,6 +447,30 @@ async function runSmokeCheck(dataRoot) {
       skill: document.querySelector(".agentSkillCard strong")?.textContent,
       provider: document.getElementById("agentProviderLabel").textContent
     };
+    const originalSessions = state.agentSessions;
+    state.agentSessions = [...originalSessions, ...Array.from({ length: 40 }, (_, index) => ({
+      id: 'smoke-history-' + index,
+      title: '历史会话 ' + (index + 1),
+      updatedAt: new Date(Date.now() - index * 60000).toISOString(),
+      status: "idle"
+    }))];
+    setAgentSidebar(true);
+    renderAgentSessions();
+    const sessionList = document.getElementById("agentSessionList");
+    const sidebarBounds = document.querySelector(".agentSidebar").getBoundingClientRect();
+    const skillBounds = document.querySelector(".agentSkillCard").getBoundingClientRect();
+    const maxSessionScroll = sessionList.scrollHeight - sessionList.clientHeight;
+    sessionList.scrollTop = maxSessionScroll;
+    const reachedBottom = maxSessionScroll > 0 && Math.abs(sessionList.scrollTop - maxSessionScroll) < 2;
+    renderAgentHeader();
+    result.sessionScroll = {
+      reachedBottom,
+      preservedOnUpdate: Math.abs(sessionList.scrollTop - maxSessionScroll) < 2,
+      footerVisible: skillBounds.top >= sidebarBounds.top && skillBounds.bottom <= sidebarBounds.bottom + 1
+    };
+    state.agentSessions = originalSessions;
+    renderAgentSessions();
+    setAgentSidebar(false);
     if (!document.getElementById('agentProjectButton') || document.getElementById('agentProjectButton').disabled || !document.getElementById('agentProjectPanel').hidden) throw new Error('项目导入入口或初始显示异常');
     state.agentSession.sourceProject = { name: '<img src=x>源码', files: [{ path: 'app.js', bytes: 20 }], totalBytes: 20, skipped: { sensitive: 1 }, warnings: ['未执行原项目代码'] };
     state.agentSession.projectAssessment = { recommendation: 'refactor', summary: '<img src=x>需要改写' };
@@ -518,6 +556,9 @@ async function runSmokeCheck(dataRoot) {
     !agentUiResult.imageOnlyAllowed ||
     !agentUiResult.hasImagePreview ||
     agentUiResult.skill !== "智变房间构建器"
+    || !agentUiResult.sessionScroll?.reachedBottom
+    || !agentUiResult.sessionScroll.preservedOnUpdate
+    || !agentUiResult.sessionScroll.footerVisible
   ) {
     throw new Error(`Pi Agent 工作区界面检查失败：${JSON.stringify(agentUiResult)}`);
   }
@@ -600,7 +641,7 @@ async function runSmokeCheck(dataRoot) {
     document.getElementById("examplesDialog").close();
     return result;
   })()`);
-  if (!examplesResult.dialogOpen || examplesResult.count !== 6 || !examplesResult.names.includes("千万间浏览器") || !examplesResult.names.includes("AI 辩论场") || !examplesResult.names.includes("AI模型能力测试") || !examplesResult.names.includes("离线 3D 晶体挑战")) {
+  if (!examplesResult.dialogOpen || examplesResult.count !== EXAMPLE_CATALOG.length || !examplesResult.names.includes("千万间浏览器") || !examplesResult.names.includes("AI 辩论场") || !examplesResult.names.includes("AI模型能力测试") || !examplesResult.names.includes("离线 3D 晶体挑战") || !examplesResult.names.includes("文档浏览与转换")) {
     throw new Error(`示例房间库界面检查失败：${JSON.stringify(examplesResult)}`);
   }
   const inspection = await roomStore.inspectPackage(getExamplePackages()[0].packagePath, { source: "external" });
@@ -2254,9 +2295,20 @@ async function bootstrap() {
     portableFolder: app.isPackaged && fs.existsSync(path.join(process.resourcesPath, "portable-folder.marker")),
     portableExecutableDir: app.isPackaged ? process.env.PORTABLE_EXECUTABLE_DIR || null : null,
     pickDirectory: async (defaultPath) => {
+      const choice = await dialog.showMessageBox({
+        type: "question",
+        title: "首次使用：数据位置",
+        message: "房间和工作台数据保存在哪里？",
+        detail: `默认保存在当前用户的数据目录：\n${defaultPath}\n\n也可以自定义位置，之后仍可在“设置 → 房间位置”中更改。`,
+        buttons: ["使用默认位置", "自定义位置…"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      });
+      if (choice.response !== 1) return null;
       const result = await dialog.showOpenDialog({
-        title: "首次使用：选择房间安装目录（将在其中创建 Roomillion-data）",
-        defaultPath,
+        title: "自定义数据位置（将在其中创建 Roomillion-data）",
+        defaultPath: app.getPath("documents"),
         properties: ["openDirectory", "createDirectory"]
       });
       return result.canceled ? null : result.filePaths?.[0] || null;
@@ -2281,6 +2333,15 @@ async function bootstrap() {
   const roomProtocolHandler = createRoomProtocolHandler();
   if (!protocol.isProtocolHandled("room")) protocol.handle("room", roomProtocolHandler);
   createMainWindow();
+  backgroundResidency = new BackgroundResidency({
+    appApi: app,
+    dialogApi: dialog,
+    MenuApi: Menu,
+    TrayClass: Tray,
+    mainWindow,
+    getWindows: () => BrowserWindow.getAllWindows(),
+    trayIcon: getTrayIconPath()
+  }).start();
   agentWindows = new AgentWindowManager(mainWindow, {
     preloadPath: path.join(__dirname, "..", "preload", "workbench-preload.cjs"),
     rendererPath: path.join(__dirname, "..", "renderer", "index.html"),
@@ -2369,6 +2430,7 @@ if (runtimeCheckInput) {
 
 app.on("window-all-closed", () => app.quit());
 app.on("before-quit", () => {
+  backgroundResidency?.beginQuit();
   unregisterIpc?.();
   roomViews?.dispose().catch((error) => console.error("关闭房间窗口失败", error));
   roomBrowser?.dispose();
@@ -2379,5 +2441,7 @@ app.on("before-quit", () => {
 });
 
 app.on("activate", () => {
-  if (!runtimeCheckInput && BrowserWindow.getAllWindows().length === 0) bootstrap().catch(console.error);
+  if (runtimeCheckInput) return;
+  if (mainWindow && !mainWindow.isDestroyed()) backgroundResidency?.restore();
+  else if (BrowserWindow.getAllWindows().length === 0) bootstrap().catch(console.error);
 });

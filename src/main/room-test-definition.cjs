@@ -40,6 +40,7 @@ function normalizeRoomTestDefinition(input) {
   })) : [];
   const files = [];
   let fileBytes = 0;
+  if (input.mocks?.captureExports !== undefined && typeof input.mocks.captureExports !== "boolean") throw new Error("captureExports 必须是布尔值");
   if (input.mocks?.files !== undefined) {
     if (!Array.isArray(input.mocks.files) || input.mocks.files.length > 20) throw new Error("测试文件必须是最多 20 项的数组");
     const names = new Set();
@@ -55,7 +56,7 @@ function normalizeRoomTestDefinition(input) {
       files.push({ name: file.name, base64: bytes.toString("base64") });
     }
   }
-  return { version: 1, scenarios, mocks: { ai, files } };
+  return { version: 1, scenarios, mocks: { ai, files, captureExports: input.mocks?.captureExports === true } };
 }
 
 async function runDeclaredScenarios(webContents, definition) {

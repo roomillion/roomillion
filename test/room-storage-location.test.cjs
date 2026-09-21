@@ -26,20 +26,51 @@ test("unpacked build installs rooms beside the executable and preserves existing
   await assert.rejects(fsp.access(location.configPath), { code: "ENOENT" });
 });
 
-test("single-file portable asks on first launch and keeps the chosen location", async (t) => {
+test("single-file portable can choose another directory on first launch and keeps it", async (t) => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-exe-location-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   let prompts = 0;
   const selected = path.join(root, "chosen");
   await fsp.mkdir(selected);
   const options = { profileRoot: path.join(root, "profile"), executablePath: path.join(root, "temp", "Roomillion.exe"), packaged: true,
-    portableExecutableDir: path.join(root, "portable"), pickDirectory: async () => { prompts += 1; return selected; } };
+    portableExecutableDir: path.join(root, "portable"), pickDirectory: async (defaultPath) => {
+      assert.equal(defaultPath, path.join(root, "profile", "mvp-data"));
+      prompts += 1;
+      return selected;
+    } };
   const first = new RoomStorageLocation(options);
   assert.equal(await first.resolveStartup(), path.join(selected, "Roomillion-data"));
   const second = new RoomStorageLocation(options);
   assert.equal(await second.resolveStartup(), path.join(selected, "Roomillion-data"));
   assert.equal(prompts, 1);
   assert.equal(dataRootForSelection(path.join(selected, "Roomillion-data")), path.join(selected, "Roomillion-data"));
+});
+
+test("single-file portable uses the user data directory when optional selection is canceled", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-exe-default-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const profileRoot = path.join(root, "profile");
+  let prompts = 0;
+  const options = { profileRoot, executablePath: path.join(root, "temp", "Roomillion.exe"), packaged: true,
+    portableExecutableDir: path.join(root, "portable"), pickDirectory: async () => { prompts += 1; return null; } };
+  const expected = path.join(profileRoot, "mvp-data");
+  assert.equal(await new RoomStorageLocation(options).resolveStartup(), expected);
+  assert.equal(await new RoomStorageLocation(options).resolveStartup(), expected);
+  assert.equal(prompts, 1);
+  assert.equal(JSON.parse(await fsp.readFile(path.join(profileRoot, "room-storage-location.json"), "utf8")).dataRoot, expected);
+});
+
+test("single-file portable keeps existing user data without asking again", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-exe-existing-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const profileRoot = path.join(root, "profile");
+  const expected = path.join(profileRoot, "mvp-data");
+  await fsp.mkdir(expected, { recursive: true });
+  await fsp.writeFile(path.join(expected, "registry.json"), '{"rooms":{}}');
+  const location = new RoomStorageLocation({ profileRoot, executablePath: path.join(root, "temp", "Roomillion.exe"), packaged: true,
+    portableExecutableDir: path.join(root, "portable"), pickDirectory: async () => { throw new Error("已有数据不应再次询问位置"); } });
+  assert.equal(await location.resolveStartup(), expected);
+  assert.equal(await fsp.readFile(path.join(expected, "registry.json"), "utf8"), '{"rooms":{}}');
 });
 
 test("changing room location migrates on restart without deleting the old data", async (t) => {

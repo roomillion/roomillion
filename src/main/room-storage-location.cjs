@@ -103,9 +103,13 @@ class RoomStorageLocation {
     }
     if (!this.packaged) return legacyRoot;
     if (this.portableExecutableDir) {
-      if (!this.pickDirectory) throw new Error("单文件便携版缺少首次目录选择器");
-      const selected = await this.pickDirectory(path.resolve(this.portableExecutableDir));
-      if (!selected) return null;
+      if (await exists(legacyRoot)) return legacyRoot;
+      const selected = this.pickDirectory ? await this.pickDirectory(legacyRoot) : null;
+      if (!selected) {
+        await fsp.mkdir(legacyRoot, { recursive: true });
+        await this.writeConfig({ dataRoot: legacyRoot });
+        return legacyRoot;
+      }
       const target = dataRootForSelection(selected);
       await this.prepareTarget(target, legacyRoot, { reuseExisting: true });
       await this.writeConfig({ dataRoot: target });

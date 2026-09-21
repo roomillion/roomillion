@@ -11,9 +11,9 @@ const { extractAndValidate, packDirectory } = require("../src/main/room-package.
 
 const projectRoot = path.resolve(__dirname, "..");
 
-test("public sources and all distribution configs contain only the six approved examples", async () => {
+test("public sources and all distribution configs contain only the seven approved examples", async () => {
   const approvedIds = [
-    "ai-debate", "ai-model-benchmark", "browser", "inventory", "meeting-actions", "offline-3d-collector"
+    "ai-debate", "ai-model-benchmark", "browser", "document-workbench", "inventory", "meeting-actions", "offline-3d-collector"
   ];
   assert.deepEqual(EXAMPLE_CATALOG.map((example) => example.id).sort(), approvedIds);
   const sourceEntries = await fsp.readdir(path.join(projectRoot, "examples"), { withFileTypes: true });
@@ -34,8 +34,8 @@ test("public sources and all distribution configs contain only the six approved 
   }
 });
 
-test("example catalog exposes six unique portable rooms", async () => {
-  assert.equal(EXAMPLE_CATALOG.length, 6);
+test("example catalog exposes seven unique portable rooms", async () => {
+  assert.equal(EXAMPLE_CATALOG.length, 7);
   assert.equal(new Set(EXAMPLE_CATALOG.map((item) => item.id)).size, EXAMPLE_CATALOG.length);
   assert.equal(new Set(EXAMPLE_CATALOG.map((item) => item.roomId)).size, EXAMPLE_CATALOG.length);
   for (const example of EXAMPLE_CATALOG) {
@@ -92,6 +92,15 @@ test("example catalog exposes six unique portable rooms", async () => {
     if (example.id === "offline-3d-collector") {
       assert.deepEqual(manifest.hostModules, ["graphics.three@1", "physics.rapier@1", "game.input@1", "game.audio@1", "game.assets@1"]);
       assert.match(program, /window\.RAPIER\.init/);
+    }
+    if (example.id === "document-workbench") {
+      assert.ok(manifest.hostModules.includes("document.pdf.view@1"));
+      assert.ok(manifest.hostModules.includes("document.word.read@1"));
+      assert.ok(manifest.hostModules.includes("document.word.write@1"));
+      assert.ok(manifest.hostModules.includes("document.spreadsheet@1"));
+      assert.ok(manifest.permissions.files.includes("export"));
+      assert.match(program, /room\.documents\.markdownToPdf/);
+      assert.match(program, /room\.files\.pickBinary/);
     }
   }
 });

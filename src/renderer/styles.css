@@ -341,15 +341,15 @@ button { cursor: pointer; }
 .agentWindow #appShell { display: none; }
 .agentWindow .agentModal[open] { inset: var(--window-titlebar-height) 0 0; border-radius: 0; }
 .agentWindow .agentHeader #agentWindowButton { color: #236b50; background: #e7f3ed; }
-.agentShell { height: 100%; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
-.agentSidebar { min-width: 0; padding: 18px 13px 14px; background: #102a23; color: #edf7f3; display: flex; flex-direction: column; border-right: 1px solid #26483e; }
+.agentShell { height: 100%; min-height: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.agentSidebar { min-width: 0; min-height: 0; padding: 18px 13px 14px; background: #102a23; color: #edf7f3; display: flex; flex-direction: column; border-right: 1px solid #26483e; }
 .agentSidebarHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px 15px; }
 .agentSidebarHeader strong { display: block; margin-top: 4px; font-size: 14px; }
 .agentSidebar .eyebrow { color: #89c9ae; }
 .agentNewButton { width: 30px; height: 30px; border: 1px solid #ffffff1d; border-radius: 9px; background: #ffffff0c; color: #d7f36a; font-size: 19px; }
 .agentPrimaryAction { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; border: 1px solid #476a5e; border-radius: 10px; padding: 10px 11px; background: #1a3b31; color: #f5fbf8; font-size: 12px; font-weight: 800; }
 .agentPrimaryAction:hover, .agentNewButton:hover { background: #234a3e; }
-.agentSessionList { display: grid; align-content: start; gap: 4px; margin: 14px -2px; padding: 0 2px 12px; overflow: auto; }
+.agentSessionList { min-height: 0; flex: 1 1 auto; display: grid; align-content: start; gap: 4px; margin: 14px -2px; padding: 0 2px 12px; overflow-x: hidden; overflow-y: auto; }
 .agentSessionItem { width: 100%; display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 9px; align-items: center; border: 0; border-radius: 9px; padding: 10px 9px; background: transparent; color: #c7d9d2; text-align: left; }
 .agentSessionItem:hover, .agentSessionItem.active { background: #ffffff10; color: #fff; }
 .agentSessionItem .agentSessionDot { width: 7px; height: 7px; border-radius: 50%; background: #698077; }
