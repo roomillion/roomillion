@@ -24,3 +24,43 @@ resources/examples/*.room
 
 # 本地宣传素材与截图工具，不属于源码发布内容。
 /marketing/
+
+# 本地质量巡检产物（测试报告、截图、基准脚本），不属于源码发布内容。
+/qa-reports/
+
+# Local agent plans and editor state.
+/.zcode/
+/.codex/
+/.agents/
+
+# Exported rooms, backups, and room databases are user data.
+*.room
+*.zdata
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Guard against choosing the repository root as the portable data directory.
+/rooms/
+/projects/
+/backups/
+/blobs/
+/files/
+/tmp/
+/diagnostics/
+/agent-sessions/
+/agent-attachments/
+/agent-source-snapshots/
+/room-credentials/
+/provider-secrets/
+/ai-capability-secrets/
+/registry.json
+/permissions.json
+/network-settings.json
+/provider.json
+/provider-secret.bin
+/ai-capabilities.json
+/room-import-location.json
+/directory-grants.json
+/room-storage-location.json

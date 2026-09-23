@@ -7,6 +7,20 @@ const { requestEmbeddings, supportsEmbeddingTransport } = require("./embedding-c
 
 const CUSTOM_PROVIDER_ID = "custom-openai-compatible";
 const PROVIDER_REGISTRY_FORMAT = "0.2";
+const MODEL_INPUT_MODALITIES = Object.freeze(["text", "image", "audio"]);
+const DEFAULT_CUSTOM_MODEL_CAPABILITIES = Object.freeze({ contextWindow: 128000, input: Object.freeze(["text"]) });
+const FETCH_MODEL_ID_PATTERN = /^[A-Za-z0-9._:/+-]+$/;
+const AUDIO_MIME_TO_FORMAT = Object.freeze({
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/ogg": "ogg",
+  "audio/flac": "flac",
+  "audio/mp4": "mp4",
+  "audio/x-m4a": "mp4",
+  "audio/webm": "webm"
+});
 const FEATURED_PROVIDER_ORDER = Object.freeze([
   "xiaomi-token-plan-cn",
   "kimi-coding",
@@ -102,6 +116,23 @@ function validateBaseUrl(value) {
   return value.replace(/\/+$/, "");
 }
 
+function validateModelCapabilities(input) {
+  const capabilities = input === undefined || input === null ? DEFAULT_CUSTOM_MODEL_CAPABILITIES : input;
+  if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) throw new Error("模型能力配置无效");
+  const contextWindow = Number(capabilities.contextWindow);
+  if (!Number.isSafeInteger(contextWindow) || contextWindow <= 0 || contextWindow > 10_000_000) {
+    throw new Error("模型上下文长度必须是 1–10000000 之间的整数");
+  }
+  const rawInput = Array.isArray(capabilities.input) ? capabilities.input : [];
+  if (!rawInput.length) throw new Error("模型输入模态不能为空");
+  const modalities = [...new Set(rawInput.map((item) => String(item)))];
+  if (!modalities.includes("text")) throw new Error("模型输入模态必须包含文本");
+  for (const modality of modalities) {
+    if (!MODEL_INPUT_MODALITIES.includes(modality)) throw new Error(`未知的模型输入模态：${modality}`);
+  }
+  return { contextWindow, input: modalities };
+}
+
 function validateProfile(input) {
   if (!input || typeof input !== "object") throw new Error("Provider 配置无效");
   const name = String(input.name || "OpenAI-compatible").trim();
@@ -114,6 +145,7 @@ function validateProfile(input) {
   const label = String(input.label || `${name} · ${model}`).trim();
   if (!/^[a-z0-9][a-z0-9._-]{0,79}$/i.test(id)) throw new Error("模型配置 ID 无效");
   if (!label || label.length > 100) throw new Error("模型配置名称无效");
+  const modelSource = input.modelSource === "custom" ? "custom" : null;
   return {
     id,
     label,
@@ -121,7 +153,8 @@ function validateProfile(input) {
     name,
     protocol: providerId === CUSTOM_PROVIDER_ID ? "openai-completions" : String(input.protocol || "openai-completions"),
     baseUrl: validateBaseUrl(String(input.baseUrl || "")),
-    model
+    model,
+    ...(modelSource ? { modelSource, modelCapabilities: validateModelCapabilities(input.modelCapabilities) } : {})
   };
 }
 
@@ -129,6 +162,28 @@ function validateRoomId(value) {
   const roomId = String(value || "").trim();
   if (!roomId || roomId.length > 200 || /[\\/\0-\x1f]/.test(roomId)) throw new Error("房间 ID 无效");
   return roomId;
+}
+
+// pi-ai 没有音频内容类型；音频在 onPayload 阶段以 OpenAI 的 input_audio 块
+// 追加到最后一条 user 消息（此时 buildParams 已完成，发送尚未开始）。
+function injectAudioIntoPayload(payload, audioParts) {
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.messages) || !payload.messages.length) {
+    throw new Error("AI 音频注入失败：请求体结构异常");
+  }
+  const messages = [...payload.messages];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== "user") continue;
+    const content = typeof message.content === "string"
+      ? [{ type: "text", text: message.content }, ...audioParts]
+      : Array.isArray(message.content)
+        ? [...message.content, ...audioParts]
+        : null;
+    if (!content) break;
+    messages[index] = { ...message, content };
+    return { ...payload, messages };
+  }
+  throw new Error("AI 音频注入失败：没有可附加音频的用户消息");
 }
 
 function validateOrganizationConfig(input) {
@@ -525,6 +580,8 @@ class AiService {
         supportsOAuth,
         apiKeyLabel: provider.auth?.apiKey?.name || null,
         configurable: supportsApiKey && models.length > 0 && !limitation,
+        supportsModelFetch: Boolean(baseUrl) && supportsApiKey && models.length > 0
+          && models.every((model) => model.api === "openai-completions"),
         limitation,
         configurationHint: PROVIDER_CONFIGURATION_HINTS[providerId] || null,
         source: "pi-builtin",
@@ -545,6 +602,7 @@ class AiService {
       supportsOAuth: false,
       apiKeyLabel: "API Key（可选）",
       configurable: true,
+      supportsModelFetch: false,
       limitation: null,
       configurationHint: null,
       source: "workbench-custom",
@@ -562,7 +620,25 @@ class AiService {
     if (!provider.configurable) throw new Error(provider.limitation || "当前工作台尚不能配置该 Pi Provider");
     const requestedModel = String(input.model || provider.defaultModel || "").trim();
     const model = provider.models.find((entry) => entry.id === requestedModel);
-    if (!model) throw new Error("所选模型不属于当前 Provider");
+    if (!model && input.modelSource !== "custom") throw new Error("所选模型不属于当前 Provider");
+    if (!model) {
+      if (!requestedModel) throw new Error("模型名称不能为空");
+      if (!provider.baseUrl) throw new Error("该提供商的模型使用独立服务地址，暂不支持手动添加模型 ID");
+      if (!provider.models.some((entry) => entry.api === "openai-completions")) {
+        throw new Error("该提供商不使用 OpenAI 兼容协议，暂不支持手动添加模型 ID");
+      }
+      return validateProfile({
+        id: input.id,
+        label: input.label,
+        providerId,
+        name: provider.displayName,
+        protocol: "openai-completions",
+        baseUrl: provider.baseUrl,
+        model: requestedModel,
+        modelSource: "custom",
+        modelCapabilities: input.modelCapabilities
+      });
+    }
     const baseUrl = model.baseUrl || provider.baseUrl;
     if (!baseUrl) throw new Error("当前 Provider 需要额外的服务地址参数，工作台尚未完成适配");
     return validateProfile({
@@ -576,6 +652,61 @@ class AiService {
     });
   }
 
+  async fetchProviderModels({ providerId, apiKey, timeoutMs = 15_000 } = {}) {
+    const provider = (await this.getProviderCatalog()).find((entry) => entry.id === String(providerId || "").trim());
+    if (!provider || provider.source !== "pi-builtin") throw new Error("不支持的 Pi Provider");
+    if (!provider.configurable) throw new Error(provider.limitation || "当前工作台尚不能配置该 Pi Provider");
+    if (!provider.supportsModelFetch) throw new Error("该提供商暂不支持自动获取模型列表；可在下方手动添加模型 ID");
+    const transientKey = typeof apiKey === "string" ? apiKey.trim() : "";
+    if (transientKey.length > 10_000) throw new Error("API Key 长度无效");
+    let resolvedKey = transientKey;
+    if (!resolvedKey) {
+      for (const profile of this.profiles.values()) {
+        if (profile.providerId !== provider.id) continue;
+        const sessionKey = this.sessionApiKeys.get(profile.id);
+        if (sessionKey) {
+          resolvedKey = sessionKey;
+          break;
+        }
+      }
+    }
+    if (!resolvedKey && /^https:\/\//.test(provider.baseUrl)) {
+      throw new Error("请先填写该提供商的 API Key，再获取模型列表");
+    }
+    const timeout = Number(timeoutMs);
+    const effectiveTimeout = Number.isSafeInteger(timeout) && timeout > 0 ? timeout : 15_000;
+    const response = await fetch(`${provider.baseUrl}/models`, {
+      headers: resolvedKey ? { authorization: `Bearer ${resolvedKey}` } : {},
+      signal: AbortSignal.timeout(effectiveTimeout)
+    }).catch((error) => {
+      if (error?.name === "TimeoutError" || error?.name === "AbortError") throw new Error("获取模型列表超时，请稍后重试");
+      throw new Error(`连接服务商失败：${error?.message || "网络错误"}`);
+    });
+    if (!response.ok) {
+      const hint = response.status === 401 || response.status === 403 ? "，请检查 API Key 是否正确" : "";
+      throw new Error(`获取模型列表失败：服务返回 HTTP ${response.status}${hint}`);
+    }
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error("模型列表响应不是有效的 JSON");
+    }
+    const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : null;
+    if (!rows) throw new Error("模型列表响应格式无法识别");
+    const seen = new Set();
+    const models = [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const id = String(row.id || "").trim();
+      if (!id || id.length > 160 || !FETCH_MODEL_ID_PATTERN.test(id) || seen.has(id)) continue;
+      seen.add(id);
+      models.push({ id });
+    }
+    if (!models.length) throw new Error("服务商没有返回可用的模型 ID");
+    return { providerId: provider.id, baseUrl: provider.baseUrl, models, checkedAt: new Date().toISOString() };
+  }
+
   ensureConfigured(profileId = this.activeProfileId) {
     const profile = profileId ? this.profiles.get(profileId) : null;
     if (!profile) throw new Error("请先在 AI 能力中心配置模型");
@@ -584,14 +715,16 @@ class AiService {
 
   async getModelCapabilities(profileId = this.activeProfileId) {
     const profile = this.ensureConfigured(profileId);
-    if (profile.providerId === CUSTOM_PROVIDER_ID) {
+    if (profile.providerId === CUSTOM_PROVIDER_ID || profile.modelSource === "custom") {
+      const capabilities = profile.modelCapabilities || DEFAULT_CUSTOM_MODEL_CAPABILITIES;
       return {
         providerId: profile.providerId,
         model: profile.model,
-        input: ["text"],
-        supportsImages: false,
+        input: [...capabilities.input],
+        supportsImages: capabilities.input.includes("image"),
+        supportsAudio: capabilities.input.includes("audio"),
         supportsReasoning: false,
-        contextWindow: 128000,
+        contextWindow: capabilities.contextWindow,
         maxTokens: 8192
       };
     }
@@ -603,6 +736,7 @@ class AiService {
       model: model.id,
       input: [...model.input],
       supportsImages: model.input.includes("image"),
+      supportsAudio: model.input.includes("audio"),
       supportsReasoning: model.reasoning === true,
       contextWindow: Number(model.contextWindow) || null,
       maxTokens: Number(model.maxTokens) || null
@@ -625,6 +759,7 @@ class AiService {
         model: profile.model,
         input: capabilities.input,
         supportsImages: capabilities.supportsImages,
+        supportsAudio: capabilities.supportsAudio,
         embeddingTransport: supportsEmbeddingTransport(profile) ? "openai-compatible" : null,
         contextWindow: capabilities.contextWindow,
         maxTokens: capabilities.maxTokens,
@@ -697,19 +832,13 @@ class AiService {
     return { slot: validSlot, profileId: null };
   }
 
-  async createRuntime(profileId = this.activeProfileId) {
-    const profile = this.ensureConfigured(profileId);
-    const { pi, openai, builtinProviders } = await this.loadPiModules();
-    if (profile.providerId !== CUSTOM_PROVIDER_ID) {
-      const provider = builtinProviders.find((entry) => entry.id === profile.providerId);
-      if (!provider) throw new Error("当前 Pi Provider 不可用，请重新选择提供商");
-      const models = pi.createModels();
-      models.setProvider(provider);
-      const model = models.getModel(provider.id, profile.model);
-      if (!model) throw new Error("当前 Pi 模型目录中找不到所选模型，请重新选择");
-      return { pi, models, model };
-    }
-    const providerId = "workbench-openai-compatible";
+  buildOpenAiCompatibleRuntime(profile, pi, openai) {
+    const providerId = profile.providerId === CUSTOM_PROVIDER_ID
+      ? "workbench-openai-compatible"
+      : `workbench-${profile.providerId}`;
+    const capabilities = profile.modelSource === "custom" && profile.modelCapabilities
+      ? profile.modelCapabilities
+      : DEFAULT_CUSTOM_MODEL_CAPABILITIES;
     const model = {
       id: profile.model,
       name: profile.model,
@@ -717,9 +846,9 @@ class AiService {
       provider: providerId,
       baseUrl: profile.baseUrl,
       reasoning: false,
-      input: ["text"],
+      input: [...capabilities.input],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 128000,
+      contextWindow: capabilities.contextWindow,
       maxTokens: 8192,
       compat: {
         supportsDeveloperRole: false,
@@ -747,6 +876,22 @@ class AiService {
     const models = pi.createModels();
     models.setProvider(provider);
     return { pi, models, model };
+  }
+
+  async createRuntime(profileId = this.activeProfileId) {
+    const profile = this.ensureConfigured(profileId);
+    const { pi, openai, builtinProviders } = await this.loadPiModules();
+    if (profile.providerId !== CUSTOM_PROVIDER_ID) {
+      const provider = builtinProviders.find((entry) => entry.id === profile.providerId);
+      if (!provider) throw new Error("当前 Pi Provider 不可用，请重新选择提供商");
+      const models = pi.createModels();
+      models.setProvider(provider);
+      const model = models.getModel(provider.id, profile.model);
+      if (model) return { pi, models, model };
+      if (profile.modelSource !== "custom") throw new Error("当前 Pi 模型目录中找不到所选模型，请重新选择");
+      return this.buildOpenAiCompatibleRuntime(profile, pi, openai);
+    }
+    return this.buildOpenAiCompatibleRuntime(profile, pi, openai);
   }
 
   async createAgentRuntime({ maxTokens = 8000, timeoutMs = 120_000, maxRetries = 2, profileId = this.activeProfileId } = {}) {
@@ -797,6 +942,7 @@ class AiService {
     systemPrompt,
     prompt,
     images = [],
+    audio = [],
     maxTokens = 2048,
     timeoutMs = 60_000,
     maxRetries = 2,
@@ -812,6 +958,7 @@ class AiService {
       throw new Error("AI 提示内容长度无效");
     }
     if (!Array.isArray(images)) throw new Error("AI 图片输入必须是数组");
+    if (!Array.isArray(audio)) throw new Error("AI 音频输入必须是数组");
     const profile = this.ensureConfigured(profileId);
     const { pi, models, model } = await this.createRuntime(profile.id);
     const requestedMaxTokens = Number(maxTokens);
@@ -829,6 +976,9 @@ class AiService {
     if (images.length && (!Array.isArray(model.input) || !model.input.includes("image"))) {
       throw new Error(`当前模型 ${model.id} 不支持图片输入，请切换到多模态模型`);
     }
+    if (audio.length && (!Array.isArray(model.input) || !model.input.includes("audio"))) {
+      throw new Error(`当前模型 ${model.id} 不支持音频输入，请切换到声明了音频能力的模型`);
+    }
     const normalizedImages = images.map((image) => {
       if (!image || typeof image !== "object" || !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(image.mimeType)) {
         throw new Error("AI 图片格式无效");
@@ -838,8 +988,17 @@ class AiService {
       }
       return { type: "image", mimeType: image.mimeType, data: image.data };
     });
+    const normalizedAudioParts = audio.map((item) => {
+      if (!item || typeof item !== "object") throw new Error("AI 音频内容无效");
+      const format = AUDIO_MIME_TO_FORMAT[String(item.mimeType || "")];
+      if (!format) throw new Error("AI 音频格式无效（支持 wav、mp3、ogg、flac、m4a、webm）");
+      if (typeof item.data !== "string" || item.data.length === 0) {
+        throw new Error("AI 音频内容无效");
+      }
+      return { type: "input_audio", input_audio: { data: item.data, format } };
+    });
     const compatibility = getProviderCompatibility(profile);
-    const onPayload = compatibility.disableThinking || (structuredOutput && compatibility.supportsJsonObject)
+    const compatibilityOnPayload = compatibility.disableThinking || (structuredOutput && compatibility.supportsJsonObject)
       ? (payload) => {
           const nextPayload = { ...payload };
           if (compatibility.disableThinking) nextPayload.thinking = { type: "disabled" };
@@ -849,6 +1008,12 @@ class AiService {
           return nextPayload;
         }
       : undefined;
+    const audioOnPayload = normalizedAudioParts.length
+      ? (payload) => injectAudioIntoPayload(payload, normalizedAudioParts)
+      : null;
+    const onPayload = compatibilityOnPayload && audioOnPayload
+      ? (payload) => audioOnPayload(compatibilityOnPayload(payload))
+      : compatibilityOnPayload || audioOnPayload || undefined;
     const context = {
       systemPrompt,
       messages: [{

@@ -120,3 +120,17 @@ test("AI model slot definitions survive grants and are filtered by granted role"
   assert.deepEqual(permissionsForKeys(requestedAi, ["ai.general"]), { ai: { roles: ["general"], slots: { review: { role: "general", minimumContextWindow: 128000 } } } });
   assert.deepEqual(permissionsForKeys(requestedAi, ["ai.vision", "ai.general"]).ai.slots, requestedAi.ai.slots);
 });
+test("audio AI role maps to the ai.audio permission key and survives grants", () => {
+  const requested = { ai: { roles: ["general", "audio"] } };
+  assert.deepEqual(keysForPermissions(requested).sort(), ["ai.audio", "ai.general"]);
+  assert.deepEqual(
+    permissionsForKeys(requested, ["ai.general"]),
+    { ai: { roles: ["general"] } }
+  );
+  assert.deepEqual(
+    permissionsForKeys(requested, ["ai.general", "ai.audio"]).ai.roles.sort(),
+    ["audio", "general"]
+  );
+  const items = permissionItems(requested, { source: "external" });
+  assert.equal(items.find((item) => item.key === "ai.audio").risk, "high");
+});

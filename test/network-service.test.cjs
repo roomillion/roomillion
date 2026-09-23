@@ -5,7 +5,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { NetworkService } = require("../src/main/network-service.cjs");
+const { NetworkService, detectInternetConnectivity } = require("../src/main/network-service.cjs");
 const { RoomCredentialService } = require("../src/main/room-credential-service.cjs");
 
 function room({ granted = ["https://api.example.com"] } = {}) {
@@ -17,21 +17,50 @@ function room({ granted = ["https://api.example.com"] } = {}) {
   };
 }
 
-test("global room network switch is off by default and persists independently from AI", async (t) => {
+test("connectivity detection accepts any reachable probe and fails closed", async () => {
+  const reachable = await detectInternetConnectivity(async (url) => {
+    if (url.endsWith("/online")) return new Response(null, { status: 204 });
+    throw new Error("offline");
+  }, { endpoints: ["https://probe.example/offline", "https://probe.example/online"], timeoutMs: 100 });
+  assert.equal(reachable, true);
+  const offline = await detectInternetConnectivity(async () => { throw new Error("offline"); }, {
+    endpoints: ["https://probe.example/offline"],
+    timeoutMs: 100
+  });
+  assert.equal(offline, false);
+});
+
+test("first launch selects the network switch from connectivity and later preserves the user choice", async (t) => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-network-service-test-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
-  const service = await new NetworkService(root, { fetchImpl: async () => new Response("unexpected") }).init();
-  assert.deepEqual(service.getPublicState(), {
-    roomNetworkEnabled: false,
-    aiApiAllowed: true,
-    namedCredentials: false,
-    policy: "global-switch-room-origin-and-credential-permission"
-  });
-  await assert.rejects(service.request(room(), { url: "https://api.example.com/data" }), /主工作台尚未允许/);
-  await service.setRoomNetworkEnabled(true);
-  const reloaded = await new NetworkService(root, { fetchImpl: async () => new Response("ok") }).init();
-  assert.equal(reloaded.getPublicState().roomNetworkEnabled, true);
+  let probes = 0;
+  const service = await new NetworkService(root, {
+    fetchImpl: async () => new Response("unexpected"),
+    connectivityProbe: async () => { probes += 1; return true; }
+  }).init();
+  assert.equal(service.getPublicState().roomNetworkEnabled, true);
+  assert.equal(service.getPublicState().agentWebAvailable, true);
+  assert.equal(service.getPublicState().initialDetection, "online");
+  assert.match(service.getPublicState().detectedAt, /^\d{4}-/);
+  assert.equal(probes, 1);
+  await service.setRoomNetworkEnabled(false);
+  const reloaded = await new NetworkService(root, {
+    fetchImpl: async () => new Response("ok"),
+    connectivityProbe: async () => { throw new Error("不应再次探测"); }
+  }).init();
+  assert.equal(reloaded.getPublicState().roomNetworkEnabled, false);
+  assert.equal(reloaded.getPublicState().agentWebAvailable, false);
+  assert.equal(reloaded.getPublicState().initialDetection, "online");
   assert.equal(reloaded.getPublicState().aiApiAllowed, true);
+});
+
+test("failed first-launch connectivity keeps networking off", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-network-offline-test-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const service = await new NetworkService(root, { connectivityProbe: async () => false }).init();
+  assert.equal(service.getPublicState().roomNetworkEnabled, false);
+  assert.equal(service.getPublicState().initialDetection, "offline");
+  await assert.rejects(service.request(room(), { url: "https://api.example.com/data" }), /主工作台尚未允许/);
 });
 
 test("room network request enforces declared and granted origins with bounded JSON responses", async (t) => {
@@ -39,6 +68,7 @@ test("room network request enforces declared and granted origins with bounded JS
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const calls = [];
   const service = await new NetworkService(root, {
+    autoDetect: false,
     fetchImpl: async (url, options) => {
       calls.push({ url: url.toString(), method: options.method, headers: options.headers, body: options.body });
       return new Response(JSON.stringify({ answer: 42 }), {
@@ -72,6 +102,7 @@ test("redirects cannot escape the room origin allowlist", async (t) => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-network-redirect-test-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const service = await new NetworkService(root, {
+    autoDetect: false,
     fetchImpl: async () => new Response(null, { status: 302, headers: { location: "https://other.example/private" } })
   }).init();
   await service.setRoomNetworkEnabled(true);
@@ -82,7 +113,7 @@ test("room network streams binary responses without a total response ceiling", a
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-network-stream-test-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const payload = new Uint8Array(6 * 1024 * 1024 + 17).map((_, index) => index % 251);
-  const service = await new NetworkService(root, { fetchImpl: async () => new Response(payload) }).init();
+  const service = await new NetworkService(root, { autoDetect: false, fetchImpl: async () => new Response(payload) }).init();
   await service.setRoomNetworkEnabled(true);
   const opened = await service.open(room(), { url: "https://api.example.com/blob", timeoutMs: 120000 });
   const chunks = [];
@@ -106,7 +137,7 @@ test("named credentials inject only into their bound origin and never return pla
   await credentials.set({ alias: "book-api", label: "书籍服务", origin: "https://api.example.com", value: "top-secret", remember: true });
   await assert.rejects(credentials.set({ alias: "bad-header", origin: "https://api.example.com", value: "secret\r\ninjected: yes" }), /换行/);
   const calls = [];
-  const service = await new NetworkService(root, { credentialService: credentials, fetchImpl: async (url, options) => { calls.push({ url: url.toString(), headers: options.headers }); return new Response("ok"); } }).init();
+  const service = await new NetworkService(root, { autoDetect: false, credentialService: credentials, fetchImpl: async (url, options) => { calls.push({ url: url.toString(), headers: options.headers }); return new Response("ok"); } }).init();
   await service.setRoomNetworkEnabled(true);
   const credentialRoom = {
     ...room(),

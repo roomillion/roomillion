@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>音频分析室</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div><p class="eyebrow">音频 AI 工具间</p><h1>音频分析室</h1><p>输入音乐，分析乐器与风格；输入会议录音，转写成 Markdown。</p></div>
+      <div class="headerActions"><select id="modelSelect" aria-label="音频模型"></select></div>
+    </header>
+    <nav class="modeSwitch" aria-label="功能模式">
+      <button id="modeMusic" class="modeButton active" type="button">音乐分析</button>
+      <button id="modeMeeting" class="modeButton" type="button">会议转写</button>
+    </nav>
+    <section class="card setupCard">
+      <div class="setupRow">
+        <button id="pickButton" type="button">选择音频文件</button>
+        <div class="fileMeta"><strong id="fileName">尚未选择音频</strong><small id="fileMeta">支持 wav、mp3、ogg、flac、m4a、webm，单个不超过 64 MiB</small></div>
+      </div>
+      <p id="modeHint" class="modeHint"></p>
+      <button id="runButton" type="button" class="primary" disabled>开始分析</button>
+    </section>
+    <section id="resultCard" class="card resultCard" hidden>
+      <div class="resultTitle">
+        <strong id="resultTitle">分析结果</strong>
+        <span class="resultActions"><button id="exportButton" class="secondary" type="button" hidden>导出 Markdown</button><button id="clearButton" class="textButton" type="button">清空</button></span>
+      </div>
+      <pre id="resultText" class="resultText"></pre>
+    </section>
+    <p id="status" role="status"></p>
+    <div id="toast" class="toast" hidden></div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

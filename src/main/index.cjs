@@ -8,10 +8,13 @@ const { app, BrowserWindow, dialog, Menu, protocol, safeStorage, session, Tray }
 const { RoomStore } = require("./room-store.cjs");
 const { RoomDatabaseService } = require("./database.cjs");
 const { AiService } = require("./ai-service.cjs");
+const { AiCapabilityService } = require("./ai-capability-service.cjs");
 const { RoomAgentService } = require("./room-agent-service.cjs");
 const { DataBackupService } = require("./data-backup-service.cjs");
 const { LargeTextService } = require("./large-text-service.cjs");
 const { NetworkService } = require("./network-service.cjs");
+const { AgentWebService } = require("./agent-web-service.cjs");
+const { createAgentPageRenderer } = require("./agent-page-renderer.cjs");
 const { RoomCredentialService } = require("./room-credential-service.cjs");
 const { GitService } = require("./git-service.cjs");
 const { resolveBundledGit } = require("./platform-runtime.cjs");
@@ -68,10 +71,12 @@ let roomStore;
 let storageLocation;
 let database;
 let aiService;
+let aiCapabilityService;
 let roomAgent;
 let dataBackups;
 let largeText;
 let networkService;
+let agentWebService;
 let credentialService;
 let gitService;
 let diagnostics;
@@ -242,6 +247,13 @@ async function runSmokeCheck(dataRoot) {
     return { strong: node.querySelectorAll('strong').length, items:node.querySelectorAll('li').length, rows:node.querySelectorAll('tr').length, images:node.querySelectorAll('img').length, literal:node.textContent.includes('<img') };
   })()`);
   if (richText.strong !== 1 || richText.items !== 1 || richText.rows !== 2 || richText.images !== 0 || !richText.literal) throw new Error("Agent 安全文本排版检查失败");
+  const renderedAgentPage = await agentWebService.pageRenderer(
+    "data:text/html,<main id='app'></main><script>document.getElementById('app').textContent='JavaScript page ready'</script>",
+    { maxChars: 5000, validateUrl: async () => true }
+  );
+  if (!renderedAgentPage.renderedJavaScript || !renderedAgentPage.text.includes("JavaScript page ready")) {
+    throw new Error(`Agent JavaScript 网页渲染检查失败：${JSON.stringify(renderedAgentPage)}`);
+  }
   const initialRooms = await mainWindow.webContents.executeJavaScript("window.workbench.getState().then((state) => state.rooms.length)");
   const providerUiResult = await mainWindow.webContents.executeJavaScript(`(async () => {
     await showProviderDialog();
@@ -641,7 +653,7 @@ async function runSmokeCheck(dataRoot) {
     document.getElementById("examplesDialog").close();
     return result;
   })()`);
-  if (!examplesResult.dialogOpen || examplesResult.count !== EXAMPLE_CATALOG.length || !examplesResult.names.includes("千万间浏览器") || !examplesResult.names.includes("AI 辩论场") || !examplesResult.names.includes("AI模型能力测试") || !examplesResult.names.includes("离线 3D 晶体挑战") || !examplesResult.names.includes("文档浏览与转换")) {
+  if (!examplesResult.dialogOpen || examplesResult.count !== EXAMPLE_CATALOG.length || !examplesResult.names.includes("千万间浏览器") || !examplesResult.names.includes("AI 辩论场") || !examplesResult.names.includes("AI模型能力测试") || !examplesResult.names.includes("离线 3D 晶体挑战") || !examplesResult.names.includes("文档浏览与转换") || !examplesResult.names.includes("音频分析室")) {
     throw new Error(`示例房间库界面检查失败：${JSON.stringify(examplesResult)}`);
   }
   const inspection = await roomStore.inspectPackage(getExamplePackages()[0].packagePath, { source: "external" });
@@ -1256,6 +1268,15 @@ async function runSmokeCheck(dataRoot) {
         return { text: "{\"vision\":true}", model: profile.model, profileId, usage: { input: 8, output: 3, totalTokens: 11 } };
       };
     }
+    if (example.id === "audio-analysis") {
+      aiService.complete = async ({ audio, profileId }) => {
+        const profile = aiService.ensureConfigured(profileId);
+        if (!Array.isArray(audio) || audio.length !== 1 || audio[0].mimeType !== "audio/wav" || !audio[0].data.startsWith("UklGR")) {
+          throw new Error("音频分析房间音频没有通过 AI Gateway");
+        }
+        return { text: "1. 乐器编制：钢琴与低音提琴。\n2. 风格与流派：爵士。", model: profile.model, profileId, usage: { input: 10, output: 5, totalTokens: 15 } };
+      };
+    }
     let runtime;
     try {
       runtime = await exampleView.webContents.executeJavaScript(`(async () => {
@@ -1272,9 +1293,13 @@ async function runSmokeCheck(dataRoot) {
       while (${JSON.stringify(example.id)} === "browser" && document.documentElement.dataset.roomReady !== "true" && !document.documentElement.dataset.roomError && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
+      while (${JSON.stringify(example.id)} === "audio-analysis" && document.documentElement.dataset.roomReady !== "true" && !document.documentElement.dataset.roomError && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
       let aiDebate = null;
       let aiBenchmark = null;
       let browser = null;
+      let audioAnalysis = null;
       if (${JSON.stringify(example.id)} === "ai-debate") {
         document.getElementById("topicInput").value = "在基础教育中，AI 助手利大于弊";
         document.getElementById("topicInput").dispatchEvent(new Event("input", { bubbles: true }));
@@ -1383,6 +1408,23 @@ async function runSmokeCheck(dataRoot) {
           hasLibrary: Boolean(document.getElementById("libraryPanel"))
         };
       }
+      if (${JSON.stringify(example.id)} === "audio-analysis") {
+        const wavBytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45, 0, 0, 0, 0, 0, 0, 0, 0]);
+        const audioResponse = await window.room.ai.generate("音频接口冒烟", {
+          audio: [{ data: wavBytes }],
+          maxTokens: 64,
+          temperature: 0
+        });
+        audioAnalysis = {
+          ready: document.documentElement.dataset.roomReady,
+          error: document.documentElement.dataset.roomError || "",
+          gatewayAudio: audioResponse.text.includes("爵士") && audioResponse.usage?.totalTokens === 15,
+          modelSelectPresent: Boolean(document.getElementById("modelSelect")),
+          runDisabledWithoutFile: document.getElementById("runButton").disabled === true,
+          modeButtons: document.querySelectorAll(".modeButton").length,
+          secretInputs: document.querySelectorAll('input[type="password"], input[name*="api" i], input[name*="url" i]').length
+        };
+      }
       return {
         title: document.title,
         hasDatabase: Boolean(window.room?.db?.query),
@@ -1392,7 +1434,8 @@ async function runSmokeCheck(dataRoot) {
         fatal: document.getElementById("fatal")?.hidden === false ? document.getElementById("fatal").textContent : "",
         aiDebate,
         aiBenchmark,
-        browser
+        browser,
+        audioAnalysis
       };
       })()`);
     } finally {
@@ -1489,6 +1532,14 @@ async function runSmokeCheck(dataRoot) {
             runtime.browser.nativeView.preservedWebContents &&
             runtime.browser.nativeView.guestTitleWhileDetached === "千万间浏览器本机验收页" &&
             runtime.browser.nativeView.dockedToWorkbench
+        : example.id === "audio-analysis"
+          ? runtime.audioAnalysis?.ready === "true" &&
+            !runtime.audioAnalysis.error &&
+            runtime.audioAnalysis.gatewayAudio &&
+            runtime.audioAnalysis.modelSelectPresent &&
+            runtime.audioAnalysis.runDisabledWithoutFile &&
+            runtime.audioAnalysis.modeButtons === 2 &&
+            runtime.audioAnalysis.secretInputs === 0
         : runtime.hasLargeText;
     const senderId = exampleView.webContents.id;
     let closedCleanly = null;
@@ -1649,7 +1700,7 @@ async function runSmokeCheck(dataRoot) {
   }), { status: 200, headers: { "content-type": "application/json" } });
   const networkUiResult = await mainWindow.webContents.executeJavaScript(`(async () => {
     await showNetworkDialog();
-    const aiIndependent = document.querySelector("#networkDialog .modalIntro").textContent.includes("不受房间联网开关影响");
+    const aiIndependent = document.querySelector("#networkDialog .modalIntro").textContent.includes("AI 模型 API 始终可用");
     document.getElementById("roomNetworkEnabled").checked = true;
     document.getElementById("networkForm").requestSubmit();
     const deadline = Date.now() + 3000;
@@ -1694,7 +1745,7 @@ async function runSmokeCheck(dataRoot) {
     !networkUiResult.enabled ||
     !networkUiResult.dotOnline ||
     !networkUiResult.aiIndependent ||
-    networkUiResult.summary !== "已授权房间可联网" ||
+    networkUiResult.summary !== "房间与开发 Agent 可联网" ||
     !enabledNetworkStatus.available ||
     enabledNetworkStatus.origins[0] !== "https://api.example.com" ||
     controlledNetworkText !== "受控联网成功" ||
@@ -1714,7 +1765,11 @@ async function runSmokeCheck(dataRoot) {
     return detachRoom(${JSON.stringify(customBuild.room.id)});
   })()`);
   const detachedRecord = roomViews.detachedWindows.get(customBuild.room.id);
-  await new Promise(resolve => setTimeout(resolve, 100));
+  // 独立窗口抢焦点是异步的；固定等待会被标签页数量扰动，改为限时轮询。
+  const focusDeadline = Date.now() + 2000;
+  while (process.platform === "win32" && detachedRecord?.window.isFocused() !== true && Date.now() < focusDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
   customResult.detachedFocused = detachedRecord?.window.isFocused() === true;
   if (process.platform === "win32" && !customResult.detachedFocused) throw new Error("主窗口切换备用标签后抢回了独立房间的焦点");
   customResult.detached = detachResult.mode === "detached" && Boolean(detachedRecord);
@@ -2328,8 +2383,16 @@ async function bootstrap() {
   await gitService.initializeExistingRooms();
   diagnostics = await new DiagnosticService(dataRoot).init();
   aiService = await new AiService(dataRoot, { secureStorage: safeStorage }).init();
+  aiCapabilityService = await new AiCapabilityService(dataRoot, { secureStorage: safeStorage }).init();
   credentialService = await new RoomCredentialService(dataRoot, { secureStorage: safeStorage }).init();
-  networkService = await new NetworkService(dataRoot, { credentialService }).init();
+  networkService = await new NetworkService(dataRoot, {
+    credentialService,
+    autoDetect: !smokeMode && !previewMode && !offlineAuditMode
+  }).init();
+  agentWebService = new AgentWebService({
+    networkService,
+    pageRenderer: createAgentPageRenderer()
+  });
   const roomProtocolHandler = createRoomProtocolHandler();
   if (!protocol.isProtocolHandled("room")) protocol.handle("room", roomProtocolHandler);
   createMainWindow();
@@ -2362,6 +2425,7 @@ async function bootstrap() {
     roomStore,
     aiService,
     gitService,
+    agentWebService,
     onEvent: (payload) => {
       broadcastWorkbench("workbench:roomAgentEvent", payload);
     },
@@ -2389,6 +2453,7 @@ async function bootstrap() {
     gitService,
     diagnostics,
     aiService,
+    aiCapabilityService,
     roomAgent,
     largeText,
     networkService,

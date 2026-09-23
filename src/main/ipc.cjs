@@ -61,6 +61,20 @@ function detectImageMimeType(buffer) {
   return null;
 }
 
+function detectAudioMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return null;
+  const ascii = (start, length) => buffer.subarray(start, start + length).toString("ascii");
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WAVE") return "audio/wav";
+  if (ascii(0, 4) === "OggS") return "audio/ogg";
+  if (ascii(0, 4) === "fLaC") return "audio/flac";
+  if (ascii(4, 4) === "ftyp") return "audio/mp4";
+  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return "audio/webm";
+  // MP3：ID3v2 头，或 MPEG 帧同步（0xFF Ex，版本不是保留值 01）
+  if (ascii(0, 3) === "ID3") return "audio/mpeg";
+  if (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0 && (buffer[1] >> 3 & 0x03) !== 0x01) return "audio/mpeg";
+  return null;
+}
+
 function normalizeRoomAiImages(images) {
   if (images === undefined) return [];
   if (!Array.isArray(images)) throw new Error("AI 图片输入必须是数组");
@@ -95,6 +109,7 @@ function registerIpcHandlers({
   gitService,
   diagnostics,
   aiService,
+  aiCapabilityService = null,
   roomAgent,
   largeText,
   networkService,
@@ -159,6 +174,31 @@ function registerIpcHandlers({
     }
     return resolved;
   };
+  const resolveAiAudio = async (room, audio) => {
+    if (audio === undefined) return [];
+    if (!Array.isArray(audio)) throw new Error("AI 音频输入必须是数组");
+    const resolved = [];
+    for (const item of audio) {
+      if (!item || typeof item !== "object") throw new Error("AI 音频输入无效");
+      let buffer;
+      if (item.data !== undefined) {
+        buffer = binaryBuffer(item.data);
+        if (buffer.length === 0) throw new Error("AI 音频内容不能为空");
+      } else {
+        let file;
+        if (item.blobId) file = await blobs.getFile(room.id, String(item.blobId));
+        else if (item.directory?.grantId && item.directory.relativePath) file = await directoryFiles.getFile(room.id, item.directory.grantId, item.directory.relativePath);
+        else throw new Error("AI 音频必须提供 data、blobId 或目录文件引用");
+        const stats = await fsp.stat(file.path);
+        if (stats.size > 64 * 1024 ** 2) throw new Error("单个 AI 音频不能超过 64 MiB");
+        buffer = await fsp.readFile(file.path);
+      }
+      const mimeType = detectAudioMimeType(buffer);
+      if (!mimeType || (item.mimeType && item.mimeType !== mimeType)) throw new Error("AI 音频格式或内容无效");
+      resolved.push({ mimeType, data: buffer.toString("base64") });
+    }
+    return resolved;
+  };
   const exportStreams = new Map();
   const closeExportStreams = async (roomId, { removePartial = true } = {}) => {
     const closing = [];
@@ -200,7 +240,8 @@ function registerIpcHandlers({
     }
     const aiState = {
       activeProfile: aiService.getPublicProfile(),
-      profiles: aiService.listPublicProfiles()
+      profiles: aiService.listPublicProfiles(),
+      utilityProfiles: aiCapabilityService?.getPublicState?.() || {}
     };
     const windows = agentWindows ? agentWindows.getWorkbenchWindows() : [mainWindow];
     for (const window of windows) {
@@ -226,6 +267,7 @@ function registerIpcHandlers({
       rooms: roomStore.listRooms(),
       provider: aiService.getPublicProfile(),
       aiProfiles: aiService.listPublicProfiles(),
+      aiUtilityProfiles: aiCapabilityService?.getPublicState?.() || {},
       aiProviders: await aiService.getProviderCatalog(),
       aiCapabilities: { secureStorageAvailable: aiService.isSecureStorageAvailable() },
       networkPolicy: networkService.getPublicState(),
@@ -664,6 +706,37 @@ function registerIpcHandlers({
     notifyAiModelsChanged();
     return result;
   });
+  handle("workbench:saveAiCapabilityProfile", async (event, kind, input) => {
+    requireWorkbench(event);
+    if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
+    const result = await aiCapabilityService.saveProfile(kind, input);
+    await recordEvent("ai.capability.configure", { kind, model: result?.[kind]?.model || null });
+    notifyAiModelsChanged();
+    return result;
+  });
+  handle("workbench:testAiCapabilityProfile", async (event, kind) => {
+    requireWorkbench(event);
+    if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
+    try {
+      const result = await aiCapabilityService.testConnection(kind);
+      await recordEvent("ai.capability.test", { kind, model: result.model, latencyMs: result.latencyMs, ok: true });
+      return result;
+    } finally { notifyAiModelsChanged(); }
+  });
+  handle("workbench:clearAiCapabilityKey", async (event, kind) => {
+    requireWorkbench(event);
+    if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
+    const result = await aiCapabilityService.clearKey(kind);
+    notifyAiModelsChanged();
+    return result;
+  });
+  handle("workbench:deleteAiCapabilityProfile", async (event, kind) => {
+    requireWorkbench(event);
+    if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
+    const result = await aiCapabilityService.deleteProfile(kind);
+    notifyAiModelsChanged();
+    return result;
+  });
   handle("workbench:importProviderConfig", async (event) => {
     requireWorkbench(event);
     roomViews.hide();
@@ -678,6 +751,17 @@ function registerIpcHandlers({
     const profile = await aiService.importOrganizationConfig(JSON.parse(await fsp.readFile(result.filePaths[0], "utf8")));
     notifyAiModelsChanged();
     return profile;
+  });
+  handle("workbench:fetchProviderModels", async (event, payload) => {
+    requireWorkbench(event);
+    if (!payload || typeof payload !== "object") throw new Error("获取模型列表参数无效");
+    return aiService.fetchProviderModels({
+      providerId: payload.providerId,
+      apiKey: payload.apiKey,
+      ...(Number.isSafeInteger(Number(payload.timeoutMs)) && Number(payload.timeoutMs) > 0
+        ? { timeoutMs: Number(payload.timeoutMs) }
+        : {})
+    });
   });
   handle("workbench:testProvider", async (event, profileId) => {
     requireWorkbench(event);
@@ -896,8 +980,34 @@ function registerIpcHandlers({
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("向量调用选项无效");
+    if (!options.profileId && aiCapabilityService?.getPublicProfile?.("embedding")) {
+      return aiCapabilityService.embed(texts, { model: options.model, dimensions: options.dimensions, timeoutMs: options.timeoutMs });
+    }
     const profileId = options.profileId || aiService.getRoomModelSelection(room.id).profileId;
-    return aiService.embed(texts, { profileId, model: options.model, dimensions: options.dimensions });
+    return aiService.embed(texts, { profileId, model: options.model, dimensions: options.dimensions, timeoutMs: options.timeoutMs });
+  });
+  handle("room:aiGetCapabilities", async (event) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    return aiCapabilityService?.getRoomCatalog?.() || {
+      embedding: { kind: "embedding", ready: false, configured: false },
+      rerank: { kind: "rerank", ready: false, configured: false },
+      intuition: { kind: "intuition", ready: false, configured: false }
+    };
+  });
+  handle("room:aiRerank", async (event, query, documents, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    if (!aiCapabilityService) throw new Error("Rerank 能力不可用");
+    if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("Rerank 调用选项无效");
+    return aiCapabilityService.rerank(query, documents, options);
+  });
+  handle("room:aiIntuition", async (event, state, questions, options = {}) => {
+    const room = requireRoom(event);
+    if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
+    if (!aiCapabilityService) throw new Error("直觉模型能力不可用");
+    if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("直觉模型调用选项无效");
+    return aiCapabilityService.intuition(state, questions, options);
   });
   handle("room:dbQuery", async (event, sql, params) => {
     const room = requireRoom(event);
@@ -1269,6 +1379,8 @@ function registerIpcHandlers({
     try {
       const images = await resolveAiImages(room, options.images);
       if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
+      const audio = await resolveAiAudio(room, options.audio);
+      if (audio.length && !roomStore.hasPermission(room.id, "ai", "audio")) throw new Error("房间没有音频 AI 权限");
       const requestedMaxTokens = options.maxTokens === undefined ? 2000 : Number(options.maxTokens);
       if (!Number.isSafeInteger(requestedMaxTokens) || requestedMaxTokens <= 0) {
         throw new Error("AI 最大输出 Token 必须是正整数");
@@ -1285,6 +1397,7 @@ function registerIpcHandlers({
         systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”提供帮助。不要声称能够访问未提供的文件或系统资源。`,
         prompt,
         images,
+        audio,
         maxTokens: requestedMaxTokens,
         temperature,
         structuredOutput: options.structuredOutput === true,
@@ -1317,6 +1430,8 @@ function registerIpcHandlers({
           validateRoomAiOptions(request);
           const images = await resolveAiImages(room, request.images);
           if (images.length && !roomStore.hasPermission(room.id, "ai", "vision")) throw new Error("房间没有视觉 AI 权限");
+          const audio = await resolveAiAudio(room, request.audio);
+          if (audio.length && !roomStore.hasPermission(room.id, "ai", "audio")) throw new Error("房间没有音频 AI 权限");
           const requestedSlot = request.slot || options.slot;
           const profileId = aiService.resolveRoomModelProfile(room.id, { profileId: request.profileId, slot: requestedSlot });
           await validateAiSlotProfile(room, requestedSlot, profileId);
@@ -1324,6 +1439,7 @@ function registerIpcHandlers({
             systemPrompt: `你正在为千万间 Roomillion 房间“${room.name}”执行批处理任务。只处理当前项目，不要声称能够访问未提供的资源。`,
             prompt: request.prompt,
             images,
+            audio,
             maxTokens: Number(request.maxTokens || options.maxTokens || 2000),
             timeoutMs: Number(request.timeoutMs || options.timeoutMs || 120_000),
             maxRetries: Number(request.maxRetries ?? options.maxRetries ?? 2),

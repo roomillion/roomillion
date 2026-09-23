@@ -95,6 +95,15 @@ const PERMISSION_DEFINITIONS = Object.freeze({
     risk: "high",
     required: false
   }),
+  "ai.audio": Object.freeze({
+    key: "ai.audio",
+    domain: "ai",
+    value: "audio",
+    title: "调用音频 AI 模型",
+    description: "房间提交的音频文件或相关提示词会发送到你配置的、声明了音频输入能力的模型。",
+    risk: "high",
+    required: false
+  }),
   "compute.worker": Object.freeze({
     key: "compute.worker",
     domain: "compute",

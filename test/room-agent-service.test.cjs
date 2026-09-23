@@ -103,6 +103,74 @@ test("creation plan supplies acceptance criteria when the model omits the option
   assert.match(session.workflow.plan.acceptance, /关键按钮可用/);
 });
 
+test("room development Agent exposes workbench-gated web research tools", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-agent-web-tools-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const calls = [];
+  const agentWebService = {
+    getStatus: () => ({ available: true }),
+    search: async (query, options) => { calls.push(["search", query, options]); return { query, results: [{ title: "文档", url: "https://example.com", snippet: "摘要" }] }; },
+    read: async (url, options) => { calls.push(["read", url, options]); return { url, text: "正文", truncated: false }; }
+  };
+  const service = await new RoomAgentService({
+    roomStore,
+    agentWebService,
+    aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) }
+  }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  const pi = await import("@earendil-works/pi-ai");
+  const tools = service.createTools(session, { pi });
+  const search = tools.find((tool) => tool.name === "web_search");
+  const read = tools.find((tool) => tool.name === "read_web_page");
+  assert.ok(search);
+  assert.ok(read);
+  await search.execute("search", { query: "Roomillion", limit: 3 }, new AbortController().signal);
+  await read.execute("read", { url: "https://example.com", maxChars: 5000 }, new AbortController().signal);
+  assert.deepEqual(calls, [
+    ["search", "Roomillion", { limit: 3 }],
+    ["read", "https://example.com", { maxChars: 5000, renderJavaScript: undefined }]
+  ]);
+});
+
+test("a real clarification run keeps web tools in the Pi Agent tool list", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-agent-web-run-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const pi = await import("@earendil-works/pi-ai");
+  let visibleTools = [];
+  class CapturingToolsAgent extends FakeAgent {
+    constructor(options) {
+      super(options);
+      visibleTools = options.initialState.tools.map((tool) => tool.name);
+    }
+    async prompt(prompt) {
+      this.state.messages.push(
+        { role: "user", content: prompt, timestamp: Date.now() },
+        { role: "assistant", content: [{ type: "text", text: "已检查网页工具。" }], stopReason: "stop", usage: { input: 1, output: 1, totalTokens: 2 }, timestamp: Date.now() }
+      );
+    }
+  }
+  const aiService = {
+    getPublicProfile: () => ({ id: "test", providerId: "test", name: "测试", model: "test", hasSessionKey: true }),
+    getModelCapabilities: async () => ({ model: "test", input: ["text"], supportsImages: false, supportsReasoning: false }),
+    createAgentRuntime: async () => ({ pi, model: { id: "test", maxTokens: 16000 }, streamFn: () => { throw new Error("不应调用模型流"); } })
+  };
+  const service = await new RoomAgentService({
+    roomStore,
+    aiService,
+    agentWebService: { getStatus: () => ({ available: true }), search: async () => ({}), read: async () => ({}) },
+    agentModuleLoader: async () => ({ Agent: CapturingToolsAgent })
+  }).init();
+  t.after(() => service.dispose());
+  const session = await service.createSession();
+  await service.send(session.id, "打开这个网站并说明用法：https://example.com");
+  await service.waitForIdle(session.id);
+  assert.ok(visibleTools.includes("web_search"));
+  assert.ok(visibleTools.includes("read_web_page"));
+});
+
 test("project migration requires assessment, explicit mode and approval; original source and notices survive", async t => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-project-migration-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));

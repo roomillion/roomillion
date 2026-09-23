@@ -201,7 +201,7 @@
         <nav class="settingsHubNav" aria-label="设置分类">
           <button type="button" class="settingsHubNavItem active" data-settings-section="appearance"><strong>外观</strong><small id="themeSummaryNav">日间主题</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="ai"><strong>AI 能力</strong><small id="providerSummaryNav">尚未配置</small></button>
-          <button type="button" class="settingsHubNavItem" data-settings-section="network"><strong>联网控制</strong><small id="networkSummaryNav">房间联网已关闭</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="network"><strong>联网控制</strong><small id="networkSummaryNav">联网已关闭</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="storage"><strong>房间位置</strong><small id="storageSummaryNav">查看安装目录</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="diagnostics"><strong>诊断报告</strong><small>导出脱敏报告</small></button>
         </nav>
@@ -211,12 +211,25 @@
             <button type="button" id="openAppearanceButton" class="settingsHubAction">打开外观设置<span>主题与字号</span></button>
           </section>
           <section class="settingsHubPanel" data-settings-panel="ai">
-            <div class="settingsHubPanelIntro"><strong>AI 能力中心</strong><small>连接提供商并启用模型；凭据只保存在本机。</small></div>
+            <div class="settingsHubPanelIntro"><strong>AI 能力</strong><small>设置房间默认使用的模型，并管理提供商、模型和本机凭据。</small></div>
+            <label class="defaultRoomModelSetting">
+              <span><strong>房间默认 AI 模型</strong><small>没有单独选择模型的房间会使用此模型；新建 AI 对话也会从此模型开始。</small></span>
+              <select id="settingsDefaultRoomModelSelect" aria-label="房间默认 AI 模型"></select>
+            </label>
+            <div id="settingsDefaultRoomModelStatus" class="inlineStatus">尚未配置可用模型。</div>
+            <section class="aiUtilitySummarySection">
+              <div class="aiUtilitySummaryHeader"><strong>房间专用 AI 能力</strong><small>为所有获得 AI 权限的房间提供统一的向量、重排和快速决策接口。</small></div>
+              <div class="aiUtilityGrid">
+                <button type="button" class="aiUtilityCard" data-ai-utility-kind="embedding"><span class="aiUtilityGlyph">E</span><span><strong>Embedding</strong><small data-ai-utility-status>未配置</small></span></button>
+                <button type="button" class="aiUtilityCard" data-ai-utility-kind="rerank"><span class="aiUtilityGlyph">R</span><span><strong>Rerank</strong><small data-ai-utility-status>未配置</small></span></button>
+                <button type="button" class="aiUtilityCard" data-ai-utility-kind="intuition"><span class="aiUtilityGlyph">直</span><span><strong>直觉 · Jev</strong><small data-ai-utility-status>未配置</small></span></button>
+              </div>
+            </section>
             <button type="button" id="openAiCenterButton" class="settingsHubAction">打开 AI 能力中心<span id="providerSummaryInline">尚未配置</span></button>
           </section>
           <section class="settingsHubPanel" data-settings-panel="network">
-            <div class="settingsHubPanelIntro"><strong>联网控制</strong><small>主工作台联网总开关；房间即使申请了联网权限，也只有总开关开启时才能访问。</small></div>
-            <button type="button" id="openNetworkButton" class="settingsHubAction">打开联网控制<span id="networkSummaryInline">房间联网已关闭</span></button>
+            <div class="settingsHubPanelIntro"><strong>联网控制</strong><small>统一控制房间网络，以及 AI 创建房间时的互联网、内网检索和 JavaScript 网页读取。</small></div>
+            <button type="button" id="openNetworkButton" class="settingsHubAction">打开联网控制<span id="networkSummaryInline">联网已关闭</span></button>
           </section>
           <section class="settingsHubPanel" data-settings-panel="storage">
             <div class="settingsHubPanelIntro"><strong>房间与工作台数据位置</strong><small>已安装房间、业务数据和本机配置保存在这里。更改后会在下次启动时复制到新位置；旧目录保留，迁移成功后再自行清理。</small></div>
@@ -286,8 +299,20 @@
     <form id="providerForm" method="dialog">
       <div class="modalHeader"><div><p class="eyebrow">Powered by Pi AI</p><h2>AI 能力中心</h2></div><button type="button" class="closeButton" data-close="providerDialog">×</button></div>
       <p class="modalIntro">提供商目录直接同步 Pi AI 原生能力。凭据与模型分开管理：连接一次后，可以批量启用该提供商的多个模型。</p>
+      <section class="providerDefaultModelSection" aria-labelledby="providerDefaultModelTitle">
+        <div><strong id="providerDefaultModelTitle">房间默认 AI 模型</strong><small>未单独选择模型的房间会调用它；切换后立即生效。</small></div>
+        <select id="providerDefaultRoomModelSelect" aria-label="房间默认 AI 模型"></select>
+      </section>
+      <section class="aiUtilitySummarySection providerUtilitySummary">
+        <div class="aiUtilitySummaryHeader"><strong>Embedding、Rerank 与直觉模型</strong><small>单独配置专用 API，房间通过工作台网关调用，密钥不会交给房间。</small></div>
+        <div class="aiUtilityGrid">
+          <button type="button" class="aiUtilityCard" data-ai-utility-kind="embedding"><span class="aiUtilityGlyph">E</span><span><strong>Embedding</strong><small data-ai-utility-status>未配置</small></span></button>
+          <button type="button" class="aiUtilityCard" data-ai-utility-kind="rerank"><span class="aiUtilityGlyph">R</span><span><strong>Rerank</strong><small data-ai-utility-status>未配置</small></span></button>
+          <button type="button" class="aiUtilityCard" data-ai-utility-kind="intuition"><span class="aiUtilityGlyph">直</span><span><strong>直觉 · Jev</strong><small data-ai-utility-status>未配置</small></span></button>
+        </div>
+      </section>
       <section class="providerProfiles">
-        <div class="providerProfilesHeader"><div><strong>已连接提供商</strong><small>这里仅显示已经启用的模型；“默认”是新建 AI 对话的初始模型</small></div><button type="button" id="newProviderButton" class="primaryButton compact">＋ 添加提供商</button></div>
+        <div class="providerProfilesHeader"><div><strong>已连接提供商</strong><small>这里显示已经启用的模型；“房间默认”同时用于未单独选模型的房间和新建 AI 对话</small></div><button type="button" id="newProviderButton" class="primaryButton compact">＋ 添加提供商</button></div>
         <div id="providerProfileList" class="providerProfileList"></div>
       </section>
       <section id="providerEditorPanel" class="providerEditorPanel" hidden>
@@ -312,6 +337,19 @@
             <input id="providerModelSearch" type="search" placeholder="搜索模型名称或 ID">
             <div id="providerModelList" class="providerModelList"></div>
           </section>
+          <section id="customCatalogModelFields" class="customCatalogModelFields" hidden>
+            <div id="providerFetchRow" class="providerFetchRow">
+              <button type="button" id="fetchProviderModelsButton" class="secondaryButton compact">从服务商获取最新模型</button>
+              <small id="fetchProviderModelsStatus" class="fieldHint"></small>
+            </div>
+            <label>手动添加模型 ID（每行一个）<textarea id="customCatalogModelIds" rows="2" placeholder="例如：mimo-v3&#10;mimo-v3-pro"></textarea><small class="fieldHint">目录里还没有的新模型可在此填写，与上方勾选可同时启用。</small></label>
+            <div class="customModelCapabilities">
+              <div class="customModelCapabilitiesHeader"><strong>目录外模型能力</strong><small>对本次新添加的目录外模型生效</small></div>
+              <label>上下文长度（Token）<input id="customModelContextWindow" type="number" min="1000" max="10000000" step="1000" value="128000"><small class="fieldHint">不确定时可保持默认 128000。</small></label>
+              <label class="checkboxLabel customModelCapabilityToggle"><input id="customModelSupportsImages" type="checkbox"><span><strong>支持图片输入</strong><small>勾选后房间可以给这个模型发送图片</small></span></label>
+              <label class="checkboxLabel customModelCapabilityToggle"><input id="customModelSupportsAudio" type="checkbox"><span><strong>支持音频输入</strong><small>勾选后房间可发送 wav、mp3 等音频给这个模型（需房间音频权限）</small></span></label>
+            </div>
+          </section>
           <div id="credentialReuseNotice" class="credentialReuseNotice" hidden><div><strong>沿用现有安全连接</strong><span id="credentialReuseText"></span></div><button id="cancelCredentialReuseButton" type="button">改用新 Key</button></div>
           <section id="customProviderFields" class="advancedFields" hidden>
             <div class="advancedHeader"><strong>自定义服务参数</strong><small>适用于内网网关、Ollama、vLLM 等兼容服务</small></div>
@@ -329,13 +367,29 @@
     </form>
   </dialog>
 
+  <dialog id="aiUtilityDialog" class="modal dataModal aiUtilityDialog">
+    <form id="aiUtilityForm" method="dialog">
+      <div class="modalHeader"><div><p class="eyebrow">Room AI Gateway</p><h2 id="aiUtilityTitle">配置专用 AI 能力</h2></div><button type="button" class="closeButton" data-close="aiUtilityDialog">×</button></div>
+      <p id="aiUtilityIntro" class="modalIntro"></p>
+      <div id="aiUtilityProtocol" class="noticeBox"></div>
+      <label>配置显示名称<input id="aiUtilityLabel" maxlength="100"></label>
+      <label>API 基础地址<input id="aiUtilityBaseUrl" type="url" maxlength="2048" placeholder="https://api.example.com/v1"></label>
+      <label>模型名称<input id="aiUtilityModel" maxlength="200"></label>
+      <label id="aiUtilityDimensionsField">默认向量维度（可选）<input id="aiUtilityDimensions" type="number" min="1" step="1"><small>留空时使用服务返回的实际维度。</small></label>
+      <label>API Key<input id="aiUtilityApiKey" type="password" autocomplete="off" placeholder="已有密钥不会显示；留空可继续沿用"><small>密钥只进入主进程内存或系统加密存储，不会写入房间。</small></label>
+      <label class="checkboxLabel"><input id="aiUtilityRememberKey" type="checkbox"><span><strong>使用系统安全存储记住密钥</strong><small>下次启动仍可供房间调用</small></span></label>
+      <div id="aiUtilityStatus" class="inlineStatus"></div>
+      <div class="modalActions"><button type="button" id="deleteAiUtilityButton" class="secondaryButton dangerText">删除配置</button><button type="button" id="clearAiUtilityKeyButton" class="secondaryButton">清除密钥</button><span class="spacer"></span><button type="button" id="saveAiUtilityButton" class="secondaryButton">保存</button><button type="button" id="testAiUtilityButton" class="primaryButton compact">保存并测试</button></div>
+    </form>
+  </dialog>
+
   <dialog id="networkDialog" class="modal dataModal">
     <form id="networkForm" method="dialog">
       <div class="modalHeader"><div><p class="eyebrow">Workbench Network Policy</p><h2>联网控制</h2></div><button type="button" class="closeButton" data-close="networkDialog">×</button></div>
-      <p class="modalIntro">这里控制房间是否可以访问网络。AI 对话使用你在“AI 能力中心”配置的模型 API，不受房间联网开关影响。</p>
-      <div id="networkPolicySummary" class="networkPolicySummary"><span class="networkPolicyIcon" aria-hidden="true">网</span><div><strong>房间联网已关闭</strong><small>所有房间的普通网络请求都会被工作台拒绝</small></div></div>
-      <label class="checkboxLabel"><input id="roomNetworkEnabled" name="roomNetworkEnabled" type="checkbox" value="true"><span><strong>允许已授权房间联网</strong><small>只有同时声明了精确服务源、并由你授予该服务源权限的房间才能访问。</small></span></label>
-      <div class="noticeBox">房间仍不能直接使用 fetch、XHR、WebSocket，也不能联网下载代码或依赖。请求必须通过工作台受控接口，并受超时与大小限制。</div>
+      <p class="modalIntro">开启后，AI 创建房间可以在任何开发阶段搜索互联网，读取普通网页、JSON API、内网页面，并用隔离浏览器查看 JavaScript 网站。AI 模型 API 始终可用。</p>
+      <div id="networkPolicySummary" class="networkPolicySummary"><span class="networkPolicyIcon" aria-hidden="true">网</span><div><strong>联网已关闭</strong><small>房间网络与 AI 创建房间的网页研究均不可用</small></div></div>
+      <label class="checkboxLabel"><input id="roomNetworkEnabled" name="roomNetworkEnabled" type="checkbox" value="true"><span><strong>允许房间与开发 Agent 联网</strong><small>开发 Agent 可访问互联网和内网；房间按自身声明的网络或浏览器能力运行。</small></span></label>
+      <div class="noticeBox">仅保留必要边界：网页不能读取工作台本机服务或密钥，也不能把网页指令当作开发指令；房间访问系统能力仍通过 Room SDK。</div>
       <section class="credentialManager" aria-labelledby="credentialManagerTitle">
         <div class="providerProfilesHeader"><div><strong id="credentialManagerTitle">命名凭据</strong><small>房间只能引用别名；密钥只会注入绑定服务源的受控请求</small></div></div>
         <div class="credentialFields">
@@ -412,7 +466,7 @@
             </div>
             <input id="agentImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
           </form>
-          <div class="agentComposerMeta"><span id="agentVisionStatus">AI 对话可访问已配置模型 API；房间联网由工作台统一授权</span><span>回车发送 · Shift + 回车换行</span><span id="generateStatus" class="inlineStatus"></span></div>
+          <div class="agentComposerMeta"><span id="agentVisionStatus">AI 对话可访问已配置模型 API；网页研究由联网总开关控制</span><span>回车发送 · Shift + 回车换行</span><span id="generateStatus" class="inlineStatus"></span></div>
         </footer>
       </div>
     </section>

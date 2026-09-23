@@ -290,6 +290,19 @@ button { cursor: pointer; }
 .providerEditorActions { display: flex; align-items: center; gap: 8px; }
 .providerModelPicker { display: grid; gap: 8px; border: 1px solid #d6e5de; border-radius: 12px; padding: 11px; background: #f7fbf9; }
 .providerModelPicker[hidden] { display: none; }
+.customCatalogModelFields { display: grid; gap: 9px; border: 1px solid #d6e5de; border-radius: 12px; padding: 11px; background: #f7fbf9; }
+.customCatalogModelFields[hidden] { display: none; }
+.providerFetchRow { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.providerFetchRow[hidden] { display: none; }
+.providerFetchRow .fieldHint { flex: 1; min-width: 140px; }
+.providerFetchRow .fieldHint.errorText { color: #a6412d; }
+.customCatalogModelFields > label { display: grid; gap: 4px; font-size: 11px; font-weight: 700; }
+.customCatalogModelFields textarea { resize: vertical; }
+.customModelCapabilities { display: grid; gap: 8px; border-top: 1px dashed #cfddd6; padding-top: 9px; }
+.customModelCapabilitiesHeader strong { display: block; font-size: 11px; }
+.customModelCapabilitiesHeader small { display: block; margin-top: 2px; color: #71827a; font-size: 9px; }
+.customModelCapabilityToggle { display: flex; align-items: flex-start; gap: 8px; }
+.customModelCapabilityField, .customModelCapabilities > label:not(.customModelCapabilityToggle) { display: grid; gap: 4px; font-size: 11px; font-weight: 700; }
 .providerModelPickerHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .providerModelPickerHeader strong, .providerModelPickerHeader small { display: block; }
 .providerModelPickerHeader strong { font-size: 11px; }
@@ -1110,6 +1123,34 @@ html[data-theme] .dropOverlay { border-color: var(--ui-highlight); background: v
 .settingsHubAction { display: grid; gap: 3px; width: 100%; text-align: left; padding: 13px 15px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface-muted); color: var(--ui-text); font-size: 13px; font-weight: 800; }
 .settingsHubAction:hover { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
 .settingsHubAction span { display: block; font-size: 11px; font-weight: 400; color: var(--ui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.defaultRoomModelSetting, .providerDefaultModelSection { display: grid; gap: 10px; padding: 14px 15px; border: 1px solid var(--ui-accent); border-radius: 13px; background: var(--ui-accent-soft); color: var(--ui-text); }
+.defaultRoomModelSetting > span, .providerDefaultModelSection > div { display: grid; gap: 4px; }
+.defaultRoomModelSetting strong, .providerDefaultModelSection strong { font-size: 13px; }
+.defaultRoomModelSetting small, .providerDefaultModelSection small { color: var(--ui-text-secondary); font-size: 11px; line-height: 1.55; }
+.defaultRoomModelSetting select, .providerDefaultModelSection select { width: 100%; min-width: 0; background: var(--ui-input); color: var(--ui-text); border-color: var(--ui-accent); font-weight: 750; }
+.providerDefaultModelSection { grid-template-columns: minmax(0, 1fr) minmax(220px, .8fr); align-items: center; margin-bottom: 12px; }
+.aiUtilitySummarySection { display: grid; gap: 10px; }
+.aiUtilitySummaryHeader { display: grid; gap: 4px; }
+.aiUtilitySummaryHeader strong { font-size: 13px; }
+.aiUtilitySummaryHeader small { color: var(--ui-text-secondary); font-size: 11px; line-height: 1.55; }
+.aiUtilityGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.aiUtilityCard { min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface-muted); color: var(--ui-text); text-align: left; }
+.aiUtilityCard:hover { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+.aiUtilityCard.configured { border-color: color-mix(in srgb, var(--ui-accent) 58%, var(--ui-border)); }
+.aiUtilityCard.ready { box-shadow: inset 3px 0 var(--ui-accent); }
+.aiUtilityCard > span:last-child { min-width: 0; }
+.aiUtilityCard strong, .aiUtilityCard small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aiUtilityCard strong { font-size: 11px; }
+.aiUtilityCard small { margin-top: 3px; color: var(--ui-text-secondary); font-size: 9px; font-weight: 500; }
+.aiUtilityGlyph { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--ui-accent-soft); color: var(--ui-accent-strong); font-size: 12px; font-weight: 900; }
+.providerUtilitySummary { margin-bottom: 12px; padding: 13px; border: 1px solid var(--ui-border); border-radius: 13px; background: var(--ui-surface-soft); }
+.aiUtilityDialog form { display: grid; gap: 12px; }
+.aiUtilityDialog label { display: grid; gap: 6px; }
+.aiUtilityDialog label small { color: var(--ui-text-secondary); font-size: 10px; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .aiUtilityGrid, .providerDefaultModelSection { grid-template-columns: 1fr; }
+}
 
 .themeModal form { max-height: min(820px, calc(100vh - 48px)); overflow: auto; }
 .themeGroup { display: grid; gap: 11px; padding: 14px; border: 1px solid var(--ui-border); border-radius: 15px; background: var(--ui-surface-soft); }

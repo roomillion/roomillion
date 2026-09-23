@@ -11,9 +11,9 @@ const { extractAndValidate, packDirectory } = require("../src/main/room-package.
 
 const projectRoot = path.resolve(__dirname, "..");
 
-test("public sources and all distribution configs contain only the seven approved examples", async () => {
+test("public sources and all distribution configs contain only the eight approved examples", async () => {
   const approvedIds = [
-    "ai-debate", "ai-model-benchmark", "browser", "document-workbench", "inventory", "meeting-actions", "offline-3d-collector"
+    "ai-debate", "ai-model-benchmark", "audio-analysis", "browser", "document-workbench", "inventory", "meeting-actions", "offline-3d-collector"
   ];
   assert.deepEqual(EXAMPLE_CATALOG.map((example) => example.id).sort(), approvedIds);
   const sourceEntries = await fsp.readdir(path.join(projectRoot, "examples"), { withFileTypes: true });
@@ -34,8 +34,8 @@ test("public sources and all distribution configs contain only the seven approve
   }
 });
 
-test("example catalog exposes seven unique portable rooms", async () => {
-  assert.equal(EXAMPLE_CATALOG.length, 7);
+test("example catalog exposes eight unique portable rooms", async () => {
+  assert.equal(EXAMPLE_CATALOG.length, 8);
   assert.equal(new Set(EXAMPLE_CATALOG.map((item) => item.id)).size, EXAMPLE_CATALOG.length);
   assert.equal(new Set(EXAMPLE_CATALOG.map((item) => item.roomId)).size, EXAMPLE_CATALOG.length);
   for (const example of EXAMPLE_CATALOG) {
@@ -101,6 +101,18 @@ test("example catalog exposes seven unique portable rooms", async () => {
       assert.ok(manifest.permissions.files.includes("export"));
       assert.match(program, /room\.documents\.markdownToPdf/);
       assert.match(program, /room\.files\.pickBinary/);
+    }
+    if (example.id === "audio-analysis") {
+      assert.ok(manifest.permissions.ai.roles.includes("audio"));
+      assert.ok(manifest.permissions.ai.roles.includes("general"));
+      assert.ok(manifest.permissions.files.includes("pick"));
+      assert.ok(manifest.permissions.files.includes("export"));
+      assert.match(program, /room\.ai\.listModels/);
+      assert.match(program, /audio: \[\{ data: new Uint8Array\(state\.file\.data\) \}\]/);
+      assert.match(program, /supportsAudio/);
+      assert.match(program, /room\.files\.pickBinary\(\{ extensions: AUDIO_EXTENSIONS \}\)/);
+      assert.match(program, /room\.files\.exportText\("会议记录\.md"/);
+      assert.doesNotMatch(program, /apiKey|baseUrl|fetch\(|EventSource/);
     }
   }
 });

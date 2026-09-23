@@ -636,3 +636,357 @@ test("legacy single profile and encrypted key migrate into the multi-profile reg
   await assert.rejects(() => fsp.access(path.join(tempRoot, "provider-secret.bin")));
   await fsp.access(service.secretPathFor("default"));
 });
+
+async function withCatalogBaseUrlOverride(service, providerId, baseUrl) {
+  const original = service.getProviderCatalog.bind(service);
+  service.getProviderCatalog = async () => {
+    const catalog = await original();
+    return catalog.map((entry) => entry.id === providerId ? { ...entry, baseUrl } : entry);
+  };
+}
+
+test("provider catalog marks which providers support automatic model fetching", async () => {
+  const service = new AiService(os.tmpdir());
+  const catalog = await service.getProviderCatalog();
+  assert.equal(catalog.find(p => p.id === "xiaomi-token-plan-cn").supportsModelFetch, true);
+  assert.equal(catalog.find(p => p.id === "deepseek").supportsModelFetch, true);
+  assert.equal(catalog.find(p => p.id === "openai").supportsModelFetch, false);
+  assert.equal(catalog.find(p => p.id === "openai-codex").supportsModelFetch, false);
+  assert.equal(catalog.find(p => p.id === "custom-openai-compatible").supportsModelFetch, false);
+});
+
+test("fetchProviderModels pulls sanitized model IDs from the OpenAI-compatible /models endpoint", async (t) => {
+  const seen = [];
+  const server = http.createServer((request, response) => {
+    seen.push({ method: request.method, url: request.url, authorization: request.headers.authorization });
+    if (request.method === "GET" && request.url === "/v1/models") {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ object: "list", data: [
+        { id: "mimo-v2.5" },
+        { id: "mimo-v3" },
+        { id: "mimo-v3" },
+        { id: "  mimo-v3.5-flash  " },
+        { id: "" },
+        { id: "bad id with spaces!" },
+        { object: "model" },
+        { id: "x".repeat(161) }
+      ] }));
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const service = await new AiService(await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-fetch-models-"))).init();
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${server.address().port}/v1`);
+  const result = await service.fetchProviderModels({ providerId: "xiaomi-token-plan-cn", apiKey: "transient-key" });
+  assert.deepEqual(result.models, [{ id: "mimo-v2.5" }, { id: "mimo-v3" }, { id: "mimo-v3.5-flash" }]);
+  assert.equal(result.providerId, "xiaomi-token-plan-cn");
+  assert.ok(result.checkedAt);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].authorization, "Bearer transient-key");
+});
+
+test("fetchProviderModels reuses an existing session key when no transient key is given", async (t) => {
+  let authorization = null;
+  const server = http.createServer((request, response) => {
+    authorization = request.headers.authorization;
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ data: [{ id: "mimo-v3" }] }));
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const service = await new AiService(await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-fetch-reuse-"))).init();
+  const saved = await service.saveProfile({ providerId: "xiaomi-token-plan-cn", model: "mimo-v2.5", apiKey: "stored-session-key" });
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${server.address().port}/v1`);
+  const result = await service.fetchProviderModels({ providerId: "xiaomi-token-plan-cn" });
+  assert.deepEqual(result.models, [{ id: "mimo-v3" }]);
+  assert.equal(authorization, "Bearer stored-session-key");
+  assert.equal(service.getPublicProfile(saved.id).modelSource, undefined);
+});
+
+test("fetchProviderModels reports clear failures for keys, statuses, timeouts, and unsupported providers", async (t) => {
+  const service = await new AiService(await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-fetch-fail-"))).init();
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "xiaomi-token-plan-cn" }),
+    /请先填写该提供商的 API Key/
+  );
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "custom-openai-compatible" }),
+    /不支持的 Pi Provider/
+  );
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "openai" }),
+    /该提供商暂不支持自动获取/
+  );
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "openai-codex" }),
+    /OAuth/
+  );
+
+  const unauthorized = http.createServer((request, response) => {
+    response.writeHead(401, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: { message: "bad key" } }));
+  });
+  unauthorized.listen(0, "127.0.0.1");
+  await once(unauthorized, "listening");
+  t.after(() => unauthorized.close());
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${unauthorized.address().port}/v1`);
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "xiaomi-token-plan-cn", apiKey: "wrong" }),
+    /HTTP 401，请检查 API Key/
+  );
+
+  const hanging = http.createServer(() => {});
+  hanging.listen(0, "127.0.0.1");
+  await once(hanging, "listening");
+  t.after(() => hanging.close());
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${hanging.address().port}/v1`);
+  await assert.rejects(
+    service.fetchProviderModels({ providerId: "xiaomi-token-plan-cn", apiKey: "k", timeoutMs: 150 }),
+    /获取模型列表超时/
+  );
+});
+
+test("catalog providers accept custom out-of-catalog model IDs with declared capabilities", async (t) => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-custom-catalog-model-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const service = await new AiService(root).init();
+  const saved = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-v3",
+    modelSource: "custom",
+    modelCapabilities: { contextWindow: 262144, input: ["text", "image"] },
+    apiKey: "test-key"
+  });
+  assert.equal(saved.providerId, "xiaomi-token-plan-cn");
+  assert.equal(saved.protocol, "openai-completions");
+  assert.equal(saved.baseUrl, "https://token-plan-cn.xiaomimimo.com/v1");
+  assert.equal(saved.modelSource, "custom");
+  assert.deepEqual(saved.modelCapabilities, { contextWindow: 262144, input: ["text", "image"] });
+
+  const capabilities = await service.getModelCapabilities(saved.id);
+  assert.equal(capabilities.supportsImages, true);
+  assert.equal(capabilities.contextWindow, 262144);
+  assert.deepEqual(capabilities.input, ["text", "image"]);
+
+  const runtime = await service.createRuntime(saved.id);
+  assert.equal(runtime.model.id, "mimo-v3");
+  assert.equal(runtime.model.baseUrl, "https://token-plan-cn.xiaomimimo.com/v1");
+  assert.deepEqual(runtime.model.input, ["text", "image"]);
+  assert.equal(runtime.model.contextWindow, 262144);
+
+  // Registry round-trip keeps the custom model fields.
+  const reloaded = await new AiService(root).init();
+  const reloadedProfile = reloaded.listPublicProfiles().find((profile) => profile.id === saved.id);
+  assert.equal(reloadedProfile.modelSource, "custom");
+  assert.deepEqual(reloadedProfile.modelCapabilities.input, ["text", "image"]);
+
+  // Unflagged out-of-catalog models stay rejected (regression guard).
+  await assert.rejects(
+    service.saveProfile({ providerId: "xiaomi-token-plan-cn", model: "mimo-unknown", apiKey: "k" }),
+    /所选模型不属于当前 Provider/
+  );
+
+  // Capability validation failures.
+  for (const bad of [
+    { contextWindow: 0, input: ["text"] },
+    { contextWindow: "big", input: ["text"] },
+    { contextWindow: 1000, input: ["image"] },
+    { contextWindow: 1000, input: ["text", "video"] }
+  ]) {
+    await assert.rejects(
+      service.saveProfile({
+        providerId: "xiaomi-token-plan-cn",
+        model: "mimo-x",
+        modelSource: "custom",
+        modelCapabilities: bad,
+        apiKey: "k"
+      }),
+      /模型上下文长度|模型输入模态/
+    );
+  }
+});
+
+test("custom out-of-catalog models gate image requests by the declared capabilities", async (t) => {
+  const payloads = [];
+  const server = http.createServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
+      response.writeHead(404).end();
+      return;
+    }
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      payloads.push(JSON.parse(body));
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive"
+      });
+      const base = { id: "chatcmpl-custom", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: "mimo-v3" };
+      response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "OK" }, finish_reason: null }] })}\n\n`);
+      response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 4, completion_tokens: 1, total_tokens: 5 } })}\n\n`);
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+
+  const service = await new AiService(await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-custom-image-"))).init();
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${server.address().port}/v1`);
+  const imageProfile = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-v3",
+    modelSource: "custom",
+    modelCapabilities: { contextWindow: 200000, input: ["text", "image"] },
+    apiKey: "test-key",
+    activate: true
+  });
+  const result = await service.complete({
+    prompt: "看图说话",
+    images: [{ mimeType: "image/png", data: "aW1hZ2UtZGF0YQ==" }],
+    profileId: imageProfile.id
+  });
+  assert.equal(result.text, "OK");
+  assert.equal(result.model, "mimo-v3");
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].model, "mimo-v3");
+  assert.ok(JSON.stringify(payloads[0].messages).includes("image_url"));
+  assert.ok(JSON.stringify(payloads[0].messages).includes("aW1hZ2UtZGF0YQ=="));
+
+  const textOnlyProfile = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-v3-text",
+    modelSource: "custom",
+    apiKey: "test-key",
+    activate: false
+  });
+  assert.deepEqual(textOnlyProfile.modelCapabilities.input, ["text"]);
+  assert.equal((await service.getModelCapabilities(textOnlyProfile.id)).supportsImages, false);
+  await assert.rejects(
+    service.complete({
+      prompt: "看图说话",
+      images: [{ mimeType: "image/png", data: "aW1hZ2UtZGF0YQ==" }],
+      profileId: textOnlyProfile.id
+    }),
+    /不支持图片输入/
+  );
+});
+
+test("audio input is injected as OpenAI input_audio blocks and gates on declared capabilities", async (t) => {
+  const payloads = [];
+  const server = http.createServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
+      response.writeHead(404).end();
+      return;
+    }
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      payloads.push(JSON.parse(body));
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive"
+      });
+      const base = { id: "chatcmpl-audio", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: "mimo-audio" };
+      response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "OK" }, finish_reason: null }] })}\n\n`);
+      response.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 9, completion_tokens: 1, total_tokens: 10 } })}\n\n`);
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+
+  const wavBuffer = Buffer.concat([
+    Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WAVE"), Buffer.alloc(8)
+  ]);
+  const wavBase64 = wavBuffer.toString("base64");
+
+  const service = await new AiService(await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-audio-"))).init();
+  await withCatalogBaseUrlOverride(service, "xiaomi-token-plan-cn", `http://127.0.0.1:${server.address().port}/v1`);
+  const audioProfile = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-audio",
+    modelSource: "custom",
+    modelCapabilities: { contextWindow: 200000, input: ["text", "audio"] },
+    apiKey: "test-key",
+    activate: true
+  });
+
+  // 纯文本提示 + 音频：payload 最后一条 user 消息含 input_audio，且保留文本；MiMo 兼容注入不丢。
+  const result = await service.complete({
+    prompt: "听写这段录音",
+    audio: [{ mimeType: "audio/wav", data: wavBase64 }],
+    profileId: audioProfile.id
+  });
+  assert.equal(result.text, "OK");
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].model, "mimo-audio");
+  assert.deepEqual(payloads[0].thinking, { type: "disabled" });
+  const userMessage = payloads[0].messages.at(-1);
+  assert.equal(userMessage.role, "user");
+  assert.ok(Array.isArray(userMessage.content));
+  assert.deepEqual(userMessage.content[0], { type: "text", text: "听写这段录音" });
+  assert.deepEqual(userMessage.content[1], {
+    type: "input_audio",
+    input_audio: { data: wavBase64, format: "wav" }
+  });
+
+  // 图片 + 音频同时发送：image_url 与 input_audio 并存。
+  payloads.length = 0;
+  const multimodalProfile = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-av",
+    modelSource: "custom",
+    modelCapabilities: { contextWindow: 200000, input: ["text", "image", "audio"] },
+    apiKey: "test-key",
+    activate: false
+  });
+  await service.complete({
+    prompt: "看图听音",
+    images: [{ mimeType: "image/png", data: "aW1hZ2UtZGF0YQ==" }],
+    audio: [{ mimeType: "audio/mpeg", data: Buffer.from("ID3").toString("base64") + Buffer.alloc(9).toString("base64") }],
+    profileId: multimodalProfile.id
+  });
+  const mixedContent = payloads[0].messages.at(-1).content;
+  assert.ok(mixedContent.some((part) => part.type === "image_url"));
+  assert.deepEqual(mixedContent.find((part) => part.type === "input_audio").input_audio.format, "mp3");
+
+  // 未声明音频能力的模型被拒绝；非法 mime 被拒绝。
+  const textOnlyProfile = await service.saveProfile({
+    providerId: "xiaomi-token-plan-cn",
+    model: "mimo-text-only",
+    modelSource: "custom",
+    apiKey: "test-key",
+    activate: false
+  });
+  await assert.rejects(
+    service.complete({
+      prompt: "听写",
+      audio: [{ mimeType: "audio/wav", data: wavBase64 }],
+      profileId: textOnlyProfile.id
+    }),
+    /不支持音频输入/
+  );
+  await assert.rejects(
+    service.complete({
+      prompt: "听写",
+      audio: [{ mimeType: "audio/x-flac", data: wavBase64 }],
+      profileId: audioProfile.id
+    }),
+    /AI 音频格式无效/
+  );
+
+  // 无音频时请求体不含 input_audio。
+  payloads.length = 0;
+  await service.complete({ prompt: "普通提问", profileId: audioProfile.id });
+  assert.equal(JSON.stringify(payloads[0].messages).includes("input_audio"), false);
+});

@@ -71,6 +71,39 @@ function start(input, schemeRegistered = false) {
     const fixtureModels = testDefinition?.mocks?.files?.length ? [{ id: "mock-profile", label: "隔离视觉测试模型", model: "mock-model", providerName: "离线模拟", ready: true, hasCredential: true, supportsImages: true, input: ["text", "image"], contextWindow: 128000 }] : [];
     const fixtureSlots = {};
     handle("room:aiListModels", () => fixtureModels, runtimeAiPermission);
+    handle("room:aiGetCapabilities", () => ({
+      embedding: { kind: "embedding", configured: true, ready: true, label: "隔离 Embedding", model: "mock-embedding" },
+      rerank: { kind: "rerank", configured: true, ready: true, label: "隔离 Rerank", model: "mock-rerank" },
+      intuition: { kind: "intuition", configured: true, ready: true, label: "隔离直觉模型", model: "mock-jev" }
+    }), runtimeAiPermission);
+    handle("room:aiEmbed", texts => {
+      if (!Array.isArray(texts) || !texts.length) throw new Error("Embedding 输入必须是非空文本数组");
+      const embeddings = texts.map((text, index) => [Math.max(1, String(text).length), index + 1]);
+      return { embeddings, dimensions: 2, embedding: "mock:embedding:2", model: "mock-embedding", profileId: "mock-embedding", usage: { input: null, totalTokens: null } };
+    }, runtimeAiPermission);
+    handle("room:aiRerank", (query, documents, options = {}) => {
+      if (typeof query !== "string" || !Array.isArray(documents) || !documents.length) throw new Error("Rerank 隔离测试参数无效");
+      const topN = Math.min(Number(options.topN) || documents.length, documents.length);
+      const results = documents.map((text, index) => ({ index, relevanceScore: String(text).includes(query) ? 1 : 1 / (index + 2) })).sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, topN);
+      return { results, model: "mock-rerank", usage: { searchUnits: null, totalTokens: null } };
+    }, runtimeAiPermission);
+    handle("room:aiIntuition", (_state, questions) => {
+      if (!questions || typeof questions !== "object" || Array.isArray(questions)) throw new Error("直觉模型隔离测试问题无效");
+      const answers = {};
+      for (const [name, question] of Object.entries(questions)) {
+        if (question.type === "noul") answers[name] = { type: "noul", noul: 0.5 };
+        else if (question.type === "choice") {
+          const choices = Object.keys(question.criteria || {});
+          const probability = choices.length ? 1 / choices.length : 0;
+          answers[name] = { type: "choice", choice: choices[0], confidence: probability, probabilities: Object.fromEntries(choices.map(choice => [choice, probability])) };
+        } else if (question.type === "score") {
+          const criteria = Array.isArray(question.criteria) ? question.criteria : [];
+          const probability = criteria.length ? 1 / criteria.length : 0;
+          answers[name] = { type: "score", score: criteria.length ? (criteria.length - 1) / 2 : 0, confidence: probability, legend: Object.fromEntries(criteria.map((item, index) => [index, item])), probabilities: Object.fromEntries(criteria.map((_item, index) => [index, probability])) };
+        } else throw new Error("直觉模型隔离测试问题类型无效");
+      }
+      return { answers, model: "mock-jev", usage: { inputTokens: null, outputTokens: null } };
+    }, runtimeAiPermission);
     handle("room:aiGetSelection", () => ({ profileId: null }), runtimeAiPermission);
     handle("room:aiGetSlotDefinitions", () => room.requestedPermissions?.ai?.slots || {}, runtimeAiPermission);
     handle("room:aiGetSlots", () => ({ ...fixtureSlots }), runtimeAiPermission);

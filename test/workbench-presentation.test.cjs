@@ -63,3 +63,26 @@ test("AI room composer submits on Enter and keeps Shift+Enter for a newline", ()
   assert.match(renderer, /commands\.length && event\.key === "Tab"/);
   assert.doesNotMatch(renderer, /\["Tab", "Enter"\]\.includes\(event\.key\)/);
 });
+
+test("settings expose one clear room default AI model in both entry points", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../src/renderer/app.js"), "utf8");
+  assert.match(html, /id="settingsDefaultRoomModelSelect"/);
+  assert.match(html, /id="providerDefaultRoomModelSelect"/);
+  assert.match(html, /没有单独选择模型的房间会使用此模型/);
+  assert.match(renderer, /window\.workbench\.setActiveProvider\(profileId\)/);
+  assert.match(renderer, /房间默认 AI 模型已切换为/);
+});
+
+test("AI settings expose separate embedding, rerank and Jev capability configuration", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../src/renderer/index.html"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../src/renderer/app.js"), "utf8");
+  const roomPreload = fs.readFileSync(path.join(__dirname, "../src/preload/room-preload.cjs"), "utf8");
+  for (const kind of ["embedding", "rerank", "intuition"]) assert.match(html, new RegExp(`data-ai-utility-kind="${kind}"`));
+  assert.match(html, /直觉 · Jev/);
+  assert.match(renderer, /jev-latest/);
+  assert.match(renderer, /saveAiCapabilityProfile/);
+  assert.match(roomPreload, /rerank: \(query, documents/);
+  assert.match(roomPreload, /intuition: \(state, questions/);
+  assert.match(roomPreload, /getCapabilities:/);
+});

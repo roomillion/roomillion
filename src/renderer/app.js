@@ -13,11 +13,14 @@ const state = {
   isAgentWindow: IS_AGENT_WINDOW,
   provider: null,
   aiProfiles: [],
+  aiUtilityProfiles: {},
+  editingAiUtilityKind: null,
   editingProviderId: null,
   credentialSourceProfileId: null,
   providerEditorOpen: false,
   providerModelContextKey: "",
   pendingProviderModelIds: new Set(),
+  remoteProviderModels: new Map(),
   providerQuery: "",
   providerModelQuery: "",
   aiProviders: [],
@@ -57,6 +60,8 @@ const elements = {
   workbenchSettingsButton: document.getElementById("workbenchSettingsButton"),
   workbenchSettingsDialog: document.getElementById("workbenchSettingsDialog"),
   settingsHubDialog: document.getElementById("settingsHubDialog"),
+  settingsDefaultRoomModelSelect: document.getElementById("settingsDefaultRoomModelSelect"),
+  settingsDefaultRoomModelStatus: document.getElementById("settingsDefaultRoomModelStatus"),
   themeSummary: document.getElementById("themeSummaryNav"),
   themeStatus: document.getElementById("themeStatus"),
   resetThemeButton: document.getElementById("resetThemeButton"),
@@ -141,11 +146,29 @@ const elements = {
   restoreStatus: document.getElementById("restoreStatus"),
   submitRestoreButton: document.getElementById("submitRestoreButton"),
   providerDialog: document.getElementById("providerDialog"),
+  aiUtilityDialog: document.getElementById("aiUtilityDialog"),
+  aiUtilityForm: document.getElementById("aiUtilityForm"),
+  aiUtilityTitle: document.getElementById("aiUtilityTitle"),
+  aiUtilityIntro: document.getElementById("aiUtilityIntro"),
+  aiUtilityProtocol: document.getElementById("aiUtilityProtocol"),
+  aiUtilityLabel: document.getElementById("aiUtilityLabel"),
+  aiUtilityBaseUrl: document.getElementById("aiUtilityBaseUrl"),
+  aiUtilityModel: document.getElementById("aiUtilityModel"),
+  aiUtilityDimensionsField: document.getElementById("aiUtilityDimensionsField"),
+  aiUtilityDimensions: document.getElementById("aiUtilityDimensions"),
+  aiUtilityApiKey: document.getElementById("aiUtilityApiKey"),
+  aiUtilityRememberKey: document.getElementById("aiUtilityRememberKey"),
+  aiUtilityStatus: document.getElementById("aiUtilityStatus"),
+  deleteAiUtilityButton: document.getElementById("deleteAiUtilityButton"),
+  clearAiUtilityKeyButton: document.getElementById("clearAiUtilityKeyButton"),
+  saveAiUtilityButton: document.getElementById("saveAiUtilityButton"),
+  testAiUtilityButton: document.getElementById("testAiUtilityButton"),
   providerForm: document.getElementById("providerForm"),
   providerEditorPanel: document.getElementById("providerEditorPanel"),
   providerEditorFields: document.getElementById("providerEditorFields"),
   providerProfileLabelField: document.getElementById("providerProfileLabelField"),
   providerProfileList: document.getElementById("providerProfileList"),
+  providerDefaultRoomModelSelect: document.getElementById("providerDefaultRoomModelSelect"),
   providerProfileLabel: document.getElementById("providerProfileLabel"),
   providerEditorTitle: document.getElementById("providerEditorTitle"),
   newProviderButton: document.getElementById("newProviderButton"),
@@ -170,6 +193,14 @@ const elements = {
   providerModelSearch: document.getElementById("providerModelSearch"),
   providerModelList: document.getElementById("providerModelList"),
   selectAllProviderModels: document.getElementById("selectAllProviderModels"),
+  customCatalogModelFields: document.getElementById("customCatalogModelFields"),
+  providerFetchRow: document.getElementById("providerFetchRow"),
+  fetchProviderModelsButton: document.getElementById("fetchProviderModelsButton"),
+  fetchProviderModelsStatus: document.getElementById("fetchProviderModelsStatus"),
+  customCatalogModelIds: document.getElementById("customCatalogModelIds"),
+  customModelContextWindow: document.getElementById("customModelContextWindow"),
+  customModelSupportsImages: document.getElementById("customModelSupportsImages"),
+  customModelSupportsAudio: document.getElementById("customModelSupportsAudio"),
   clearProviderModels: document.getElementById("clearProviderModels"),
   credentialReuseNotice: document.getElementById("credentialReuseNotice"),
   credentialReuseText: document.getElementById("credentialReuseText"),
@@ -379,10 +410,158 @@ function updateSettingsSummary() {
   if (!el) return;
   const ready = state.aiProfiles.filter(WorkbenchPresentation.canUseProfile).length;
   const ai = ready ? `AI ${ready}/${state.aiProfiles.length} 个模型就绪` : "AI 需要配置";
+  const defaultModel = state.provider ? `${state.provider.name} · ${state.provider.model}` : "尚未设置";
   const nav = document.getElementById("providerSummaryNav");
-  if (nav) nav.textContent = `${ai}${state.provider && !WorkbenchPresentation.canUseProfile(state.provider) ? " · 默认模型需修复" : ""}`;
+  if (nav) nav.textContent = state.provider && WorkbenchPresentation.canUseProfile(state.provider)
+    ? `房间默认：${state.provider.model}`
+    : `${ai}${state.provider ? " · 默认模型需修复" : ""}`;
+  renderDefaultRoomModelControls();
+  renderAiUtilityProfiles();
+  if (elements.settingsDefaultRoomModelStatus) {
+    const usable = WorkbenchPresentation.canUseProfile(state.provider);
+    setInlineStatus(
+      elements.settingsDefaultRoomModelStatus,
+      state.provider
+        ? usable
+          ? `当前房间默认模型：${defaultModel}。更改后立即应用于跟随默认设置的房间。`
+          : `当前房间默认模型 ${defaultModel} 缺少可用凭据，请修复或选择其他模型。`
+        : "尚未设置房间默认 AI 模型。请先打开 AI 能力中心并启用模型。",
+      Boolean(state.provider && !usable)
+    );
+  }
   const net = state.networkPolicy?.roomNetworkEnabled === true ? "联网开" : "联网关";
   el.textContent = `${ai} · ${net}`;
+}
+
+const AI_UTILITY_META = Object.freeze({
+  embedding: Object.freeze({
+    title: "Embedding 模型",
+    intro: "把文本转换为向量，供语义搜索、知识库、聚类和相似度计算使用。",
+    protocol: "调用 OpenAI 兼容的 POST /embeddings；房间使用 room.ai.embed()，无需接触 API Key。",
+    label: "Embedding 模型",
+    baseUrl: "",
+    model: ""
+  }),
+  rerank: Object.freeze({
+    title: "Rerank 模型",
+    intro: "根据查询重新排列候选文本，适合在向量检索之后提高最终结果相关性。",
+    protocol: "调用常见的 POST /rerank 协议，兼容 Cohere、Jina 与同结构网关；房间使用 room.ai.rerank()。",
+    label: "Rerank 模型",
+    baseUrl: "",
+    model: ""
+  }),
+  intuition: Object.freeze({
+    title: "直觉模型 · Jev",
+    intro: "Jev 是 TypeSafe AI 的 System One 模型：快速返回有类型的选择、评分或是非概率，不生成自由文本。",
+    protocol: "调用 POST /systemone；房间使用 room.ai.intuition() 提交 state 和 noul、score、choice 问题。",
+    label: "TypeSafe AI · Jev",
+    baseUrl: "https://api.typesafe.ai/v1",
+    model: "jev-latest"
+  })
+});
+
+function renderAiUtilityProfiles() {
+  for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
+    const kind = card.dataset.aiUtilityKind;
+    const profile = state.aiUtilityProfiles?.[kind] || null;
+    const status = card.querySelector("[data-ai-utility-status]");
+    card.classList.toggle("configured", Boolean(profile));
+    card.classList.toggle("ready", Boolean(profile?.ready));
+    if (status) status.textContent = profile
+      ? `${profile.model} · ${profile.ready ? "可用" : profile.hasStoredKey ? "密钥无法读取" : "需要密钥"}`
+      : "未配置 · 点击设置";
+  }
+}
+
+async function showAiUtilityDialog(kind) {
+  const meta = AI_UTILITY_META[kind];
+  if (!meta) return;
+  closeSettingsHub();
+  if (elements.providerDialog.open) elements.providerDialog.close();
+  await hideRoomForModal();
+  state.editingAiUtilityKind = kind;
+  const profile = state.aiUtilityProfiles?.[kind] || null;
+  elements.aiUtilityTitle.textContent = meta.title;
+  elements.aiUtilityIntro.textContent = meta.intro;
+  elements.aiUtilityProtocol.textContent = meta.protocol;
+  elements.aiUtilityLabel.value = profile?.label || meta.label;
+  elements.aiUtilityBaseUrl.value = profile?.baseUrl || meta.baseUrl;
+  elements.aiUtilityModel.value = profile?.model || meta.model;
+  elements.aiUtilityDimensionsField.hidden = kind !== "embedding";
+  elements.aiUtilityDimensions.value = profile?.dimensions || "";
+  elements.aiUtilityApiKey.value = "";
+  elements.aiUtilityRememberKey.checked = Boolean(profile?.hasStoredKey);
+  elements.deleteAiUtilityButton.disabled = !profile;
+  elements.clearAiUtilityKeyButton.disabled = !profile?.hasSessionKey && !profile?.hasStoredKey;
+  setInlineStatus(
+    elements.aiUtilityStatus,
+    profile ? `${profile.model} 已配置${profile.ready ? "并可供房间调用" : "，但当前缺少可用密钥"}。` : "填写连接信息后保存；“保存并测试”会真实调用一次模型 API。",
+    Boolean(profile && !profile.ready)
+  );
+  elements.aiUtilityDialog.showModal();
+}
+
+function aiUtilityPayload() {
+  return {
+    label: elements.aiUtilityLabel.value.trim(),
+    baseUrl: elements.aiUtilityBaseUrl.value.trim(),
+    model: elements.aiUtilityModel.value.trim(),
+    ...(state.editingAiUtilityKind === "embedding" && elements.aiUtilityDimensions.value ? { dimensions: Number(elements.aiUtilityDimensions.value) } : {}),
+    ...(elements.aiUtilityApiKey.value ? { apiKey: elements.aiUtilityApiKey.value } : {}),
+    rememberKey: elements.aiUtilityRememberKey.checked
+  };
+}
+
+async function saveAiUtilityProfile({ test = false } = {}) {
+  const kind = state.editingAiUtilityKind;
+  if (!AI_UTILITY_META[kind]) return;
+  elements.saveAiUtilityButton.disabled = true;
+  elements.testAiUtilityButton.disabled = true;
+  try {
+    state.aiUtilityProfiles = await window.workbench.saveAiCapabilityProfile(kind, aiUtilityPayload());
+    elements.aiUtilityApiKey.value = "";
+    if (test) {
+      setInlineStatus(elements.aiUtilityStatus, "正在真实调用模型 API……", false);
+      const result = await window.workbench.testAiCapabilityProfile(kind);
+      state.aiUtilityProfiles = result.profiles;
+      setInlineStatus(elements.aiUtilityStatus, `连接通过：${result.model} · ${result.latencyMs} ms`, false);
+    } else setInlineStatus(elements.aiUtilityStatus, "配置已保存，房间现在可以通过工作台网关调用。", false);
+    renderAiUtilityProfiles();
+    updateSettingsSummary();
+  } catch (error) {
+    setInlineStatus(elements.aiUtilityStatus, formatError(error), true);
+  } finally {
+    elements.saveAiUtilityButton.disabled = false;
+    elements.testAiUtilityButton.disabled = false;
+  }
+}
+
+function renderDefaultRoomModelSelect(select) {
+  if (!select) return;
+  const previousValue = select.value;
+  select.replaceChildren();
+  if (!state.aiProfiles.length) {
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "尚未启用 AI 模型";
+    select.appendChild(empty);
+    select.disabled = true;
+    return;
+  }
+  for (const profile of state.aiProfiles) {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = `${profile.name} · ${profile.model}${WorkbenchPresentation.canUseProfile(profile) ? "" : "（凭据不可用）"}`;
+    option.disabled = !WorkbenchPresentation.canUseProfile(profile) && profile.id !== state.provider?.id;
+    select.appendChild(option);
+  }
+  select.value = state.provider?.id || previousValue || state.aiProfiles[0].id;
+  select.disabled = !state.aiProfiles.some(WorkbenchPresentation.canUseProfile);
+}
+
+function renderDefaultRoomModelControls() {
+  renderDefaultRoomModelSelect(elements.settingsDefaultRoomModelSelect);
+  renderDefaultRoomModelSelect(elements.providerDefaultRoomModelSelect);
 }
 
 function readStoredSidebarState() {
@@ -1054,6 +1233,7 @@ function credentialSourceProfile() {
 function applyAiState(result) {
   state.provider = result?.activeProfile || null;
   state.aiProfiles = Array.isArray(result?.profiles) ? result.profiles : [];
+  state.aiUtilityProfiles = result?.utilityProfiles && typeof result.utilityProfiles === "object" ? result.utilityProfiles : state.aiUtilityProfiles;
   if (state.editingProviderId && !state.aiProfiles.some((profile) => profile.id === state.editingProviderId)) {
     state.editingProviderId = state.provider?.id || null;
   }
@@ -1074,6 +1254,40 @@ function resetProviderModelSelection() {
   state.pendingProviderModelIds = new Set();
   state.providerModelQuery = "";
   elements.providerModelSearch.value = "";
+  elements.customCatalogModelIds.value = "";
+  elements.customModelContextWindow.value = 128000;
+  elements.customModelSupportsImages.checked = false;
+  elements.customModelSupportsAudio.checked = false;
+  setFetchProviderModelsStatus("", false);
+}
+
+function setFetchProviderModelsStatus(message, isError) {
+  elements.fetchProviderModelsStatus.textContent = message;
+  elements.fetchProviderModelsStatus.classList.toggle("errorText", Boolean(isError && message));
+}
+
+async function fetchProviderModelsAction() {
+  const provider = selectedProvider();
+  if (!provider || provider.supportsModelFetch !== true) return;
+  elements.fetchProviderModelsButton.disabled = true;
+  setFetchProviderModelsStatus("正在从服务商获取模型列表……", false);
+  try {
+    const apiKey = elements.providerApiKey.value.trim();
+    const result = await window.workbench.fetchProviderModels({
+      providerId: provider.id,
+      ...(apiKey ? { apiKey } : {})
+    });
+    state.remoteProviderModels.set(provider.id, new Set(result.models.map((model) => model.id)));
+    const freshCount = result.models.filter((model) =>
+      !provider.models.some((entry) => entry.id === model.id)
+    ).length;
+    setFetchProviderModelsStatus(`获取到 ${result.models.length} 个模型${freshCount ? `，其中 ${freshCount} 个不在本地目录` : "；均已在本地目录中"}`, false);
+    renderProviderModelList(provider);
+  } catch (error) {
+    setFetchProviderModelsStatus(formatError(error), true);
+  } finally {
+    elements.fetchProviderModelsButton.disabled = provider.supportsModelFetch !== true;
+  }
 }
 
 function renderProviderProfiles() {
@@ -1121,19 +1335,19 @@ function renderProviderProfiles() {
       const modelTitle = document.createElement("strong");
       modelTitle.textContent = profile.label;
       const details = document.createElement("small");
-      details.textContent = `${profile.model} · ${WorkbenchPresentation.credentialStatus(profile)}`;
+      details.textContent = `${profile.model}${profile.modelSource === "custom" ? "（目录外）" : ""} · ${WorkbenchPresentation.credentialStatus(profile)}`;
       modelIdentity.append(modelTitle, details);
       const actions = document.createElement("div");
       if (profile.isActive) {
         const badge = document.createElement("span");
         badge.className = "providerDefaultBadge";
-        badge.textContent = "默认";
+        badge.textContent = "房间默认";
         actions.appendChild(badge);
       } else {
         const activate = document.createElement("button");
         activate.type = "button";
         activate.className = "providerCardButton";
-        activate.textContent = "设为默认";
+        activate.textContent = "设为房间默认";
         activate.disabled = !WorkbenchPresentation.canUseProfile(profile);
         activate.addEventListener("click", () => setActiveProvider(profile.id));
         actions.appendChild(activate);
@@ -1348,6 +1562,49 @@ function configuredModelIds(provider) {
     .map((profile) => profile.model));
 }
 
+function manualCatalogModelIds() {
+  return [...new Set(elements.customCatalogModelIds.value
+    .split(/[\r\n,，]+/)
+    .map((value) => value.trim())
+    .filter(Boolean))];
+}
+
+function currentCustomModelContextWindow() {
+  const value = Number(elements.customModelContextWindow.value);
+  return Number.isSafeInteger(value) && value > 0 ? value : 128000;
+}
+
+function customCatalogModelCapabilities() {
+  return {
+    contextWindow: currentCustomModelContextWindow(),
+    input: [
+      "text",
+      ...(elements.customModelSupportsImages.checked ? ["image"] : []),
+      ...(elements.customModelSupportsAudio.checked ? ["audio"] : [])
+    ]
+  };
+}
+
+function catalogExtraModels(provider) {
+  const catalogIds = new Set(provider.models.map((model) => model.id));
+  const capabilities = customCatalogModelCapabilities();
+  const extras = [];
+  const push = (modelId, source) => {
+    if (catalogIds.has(modelId) || extras.some((model) => model.id === modelId)) return;
+    extras.push({
+      id: modelId,
+      name: modelId,
+      reasoning: false,
+      input: [...capabilities.input],
+      contextWindow: capabilities.contextWindow,
+      source
+    });
+  };
+  for (const modelId of manualCatalogModelIds()) push(modelId, "manual");
+  for (const modelId of state.remoteProviderModels.get(provider.id) || []) push(modelId, "remote");
+  return extras;
+}
+
 function renderProviderModelList(provider) {
   elements.providerModelList.replaceChildren();
   const configured = configuredModelIds(provider);
@@ -1365,7 +1622,9 @@ function renderProviderModelList(provider) {
     if (suggested) state.pendingProviderModelIds.add(suggested.id);
   }
   const query = state.providerModelQuery.trim().toLowerCase();
-  const visibleModels = provider.models.filter((model) =>
+  const extraModels = catalogExtraModels(provider);
+  const allModels = [...provider.models, ...extraModels];
+  const visibleModels = allModels.filter((model) =>
     !query || `${model.name} ${model.id}`.toLowerCase().includes(query)
   );
   for (const model of visibleModels) {
@@ -1395,6 +1654,8 @@ function renderProviderModelList(provider) {
       formatTokenCount(model.contextWindow),
       ...(model.reasoning ? ["推理"] : []),
       ...(model.input.includes("image") ? ["图片"] : []),
+      ...(model.source === "remote" ? ["服务商返回"] : []),
+      ...(model.source === "manual" ? ["手动添加"] : []),
       ...(alreadyEnabled ? ["已启用"] : [])
     ];
     for (const value of tagValues) {
@@ -1411,7 +1672,7 @@ function renderProviderModelList(provider) {
     empty.textContent = provider.limitation || "没有匹配的模型";
     elements.providerModelList.appendChild(empty);
   }
-  const availableCount = providerUnavailable ? 0 : provider.models.filter((model) => !configured.has(model.id)).length;
+  const availableCount = providerUnavailable ? 0 : allModels.filter((model) => !configured.has(model.id)).length;
   const selectedCount = [...state.pendingProviderModelIds].filter((modelId) => !configured.has(modelId)).length;
   elements.providerModelCount.textContent = providerUnavailable
     ? `Pi 目录含 ${provider.models.length} 个模型 · ${provider.limitation}`
@@ -1440,8 +1701,25 @@ function renderProviderFields(preferredModel) {
     ? `Pi 原生 · ${provider.supportsApiKey ? "API Key" : "OAuth"}`
     : "高级";
   elements.customProviderFields.hidden = !isCustom;
-  elements.modelSelectField.hidden = isCustom || !profile;
+  const editingCustomCatalogModel = Boolean(profileMatches && profile?.modelSource === "custom");
+  elements.modelSelectField.hidden = isCustom || !profile || editingCustomCatalogModel;
   elements.providerModelPickerField.hidden = isCustom || Boolean(profile);
+  elements.customCatalogModelFields.hidden = isCustom || providerUnavailable || Boolean(profile && !editingCustomCatalogModel);
+  elements.providerFetchRow.hidden = isCustom || providerUnavailable || Boolean(profile);
+  elements.fetchProviderModelsButton.disabled = providerUnavailable || provider.supportsModelFetch !== true;
+  if (!elements.providerFetchRow.hidden && provider.supportsModelFetch !== true) {
+    setFetchProviderModelsStatus("该提供商暂不支持自动获取；可手动添加模型 ID", false);
+  }
+  if (!elements.customCatalogModelFields.hidden) {
+    // 仅在刚进入编辑（输入框为空，上下文重置后）时预填，避免中途重渲染覆盖用户修改
+    if (editingCustomCatalogModel && elements.customCatalogModelIds.value === "") {
+      elements.customCatalogModelIds.value = profile.model;
+      const capabilities = profile.modelCapabilities || { contextWindow: 128000, input: ["text"] };
+      elements.customModelContextWindow.value = capabilities.contextWindow;
+      elements.customModelSupportsImages.checked = capabilities.input.includes("image");
+      elements.customModelSupportsAudio.checked = capabilities.input.includes("audio");
+    }
+  }
   elements.modelSelect.disabled = isCustom || !profile || providerUnavailable;
   elements.customProviderName.disabled = !isCustom;
   elements.customBaseUrl.disabled = !isCustom;
@@ -1501,20 +1779,27 @@ function providerFormPayload() {
   const provider = selectedProvider();
   if (!provider) throw new Error("请选择 AI 提供商");
   const editingProfile = editingProviderProfile();
+  const isCustomProvider = provider.id === "custom-openai-compatible";
+  const editingCatalogCustomModel = !isCustomProvider && editingProfile?.modelSource === "custom";
   const payload = {
     ...(state.editingProviderId ? { id: state.editingProviderId } : {}),
     label: elements.providerProfileLabel.value,
     providerId: provider.id,
-    model: provider.id === "custom-openai-compatible" ? elements.customModel.value : elements.modelSelect.value,
+    model: isCustomProvider
+      ? elements.customModel.value
+      : editingCatalogCustomModel
+        ? elements.customCatalogModelIds.value.trim()
+        : elements.modelSelect.value,
     apiKey: elements.providerApiKey.value,
     rememberKey: elements.providerForm.elements.rememberKey.checked,
     ...(editingProfile ? { activate: editingProfile.isActive } : {}),
+    ...(editingCatalogCustomModel ? { modelSource: "custom", modelCapabilities: customCatalogModelCapabilities() } : {}),
     ...(state.credentialSourceProfileId ? {
       credentialSourceProfileId: state.credentialSourceProfileId,
       activate: false
     } : {})
   };
-  if (provider.id === "custom-openai-compatible") {
+  if (isCustomProvider) {
     payload.name = elements.customProviderName.value;
     payload.baseUrl = elements.customBaseUrl.value;
   }
@@ -1529,13 +1814,17 @@ function customModelIds() {
 }
 
 function selectedProviderModelIds(provider) {
-  if (editingProviderProfile()) {
-    return [provider.id === "custom-openai-compatible" ? elements.customModel.value.trim() : elements.modelSelect.value].filter(Boolean);
+  const editingProfile = editingProviderProfile();
+  if (editingProfile) {
+    if (editingProfile.providerId === "custom-openai-compatible") return [elements.customModel.value.trim()].filter(Boolean);
+    if (editingProfile.modelSource === "custom") return [elements.customCatalogModelIds.value.trim()].filter(Boolean);
+    return [elements.modelSelect.value].filter(Boolean);
   }
   if (provider.id === "custom-openai-compatible") return customModelIds();
   const configured = configuredModelIds(provider);
+  const extraIds = new Set(catalogExtraModels(provider).map((model) => model.id));
   return [...state.pendingProviderModelIds].filter((modelId) =>
-    provider.models.some((model) => model.id === modelId) && !configured.has(modelId)
+    (provider.models.some((model) => model.id === modelId) || extraIds.has(modelId)) && !configured.has(modelId)
   );
 }
 
@@ -1652,15 +1941,15 @@ function renderNetworkPolicy() {
   const enabled = state.networkPolicy?.roomNetworkEnabled === true;
   elements.roomNetworkEnabled.checked = enabled;
   elements.networkDot.classList.toggle("online", enabled);
-  elements.networkSummary.textContent = enabled ? "已授权房间可联网" : "房间联网已关闭";
+  elements.networkSummary.textContent = enabled ? "房间与开发 Agent 可联网" : "联网已关闭";
   updateSettingsSummary();
   elements.networkPolicySummary.classList.toggle("enabled", enabled);
   const title = elements.networkPolicySummary.querySelector("strong");
   const detail = elements.networkPolicySummary.querySelector("small");
-  title.textContent = enabled ? "房间联网已开启" : "房间联网已关闭";
+  title.textContent = enabled ? "联网已开启" : "联网已关闭";
   detail.textContent = enabled
-    ? "只有获得精确服务源权限的房间可以通过工作台发出请求"
-    : "所有房间的普通网络请求都会被工作台拒绝";
+    ? "房间可按授权联网；AI 创建房间可访问互联网、内网和 JavaScript 网页"
+    : "房间网络与 AI 创建房间的网页研究均不可用";
 }
 
 function renderCredentials() {
@@ -1714,7 +2003,7 @@ async function saveNetworkPolicy(event) {
     state.networkPolicy = await window.workbench.setRoomNetworkEnabled(elements.roomNetworkEnabled.checked);
     renderNetworkPolicy();
     elements.networkDialog.close();
-    showToast(state.networkPolicy.roomNetworkEnabled ? "已允许获得授权的房间联网" : "已关闭所有房间联网");
+    showToast(state.networkPolicy.roomNetworkEnabled ? "已允许房间与开发 Agent 联网" : "已关闭房间网络与网页研究");
   } catch (error) {
     setInlineStatus(elements.networkStatus, formatError(error), true);
   } finally {
@@ -2549,9 +2838,10 @@ async function setActiveProvider(profileId) {
   try {
     applyAiState(await window.workbench.setActiveProvider(profileId));
     renderProvider();
-    showToast(`默认模型已切换为 ${state.provider?.label || state.provider?.model}`);
+    showToast(`房间默认 AI 模型已切换为 ${state.provider?.label || state.provider?.model}`);
   } catch (error) {
     setInlineStatus(elements.providerStatus, formatError(error), true);
+    showToast(formatError(error));
   }
 }
 
@@ -2609,6 +2899,7 @@ async function saveProviderSelection() {
       apiKey: index === 0 ? enteredKey : "",
       rememberKey,
       activate: !state.provider && index === 0,
+      ...(definition ? {} : { modelSource: "custom", modelCapabilities: customCatalogModelCapabilities() }),
       ...(reuseProfileId ? { credentialSourceProfileId: reuseProfileId } : {})
     };
     if (provider.id === "custom-openai-compatible") {
@@ -3534,6 +3825,7 @@ async function initialize() {
   state.rooms = initial.rooms;
   state.provider = initial.provider;
   state.aiProfiles = initial.aiProfiles || (initial.provider ? [initial.provider] : []);
+  state.aiUtilityProfiles = initial.aiUtilityProfiles || {};
   state.aiProviders = initial.aiProviders;
   state.aiCapabilities = initial.aiCapabilities;
   state.networkPolicy = initial.networkPolicy;
@@ -3610,6 +3902,39 @@ for (const item of elements.settingsHubDialog.querySelectorAll("[data-settings-s
 }
 document.getElementById("openAppearanceButton").addEventListener("click", () => { closeSettingsHub(); showWorkbenchSettings().catch((error) => showToast(formatError(error))); });
 document.getElementById("openAiCenterButton").addEventListener("click", () => { closeSettingsHub(); showProviderDialog().catch((error) => showToast(formatError(error))); });
+for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
+  card.addEventListener("click", () => showAiUtilityDialog(card.dataset.aiUtilityKind).catch((error) => showToast(formatError(error))));
+}
+elements.saveAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile());
+elements.testAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile({ test: true }));
+elements.clearAiUtilityKeyButton.addEventListener("click", async () => {
+  const kind = state.editingAiUtilityKind;
+  if (!AI_UTILITY_META[kind]) return;
+  try {
+    state.aiUtilityProfiles = await window.workbench.clearAiCapabilityKey(kind);
+    elements.aiUtilityRememberKey.checked = false;
+    renderAiUtilityProfiles();
+    setInlineStatus(elements.aiUtilityStatus, "该能力的会话密钥和系统加密密钥已清除。", false);
+  } catch (error) { setInlineStatus(elements.aiUtilityStatus, formatError(error), true); }
+});
+elements.deleteAiUtilityButton.addEventListener("click", async () => {
+  const kind = state.editingAiUtilityKind;
+  if (!AI_UTILITY_META[kind] || !window.confirm(`删除“${AI_UTILITY_META[kind].title}”配置？使用此能力的房间会收到未配置提示。`)) return;
+  try {
+    state.aiUtilityProfiles = await window.workbench.deleteAiCapabilityProfile(kind);
+    renderAiUtilityProfiles();
+    elements.aiUtilityDialog.close();
+    showToast(`${AI_UTILITY_META[kind].title}配置已删除`);
+  } catch (error) { setInlineStatus(elements.aiUtilityStatus, formatError(error), true); }
+});
+for (const select of [elements.settingsDefaultRoomModelSelect, elements.providerDefaultRoomModelSelect]) {
+  select.addEventListener("change", async () => {
+    if (!select.value || select.value === state.provider?.id) return;
+    select.disabled = true;
+    await setActiveProvider(select.value);
+    renderDefaultRoomModelControls();
+  });
+}
 document.getElementById("openNetworkButton").addEventListener("click", () => { closeSettingsHub(); showNetworkDialog().catch((error) => showToast(formatError(error))); });
 document.getElementById("openDiagnosticsButton").addEventListener("click", () => { closeSettingsHub(); showDiagnosticsDialog().catch((error) => showToast(formatError(error))); });
 document.getElementById("changeStorageLocationButton").addEventListener("click", async () => {
@@ -3813,7 +4138,7 @@ elements.selectAllProviderModels.addEventListener("click", () => {
   const provider = selectedProvider();
   if (!provider) return;
   const configured = configuredModelIds(provider);
-  for (const model of provider.models) {
+  for (const model of [...provider.models, ...catalogExtraModels(provider)]) {
     if (!configured.has(model.id)) state.pendingProviderModelIds.add(model.id);
   }
   renderProviderModelList(provider);
@@ -3824,6 +4149,24 @@ elements.clearProviderModels.addEventListener("click", () => {
   state.pendingProviderModelIds.clear();
   renderProviderModelList(provider);
 });
+elements.fetchProviderModelsButton.addEventListener("click", () => {
+  fetchProviderModelsAction().catch((error) => showToast(formatError(error)));
+});
+for (const target of [
+  elements.customCatalogModelIds,
+  elements.customModelContextWindow,
+  elements.customModelSupportsImages,
+  elements.customModelSupportsAudio
+]) {
+  target.addEventListener("input", () => {
+    const provider = selectedProvider();
+    if (provider && !editingProviderProfile()) renderProviderModelList(provider);
+  });
+  target.addEventListener("change", () => {
+    const provider = selectedProvider();
+    if (provider && !editingProviderProfile()) renderProviderModelList(provider);
+  });
+}
 document.getElementById("cancelCredentialReuseButton").addEventListener("click", () => {
   const currentModel = elements.modelSelect.value;
   state.credentialSourceProfileId = null;
@@ -4082,6 +4425,10 @@ for (const button of document.querySelectorAll("[data-close]")) {
 }
 elements.providerDialog.addEventListener("close", () => {
   setProviderPickerOpen(false);
+  restoreActiveRoomAfterDialog();
+});
+elements.aiUtilityDialog.addEventListener("close", () => {
+  state.editingAiUtilityKind = null;
   restoreActiveRoomAfterDialog();
 });
 elements.workbenchSettingsDialog.addEventListener("close", restoreActiveRoomAfterDialog);

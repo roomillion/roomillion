@@ -1,6 +1,6 @@
 {
   "name": "roomillion",
-  "version": "0.3.0-alpha.55",
+  "version": "0.3.0-alpha.57",
   "desktopName": "roomillion",
   "private": true,
   "author": "千万间 Roomillion 项目",
@@ -118,6 +118,7 @@
           "meeting-actions.room",
           "ai-debate.room",
           "ai-model-benchmark.room",
+          "audio-analysis.room",
           "offline-3d-collector.room",
           "document-workbench.room"
         ]

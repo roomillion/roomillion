@@ -50,6 +50,29 @@ document.getElementById('ocr').onclick=async()=>{try{const id=await room.storage
   assert.equal(result.passed, true, JSON.stringify(result));
 });
 
+test("isolated room runtime exposes embedding, rerank and Jev-shaped intuition contracts", async () => {
+  const spec = {
+    formatVersion: "room-app@1", kind: "custom", name: "专用模型接口回归", description: "验证三类专用模型的房间桥接合同", theme: "light", hostModules: [],
+    capabilities: { database: false, files: [], ai: { roles: ["general"] } },
+    files: {
+      html: '<main><button id="run">测试接口</button><output id="out"></output></main>',
+      css: 'main{padding:20px;display:grid;gap:20px}',
+      javascript: `document.getElementById('run').onclick=async()=>{try{
+        const c=await room.ai.getCapabilities();
+        const e=await room.ai.embed(['甲']);
+        const r=await room.ai.rerank('目标',['其他','目标文本'],{topN:1});
+        const i=await room.ai.intuition('状态',{pick:{type:'choice',criteria:{approve:'通过',reject:'拒绝'}},risk:{type:'noul'},level:{type:'score',criteria:['低','高']}});
+        document.getElementById('out').textContent=[Object.values(c).filter(x=>x.ready).length,e.dimensions,r.results[0].index,i.answers.pick.choice,i.answers.risk.noul,i.answers.level.score].join('|');
+      }catch(e){document.getElementById('out').textContent=e.message;}};`,
+      "room-tests.json": JSON.stringify({ version: 1, scenarios: [{ name: "三类专用模型合同", actions: [
+        { type: "click", selector: "#run" }, { type: "wait", ms: 300 }, { type: "assertText", selector: "#out", value: "3|2|1|approve|0.5|0.5" }
+      ] }] })
+    }
+  };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+});
+
 test("runtime check abort finishes without waiting for a stuck child process", async () => {
   const child = stalledWorker();
   const controller = new AbortController();

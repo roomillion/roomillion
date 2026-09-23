@@ -1,0 +1,16 @@
+{
+  "formatVersion": "0.1",
+  "id": "cn.zhibian.example.audio-analysis",
+  "name": "音频分析室",
+  "version": "1.0.0",
+  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
+  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.3.0-alpha.51" },
+  "entry": "app/index.html",
+  "permissions": {
+    "database": "private",
+    "files": ["pick", "export"],
+    "ai": { "roles": ["general", "audio"] },
+    "network": []
+  },
+  "hostModules": []
+}

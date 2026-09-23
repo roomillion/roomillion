@@ -128,7 +128,7 @@ function validatePermissions(value) {
     if (!Array.isArray(value.ai.roles) || value.ai.roles.length === 0) {
       throw new ManifestError("permissions.ai.roles 必须是非空数组");
     }
-    const allowedRoles = new Set(["general", "coding", "vision"]);
+    const allowedRoles = new Set(["general", "coding", "vision", "audio"]);
     for (const role of value.ai.roles) {
       if (!allowedRoles.has(role)) throw new ManifestError(`不支持的 AI 角色：${role}`);
     }

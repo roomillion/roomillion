@@ -49,6 +49,15 @@ const EXAMPLE_CATALOG = Object.freeze([
     packageName: "ai-model-benchmark.room"
   }),
   Object.freeze({
+    id: "audio-analysis",
+    roomId: "cn.zhibian.example.audio-analysis",
+    name: "音频分析室",
+    icon: "音",
+    description: "输入音乐让 AI 分析乐器与风格，或输入会议录音转写成 Markdown 并导出记录。",
+    capabilities: Object.freeze(["音频 AI", "音乐分析", "会议转写", "导出 Markdown"]),
+    packageName: "audio-analysis.room"
+  }),
+  Object.freeze({
     id: "offline-3d-collector",
     roomId: "cn.zhibian.example.offline-3d-collector",
     name: "离线 3D 晶体挑战",

@@ -11,6 +11,12 @@ const MAX_REQUEST_BODY_BYTES = Infinity;
 const MAX_RESPONSE_BODY_BYTES = Infinity;
 const MAX_TIMEOUT_MS = 2_147_483_647;
 const MAX_REDIRECTS = 20;
+const CONNECTIVITY_TIMEOUT_MS = 3500;
+const CONNECTIVITY_ENDPOINTS = Object.freeze([
+  "https://www.baidu.com/favicon.ico",
+  "https://www.msftconnecttest.com/connecttest.txt",
+  "https://www.cloudflare.com/cdn-cgi/trace"
+]);
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
 const BLOCKED_REQUEST_HEADERS = new Set(["connection", "content-length", "cookie", "host", "origin", "proxy-authenticate", "proxy-authorization", "referer", "set-cookie", "te", "trailer", "transfer-encoding", "upgrade"]);
 
@@ -72,20 +78,76 @@ function responseHeaders(response) {
   return result;
 }
 
+async function detectInternetConnectivity(fetchImpl = globalThis.fetch, {
+  timeoutMs = CONNECTIVITY_TIMEOUT_MS,
+  endpoints = CONNECTIVITY_ENDPOINTS
+} = {}) {
+  if (typeof fetchImpl !== "function") return false;
+  const probes = endpoints.map(async (endpoint) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    timeout.unref?.();
+    try {
+      const response = await fetchImpl(endpoint, {
+        method: "GET",
+        headers: { range: "bytes=0-0", "cache-control": "no-cache" },
+        redirect: "follow",
+        signal: controller.signal
+      });
+      await response.body?.cancel().catch(() => {});
+      if (response.status >= 500) throw new Error("服务不可用");
+      return true;
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+  try {
+    await Promise.any(probes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class NetworkService {
-  constructor(dataRoot, { fetchImpl = globalThis.fetch, credentialService = null } = {}) {
+  constructor(dataRoot, {
+    fetchImpl = globalThis.fetch,
+    credentialService = null,
+    connectivityProbe = null,
+    autoDetect = true
+  } = {}) {
     this.filePath = path.join(path.resolve(dataRoot), "network-settings.json");
     this.fetchImpl = fetchImpl;
     this.credentialService = credentialService;
-    this.state = { formatVersion: NETWORK_SETTINGS_FORMAT, roomNetworkEnabled: false, updatedAt: null };
+    this.connectivityProbe = connectivityProbe || (() => detectInternetConnectivity(this.fetchImpl));
+    this.autoDetect = autoDetect === true;
+    this.state = { formatVersion: NETWORK_SETTINGS_FORMAT, roomNetworkEnabled: false, updatedAt: null, initialDetection: null, detectedAt: null };
     this.streams = new Map();
   }
   async init() {
     try {
       const parsed = JSON.parse(await fsp.readFile(this.filePath, "utf8"));
       if (parsed?.formatVersion !== NETWORK_SETTINGS_FORMAT || typeof parsed.roomNetworkEnabled !== "boolean") throw new Error("联网设置格式无效");
-      this.state = { formatVersion: NETWORK_SETTINGS_FORMAT, roomNetworkEnabled: parsed.roomNetworkEnabled, updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null };
-    } catch (error) { if (error.code !== "ENOENT") throw error; await this.save(); }
+      this.state = {
+        formatVersion: NETWORK_SETTINGS_FORMAT,
+        roomNetworkEnabled: parsed.roomNetworkEnabled,
+        updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : null,
+        initialDetection: ["online", "offline"].includes(parsed.initialDetection) ? parsed.initialDetection : null,
+        detectedAt: typeof parsed.detectedAt === "string" ? parsed.detectedAt : null
+      };
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      if (this.autoDetect) {
+        let online = false;
+        try { online = await this.connectivityProbe() === true; } catch { online = false; }
+        const detectedAt = new Date().toISOString();
+        this.state.roomNetworkEnabled = online;
+        this.state.initialDetection = online ? "online" : "offline";
+        this.state.detectedAt = detectedAt;
+        this.state.updatedAt = detectedAt;
+      }
+      await this.save();
+    }
     return this;
   }
   async save() {
@@ -94,7 +156,17 @@ class NetworkService {
     await fsp.writeFile(temporaryPath, `${JSON.stringify(this.state, null, 2)}\n`, "utf8");
     await fsp.rename(temporaryPath, this.filePath);
   }
-  getPublicState() { return Object.freeze({ roomNetworkEnabled: this.state.roomNetworkEnabled, aiApiAllowed: true, namedCredentials: Boolean(this.credentialService), policy: "global-switch-room-origin-and-credential-permission" }); }
+  getPublicState() {
+    return Object.freeze({
+      roomNetworkEnabled: this.state.roomNetworkEnabled,
+      agentWebAvailable: this.state.roomNetworkEnabled,
+      aiApiAllowed: true,
+      namedCredentials: Boolean(this.credentialService),
+      initialDetection: this.state.initialDetection,
+      detectedAt: this.state.detectedAt,
+      policy: "global-switch-room-origin-and-credential-permission"
+    });
+  }
   getRoomStatus(room) {
     const origins = allowedOriginsForRoom(room);
     return Object.freeze({ workbenchAllowed: this.state.roomNetworkEnabled, roomAllowed: origins.length > 0, available: this.state.roomNetworkEnabled && origins.length > 0, origins, streaming: true });
@@ -172,4 +244,4 @@ class NetworkService {
   }
 }
 
-module.exports = { MAX_REQUEST_BODY_BYTES, MAX_RESPONSE_BODY_BYTES, NetworkService, allowedOriginsForRoom, normalizeHeaders, normalizeRequest };
+module.exports = { CONNECTIVITY_ENDPOINTS, MAX_REQUEST_BODY_BYTES, MAX_RESPONSE_BODY_BYTES, NetworkService, allowedOriginsForRoom, detectInternetConnectivity, normalizeHeaders, normalizeRequest };

@@ -115,6 +115,9 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
   }),
   ai: Object.freeze({
     embed: (texts, options = {}) => ipcRenderer.invoke("room:aiEmbed", texts, options),
+    rerank: (query, documents, options = {}) => ipcRenderer.invoke("room:aiRerank", query, documents, options),
+    intuition: (state, questions, options = {}) => ipcRenderer.invoke("room:aiIntuition", state, questions, options),
+    getCapabilities: () => ipcRenderer.invoke("room:aiGetCapabilities"),
     listModels: () => ipcRenderer.invoke("room:aiListModels"),
     getSelection: () => ipcRenderer.invoke("room:aiGetSelection"),
     getSlotDefinitions: () => ipcRenderer.invoke("room:aiGetSlotDefinitions"),
