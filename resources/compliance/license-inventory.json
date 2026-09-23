@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "projectVersion": "0.3.0-alpha.57",
+  "projectVersion": "0.4.0",
   "projectLicense": "Apache-2.0",
   "records": [
     {
@@ -36,30 +36,30 @@
       }
     },
     {
-      "component": "@anthropic-ai/sdk@0.123.0",
+      "component": "@anthropic-ai/sdk@0.124.0",
       "name": "@anthropic-ai/sdk",
-      "version": "0.123.0",
+      "version": "0.124.0",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@anthropic-ai/sdk",
       "files": [
         {
           "source": "node_modules/@anthropic-ai/sdk/LICENSE",
-          "path": "licenses/npm/@anthropic-ai/sdk/0.123.0/LICENSE",
+          "path": "licenses/npm/@anthropic-ai/sdk/0.124.0/LICENSE",
           "bytes": 1056,
           "sha256": "8bf96984ff8bcfae7e48cae76a529e8a25317ba9e02abf7fd3cc64fdf95657a6"
         },
         {
           "source": "node_modules/@anthropic-ai/sdk/src/internal/qs/LICENSE.md",
-          "path": "licenses/npm/@anthropic-ai/sdk/0.123.0/src/internal/qs/LICENSE.md",
+          "path": "licenses/npm/@anthropic-ai/sdk/0.124.0/src/internal/qs/LICENSE.md",
           "bytes": 1588,
           "sha256": "d8c77eaffed7f1f874b97f66ee47a557ae24fd59bae8ae14f9b1b84f26a94d2f"
         },
         {
           "source": "node_modules/@anthropic-ai/sdk/package.json",
-          "path": "licenses/npm/@anthropic-ai/sdk/0.123.0/package.json",
+          "path": "licenses/npm/@anthropic-ai/sdk/0.124.0/package.json",
           "bytes": 5778,
-          "sha256": "50fd5b7f7909f5aca75572f37fc6456f14fa11eaf77da18d6add98ea96240896"
+          "sha256": "e9692cceae09a61d4168fca1fd47c1dd66b3798891b4cbe74cd21c331c20708a"
         }
       ],
       "status": "original-files-collected",
@@ -71,175 +71,31 @@
       }
     },
     {
-      "component": "@aws-crypto/sha256-browser@5.2.0",
-      "name": "@aws-crypto/sha256-browser",
-      "version": "5.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-crypto/sha256-browser",
-      "files": [
-        {
-          "source": "node_modules/@aws-crypto/sha256-browser/LICENSE",
-          "path": "licenses/npm/@aws-crypto/sha256-browser/5.2.0/LICENSE",
-          "bytes": 11358,
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
-        },
-        {
-          "source": "node_modules/@aws-crypto/sha256-browser/package.json",
-          "path": "licenses/npm/@aws-crypto/sha256-browser/5.2.0/package.json",
-          "bytes": 1148,
-          "sha256": "d768636e0883273cb642a6d43d56b251a612cf76259c615a6f3d273efd11d183"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS Crypto Tools Team",
-          "email": "aws-cryptools@amazon.com",
-          "url": "https://docs.aws.amazon.com/aws-crypto-tools/index.html?id=docs_gateway#lang/en_us"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "git@github.com:aws/aws-sdk-js-crypto-helpers.git"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-crypto-helpers/tree/master/packages/sha256-browser"
-      }
-    },
-    {
-      "component": "@aws-crypto/sha256-js@5.2.0",
-      "name": "@aws-crypto/sha256-js",
-      "version": "5.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-crypto/sha256-js",
-      "files": [
-        {
-          "source": "node_modules/@aws-crypto/sha256-js/LICENSE",
-          "path": "licenses/npm/@aws-crypto/sha256-js/5.2.0/LICENSE",
-          "bytes": 11323,
-          "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
-        },
-        {
-          "source": "node_modules/@aws-crypto/sha256-js/package.json",
-          "path": "licenses/npm/@aws-crypto/sha256-js/5.2.0/package.json",
-          "bytes": 1013,
-          "sha256": "8e1d54418b4d45e154048127dbbd0aa1e64381d3a925f9f4cb2313285b1a12d4"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS Crypto Tools Team",
-          "email": "aws-cryptools@amazon.com",
-          "url": "https://docs.aws.amazon.com/aws-crypto-tools/index.html?id=docs_gateway#lang/en_us"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "git@github.com:aws/aws-sdk-js-crypto-helpers.git"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-crypto-helpers/tree/master/packages/sha256-js"
-      }
-    },
-    {
-      "component": "@aws-crypto/supports-web-crypto@5.2.0",
-      "name": "@aws-crypto/supports-web-crypto",
-      "version": "5.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-crypto/supports-web-crypto",
-      "files": [
-        {
-          "source": "node_modules/@aws-crypto/supports-web-crypto/LICENSE",
-          "path": "licenses/npm/@aws-crypto/supports-web-crypto/5.2.0/LICENSE",
-          "bytes": 11358,
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
-        },
-        {
-          "source": "node_modules/@aws-crypto/supports-web-crypto/package.json",
-          "path": "licenses/npm/@aws-crypto/supports-web-crypto/5.2.0/package.json",
-          "bytes": 1026,
-          "sha256": "17f3f7e7d103a17d360e5eb46bb16ece4fa306872c3ac303ae29c197cdebc3e0"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS Crypto Tools Team",
-          "email": "aws-cryptools@amazon.com",
-          "url": "https://docs.aws.amazon.com/aws-crypto-tools/index.html?id=docs_gateway#lang/en_us"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "git@github.com:aws/aws-sdk-js-crypto-helpers.git"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-crypto-helpers/tree/master/packages/supports-web-crypto"
-      }
-    },
-    {
-      "component": "@aws-crypto/util@5.2.0",
-      "name": "@aws-crypto/util",
-      "version": "5.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-crypto/util",
-      "files": [
-        {
-          "source": "node_modules/@aws-crypto/util/LICENSE",
-          "path": "licenses/npm/@aws-crypto/util/5.2.0/LICENSE",
-          "bytes": 11356,
-          "sha256": "db1ed8cccea0d0fb5d92b7c59d9aa78a5bbcd047972519c6a21a4416937f2ebf"
-        },
-        {
-          "source": "node_modules/@aws-crypto/util/package.json",
-          "path": "licenses/npm/@aws-crypto/util/5.2.0/package.json",
-          "bytes": 1010,
-          "sha256": "24070453bb4864338a412e74822bf3bfa0af5a58608b59cef1ba42a9f49d131e"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS Crypto Tools Team",
-          "email": "aws-cryptools@amazon.com",
-          "url": "https://docs.aws.amazon.com/aws-crypto-tools/index.html?id=docs_gateway#lang/en_us"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "git@github.com:aws/aws-sdk-js-crypto-helpers.git"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-crypto-helpers/tree/master/packages/util"
-      }
-    },
-    {
-      "component": "@aws-sdk/client-bedrock-runtime@3.1048.0",
+      "component": "@aws-sdk/client-bedrock-runtime@3.1127.0",
       "name": "@aws-sdk/client-bedrock-runtime",
-      "version": "3.1048.0",
+      "version": "3.1127.0",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/client-bedrock-runtime",
       "files": [
         {
           "source": "node_modules/@aws-sdk/client-bedrock-runtime/LICENSE",
-          "path": "licenses/npm/@aws-sdk/client-bedrock-runtime/3.1048.0/LICENSE",
+          "path": "licenses/npm/@aws-sdk/client-bedrock-runtime/3.1127.0/LICENSE",
           "bytes": 11390,
           "sha256": "18c295fdd68d4f68418b0209829f241481e93549d9e7b9fcd4b4c029322c8a45"
         },
         {
           "source": "node_modules/@aws-sdk/client-bedrock-runtime/package.json",
-          "path": "licenses/npm/@aws-sdk/client-bedrock-runtime/3.1048.0/package.json",
-          "bytes": 3294,
-          "sha256": "9746220119a62fd75ffa8e79e9d846940d755b2d46a1eced7c682ab45f7d1c44"
+          "path": "licenses/npm/@aws-sdk/client-bedrock-runtime/3.1127.0/package.json",
+          "bytes": 3133,
+          "sha256": "d38839f240b6f89020c1abf351691d9749f7d35e6680abd6a6fc4415823c10e0"
         }
       ],
       "status": "original-files-collected",
       "attributionMetadata": {
         "author": {
           "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/javascript/"
+          "url": "https://aws.amazon.com/sdk-for-javascript/"
         },
         "contributors": null,
         "repository": {
@@ -251,24 +107,24 @@
       }
     },
     {
-      "component": "@aws-sdk/core@3.978.0",
+      "component": "@aws-sdk/core@3.978.1",
       "name": "@aws-sdk/core",
-      "version": "3.978.0",
+      "version": "3.978.1",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/core",
       "files": [
         {
           "source": "node_modules/@aws-sdk/core/LICENSE",
-          "path": "licenses/npm/@aws-sdk/core/3.978.0/LICENSE",
+          "path": "licenses/npm/@aws-sdk/core/3.978.1/LICENSE",
           "bytes": 11352,
           "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
         },
         {
           "source": "node_modules/@aws-sdk/core/package.json",
-          "path": "licenses/npm/@aws-sdk/core/3.978.0/package.json",
-          "bytes": 5816,
-          "sha256": "bf5d1a76418d30b454d576ee90710bc2c656a8f24cb04d02fc144d808cbe26d0"
+          "path": "licenses/npm/@aws-sdk/core/3.978.1/package.json",
+          "bytes": 5815,
+          "sha256": "f41e316f4145afaa611248576fac940f67e7d1e1c6a1cafa11c444189c98493d"
         }
       ],
       "status": "original-files-collected",
@@ -287,24 +143,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-env@3.972.71",
+      "component": "@aws-sdk/credential-provider-env@3.972.72",
       "name": "@aws-sdk/credential-provider-env",
-      "version": "3.972.71",
+      "version": "3.972.72",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-env",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-env/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-env/3.972.71/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-env/3.972.72/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-env/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-env/3.972.71/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-env/3.972.72/package.json",
           "bytes": 1902,
-          "sha256": "00f48fb7611be252c380a93ef2af6280e4188489b9dda8a27c150cec27004ba7"
+          "sha256": "83cb069a705d40c4d8cac65c4df9f3094d64db8c3105cd15670d2676f730192c"
         }
       ],
       "status": "original-files-collected",
@@ -323,22 +179,22 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-http@3.972.73",
+      "component": "@aws-sdk/credential-provider-http@3.972.74",
       "name": "@aws-sdk/credential-provider-http",
-      "version": "3.972.73",
+      "version": "3.972.74",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-http",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-http/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.73/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.74/package.json",
           "bytes": 2410,
-          "sha256": "053a07f9837ab56732facd808e115f12410ee118f60732ccb591be0258e6cb46"
+          "sha256": "6db5ed1c0c41ca8672b0eb663e539f87ed0deb7fc96d241ef766d2b441fe59a1"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-http/README.md",
-          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.73/README.md",
+          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.74/README.md",
           "bytes": 468,
           "sha256": "27ef1d7518b40bb68d188dc925e6499fa5fc403e89b3c44eb8b61554980163e3"
         }
@@ -359,24 +215,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-ini@3.973.16",
+      "component": "@aws-sdk/credential-provider-ini@3.973.17",
       "name": "@aws-sdk/credential-provider-ini",
-      "version": "3.973.16",
+      "version": "3.973.17",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-ini",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-ini/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-ini/3.973.16/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-ini/3.973.17/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-ini/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-ini/3.973.16/package.json",
-          "bytes": 2492,
-          "sha256": "99790093397c17239cb3bd6063d554b427b8b55e4414575f263e90348b66640c"
+          "path": "licenses/npm/@aws-sdk/credential-provider-ini/3.973.17/package.json",
+          "bytes": 2491,
+          "sha256": "825c4827279fad1a15aa72a365f4f91557305259771ab2216682c4f24690c075"
         }
       ],
       "status": "original-files-collected",
@@ -395,22 +251,22 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-login@3.972.78",
+      "component": "@aws-sdk/credential-provider-login@3.972.79",
       "name": "@aws-sdk/credential-provider-login",
-      "version": "3.972.78",
+      "version": "3.972.79",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-login",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-login/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.78/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.79/package.json",
           "bytes": 1975,
-          "sha256": "d1a6cbfc0477ab590ba4656917d1d9da02ffe28b635db579ad5c407dac54b156"
+          "sha256": "5993af12213692c03386b8af68d3894c007c87fcbee64356743668aa9ea39696"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-login/README.md",
-          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.78/README.md",
+          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.79/README.md",
           "bytes": 657,
           "sha256": "a33261115ded62f80ada337b9ed2193392837a6dd49d3ce89ec81fc48fbe33fd"
         }
@@ -431,24 +287,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-node@3.972.83",
+      "component": "@aws-sdk/credential-provider-node@3.972.84",
       "name": "@aws-sdk/credential-provider-node",
-      "version": "3.972.83",
+      "version": "3.972.84",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-node",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-node/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-node/3.972.83/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-node/3.972.84/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-node/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-node/3.972.83/package.json",
-          "bytes": 2422,
-          "sha256": "9359091ecef63075e07243a281696523cdb0f8a5dfb87ad17b2d993dd4efcf67"
+          "path": "licenses/npm/@aws-sdk/credential-provider-node/3.972.84/package.json",
+          "bytes": 2421,
+          "sha256": "d107f130cf4631f0b687351fd8d2baf74d8a8496f28a0bd463545306ba9e6f22"
         }
       ],
       "status": "original-files-collected",
@@ -467,24 +323,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-process@3.972.71",
+      "component": "@aws-sdk/credential-provider-process@3.972.72",
       "name": "@aws-sdk/credential-provider-process",
-      "version": "3.972.71",
+      "version": "3.972.72",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-process",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-process/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-process/3.972.71/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-process/3.972.72/LICENSE",
           "bytes": 11352,
           "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-process/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-process/3.972.71/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-process/3.972.72/package.json",
           "bytes": 1930,
-          "sha256": "7dfce59e4a808e3e5968646ae49906f17ed2ac556252d93500e0004636575fdd"
+          "sha256": "37354078bd4f4ffcaeccfafe9e818b4dd298f4685fcbd6695c13437ff2e2360b"
         }
       ],
       "status": "original-files-collected",
@@ -503,24 +359,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-sso@3.973.15",
+      "component": "@aws-sdk/credential-provider-sso@3.973.16",
       "name": "@aws-sdk/credential-provider-sso",
-      "version": "3.973.15",
+      "version": "3.973.16",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-sso",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-sso/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-sso/3.973.15/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-sso/3.973.16/LICENSE",
           "bytes": 11352,
           "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-sso/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-sso/3.973.15/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-sso/3.973.16/package.json",
           "bytes": 2161,
-          "sha256": "406303270304d92eeb9f01764d6e47b5f4272fd9b670cbdffeb8438eb712b8d8"
+          "sha256": "417af24392691fbaa2023130328fe065688b74e4f69a2dbd96319242f86621c9"
         }
       ],
       "status": "original-files-collected",
@@ -539,24 +395,24 @@
       }
     },
     {
-      "component": "@aws-sdk/credential-provider-web-identity@3.972.77",
+      "component": "@aws-sdk/credential-provider-web-identity@3.972.78",
       "name": "@aws-sdk/credential-provider-web-identity",
-      "version": "3.972.77",
+      "version": "3.972.78",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-web-identity",
       "files": [
         {
           "source": "node_modules/@aws-sdk/credential-provider-web-identity/LICENSE",
-          "path": "licenses/npm/@aws-sdk/credential-provider-web-identity/3.972.77/LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-web-identity/3.972.78/LICENSE",
           "bytes": 11352,
           "sha256": "2ef1e48ea743d9c82313e6887858f7c1feaddd636f5a3f43926aab0143e67ebd"
         },
         {
           "source": "node_modules/@aws-sdk/credential-provider-web-identity/package.json",
-          "path": "licenses/npm/@aws-sdk/credential-provider-web-identity/3.972.77/package.json",
+          "path": "licenses/npm/@aws-sdk/credential-provider-web-identity/3.972.78/package.json",
           "bytes": 2129,
-          "sha256": "8ec6395837beeec2f3415bd08c2ea81886a7df9b1d72d437946c03ae671fcaa8"
+          "sha256": "f7b5562bbccef5b2387e5b282a7edaf1645da0cab95f2855dc33e8f38c4189af"
         }
       ],
       "status": "original-files-collected",
@@ -575,24 +431,24 @@
       }
     },
     {
-      "component": "@aws-sdk/eventstream-handler-node@3.972.34",
+      "component": "@aws-sdk/eventstream-handler-node@3.972.35",
       "name": "@aws-sdk/eventstream-handler-node",
-      "version": "3.972.34",
+      "version": "3.972.35",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/eventstream-handler-node",
       "files": [
         {
           "source": "node_modules/@aws-sdk/eventstream-handler-node/LICENSE",
-          "path": "licenses/npm/@aws-sdk/eventstream-handler-node/3.972.34/LICENSE",
+          "path": "licenses/npm/@aws-sdk/eventstream-handler-node/3.972.35/LICENSE",
           "bytes": 11385,
           "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
         },
         {
           "source": "node_modules/@aws-sdk/eventstream-handler-node/package.json",
-          "path": "licenses/npm/@aws-sdk/eventstream-handler-node/3.972.34/package.json",
+          "path": "licenses/npm/@aws-sdk/eventstream-handler-node/3.972.35/package.json",
           "bytes": 1720,
-          "sha256": "05123c43610246bdd113ad45b04a5557a2f35f9d358ecf49fb2f5ea45bb7d6ef"
+          "sha256": "7b7c302e6b7ef729d5c2af0f78657fc18dfc3e3ddcf22d871c9c91375f2ebca5"
         }
       ],
       "status": "original-files-collected",
@@ -611,24 +467,24 @@
       }
     },
     {
-      "component": "@aws-sdk/middleware-eventstream@3.972.29",
+      "component": "@aws-sdk/middleware-eventstream@3.972.30",
       "name": "@aws-sdk/middleware-eventstream",
-      "version": "3.972.29",
+      "version": "3.972.30",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/middleware-eventstream",
       "files": [
         {
           "source": "node_modules/@aws-sdk/middleware-eventstream/LICENSE",
-          "path": "licenses/npm/@aws-sdk/middleware-eventstream/3.972.29/LICENSE",
+          "path": "licenses/npm/@aws-sdk/middleware-eventstream/3.972.30/LICENSE",
           "bytes": 11390,
           "sha256": "e345c2ee7df4446e739de7b91535f0c10ddcd909b9753889e943ee637b05db8c"
         },
         {
           "source": "node_modules/@aws-sdk/middleware-eventstream/package.json",
-          "path": "licenses/npm/@aws-sdk/middleware-eventstream/3.972.29/package.json",
+          "path": "licenses/npm/@aws-sdk/middleware-eventstream/3.972.30/package.json",
           "bytes": 1783,
-          "sha256": "f6c349485e796b7507604e42f2f69155d6b6043632fa2e79da3d90033a667b1b"
+          "sha256": "0a9a5c5f4c4216f1cc8f29a37ded920bfcb96fd12c18d7b8751a377c895b3e98"
         }
       ],
       "status": "original-files-collected",
@@ -647,24 +503,24 @@
       }
     },
     {
-      "component": "@aws-sdk/middleware-websocket@3.972.53",
+      "component": "@aws-sdk/middleware-websocket@3.972.54",
       "name": "@aws-sdk/middleware-websocket",
-      "version": "3.972.53",
+      "version": "3.972.54",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/middleware-websocket",
       "files": [
         {
           "source": "node_modules/@aws-sdk/middleware-websocket/LICENSE",
-          "path": "licenses/npm/@aws-sdk/middleware-websocket/3.972.53/LICENSE",
+          "path": "licenses/npm/@aws-sdk/middleware-websocket/3.972.54/LICENSE",
           "bytes": 11385,
           "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
         },
         {
           "source": "node_modules/@aws-sdk/middleware-websocket/package.json",
-          "path": "licenses/npm/@aws-sdk/middleware-websocket/3.972.53/package.json",
-          "bytes": 2012,
-          "sha256": "fa6d93a11c2baeedf01ee8a9b7a3a6dd5235366e691329e49584cb9f2a1f6db9"
+          "path": "licenses/npm/@aws-sdk/middleware-websocket/3.972.54/package.json",
+          "bytes": 2011,
+          "sha256": "c67751a1206d0a8b388ec23b942adf9afe2caba761cd7a3db66825596bce362e"
         }
       ],
       "status": "original-files-collected",
@@ -683,22 +539,22 @@
       }
     },
     {
-      "component": "@aws-sdk/nested-clients@3.997.45",
+      "component": "@aws-sdk/nested-clients@3.997.46",
       "name": "@aws-sdk/nested-clients",
-      "version": "3.997.45",
+      "version": "3.997.46",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/nested-clients",
       "files": [
         {
           "source": "node_modules/@aws-sdk/nested-clients/package.json",
-          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.45/package.json",
+          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.46/package.json",
           "bytes": 4419,
-          "sha256": "032d9e44c92d97643efc9ec1df81a76b535fe804d956ac70632edf27f5a95d2c"
+          "sha256": "dd334b9f6453d2e9094bf36a10e3a1a5637fa6c43fe38ca42e649e3fae4fdbd3"
         },
         {
           "source": "node_modules/@aws-sdk/nested-clients/README.md",
-          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.45/README.md",
+          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.46/README.md",
           "bytes": 418,
           "sha256": "92cdad5ce2f6c085d7b65ee8c701340a75799ae6045f1b526b49a28caad27c30"
         }
@@ -719,24 +575,24 @@
       }
     },
     {
-      "component": "@aws-sdk/signature-v4-multi-region@3.996.46",
+      "component": "@aws-sdk/signature-v4-multi-region@3.996.47",
       "name": "@aws-sdk/signature-v4-multi-region",
-      "version": "3.996.46",
+      "version": "3.996.47",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/signature-v4-multi-region",
       "files": [
         {
           "source": "node_modules/@aws-sdk/signature-v4-multi-region/LICENSE",
-          "path": "licenses/npm/@aws-sdk/signature-v4-multi-region/3.996.46/LICENSE",
+          "path": "licenses/npm/@aws-sdk/signature-v4-multi-region/3.996.47/LICENSE",
           "bytes": 11385,
           "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
         },
         {
           "source": "node_modules/@aws-sdk/signature-v4-multi-region/package.json",
-          "path": "licenses/npm/@aws-sdk/signature-v4-multi-region/3.996.46/package.json",
-          "bytes": 1972,
-          "sha256": "9edd78872c722b55ee176c5b4714020422ad073c4d13528f446a0421df553d7b"
+          "path": "licenses/npm/@aws-sdk/signature-v4-multi-region/3.996.47/package.json",
+          "bytes": 1971,
+          "sha256": "a500d3298997fbe442acc76fd217dabd4c8310a0085a65578ba868a37d4e3f79"
         }
       ],
       "status": "original-files-collected",
@@ -755,60 +611,24 @@
       }
     },
     {
-      "component": "@aws-sdk/token-providers@3.1048.0",
+      "component": "@aws-sdk/token-providers@3.1127.0",
       "name": "@aws-sdk/token-providers",
-      "version": "3.1048.0",
+      "version": "3.1127.0",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/token-providers",
       "files": [
         {
           "source": "node_modules/@aws-sdk/token-providers/LICENSE",
-          "path": "licenses/npm/@aws-sdk/token-providers/3.1048.0/LICENSE",
+          "path": "licenses/npm/@aws-sdk/token-providers/3.1127.0/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/token-providers/package.json",
-          "path": "licenses/npm/@aws-sdk/token-providers/3.1048.0/package.json",
-          "bytes": 2131,
-          "sha256": "3f73420ab1769a288bf1352af3bc6689f301dacf7af2077bffee79ecc1f0ccac"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/aws/aws-sdk-js-v3.git",
-          "directory": "packages/token-providers"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/token-providers"
-      }
-    },
-    {
-      "component": "@aws-sdk/token-providers@3.1129.0",
-      "name": "@aws-sdk/token-providers",
-      "version": "3.1129.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers",
-      "files": [
-        {
-          "source": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers/LICENSE",
-          "path": "licenses/npm/@aws-sdk/token-providers/3.1129.0/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers/package.json",
-          "path": "licenses/npm/@aws-sdk/token-providers/3.1129.0/package.json",
+          "path": "licenses/npm/@aws-sdk/token-providers/3.1127.0/package.json",
           "bytes": 2088,
-          "sha256": "8172a1549424b7c8aec79fc532584a3725a6ae121e870b4dddae8336c44116a4"
+          "sha256": "fcb7e0ea77d0466b548fe3fc04efa0c13ced2dfbed14c62e7dc0995e1153dcd8"
         }
       ],
       "status": "original-files-collected",
@@ -827,24 +647,60 @@
       }
     },
     {
-      "component": "@aws-sdk/types@3.974.5",
+      "component": "@aws-sdk/token-providers@3.1138.0",
+      "name": "@aws-sdk/token-providers",
+      "version": "3.1138.0",
+      "license": "Apache-2.0",
+      "selectedLicense": null,
+      "sourceRoot": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers",
+      "files": [
+        {
+          "source": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers/LICENSE",
+          "path": "licenses/npm/@aws-sdk/token-providers/3.1138.0/LICENSE",
+          "bytes": 11357,
+          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
+        },
+        {
+          "source": "node_modules/@aws-sdk/credential-provider-sso/node_modules/@aws-sdk/token-providers/package.json",
+          "path": "licenses/npm/@aws-sdk/token-providers/3.1138.0/package.json",
+          "bytes": 2088,
+          "sha256": "8680751f73f36f637b0b96dc5ff4b39578af9b3186195726eef4147758153dee"
+        }
+      ],
+      "status": "original-files-collected",
+      "attributionMetadata": {
+        "author": {
+          "name": "AWS SDK for JavaScript Team",
+          "url": "https://aws.amazon.com/sdk-for-javascript/"
+        },
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/aws/aws-sdk-js-v3.git",
+          "directory": "packages/token-providers"
+        },
+        "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages/token-providers"
+      }
+    },
+    {
+      "component": "@aws-sdk/types@3.974.6",
       "name": "@aws-sdk/types",
-      "version": "3.974.5",
+      "version": "3.974.6",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/types",
       "files": [
         {
           "source": "node_modules/@aws-sdk/types/LICENSE",
-          "path": "licenses/npm/@aws-sdk/types/3.974.5/LICENSE",
+          "path": "licenses/npm/@aws-sdk/types/3.974.6/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/types/package.json",
-          "path": "licenses/npm/@aws-sdk/types/3.974.5/package.json",
+          "path": "licenses/npm/@aws-sdk/types/3.974.6/package.json",
           "bytes": 1663,
-          "sha256": "e714ed119d7ed0e06ea5d89b4e28fcecfbbcb9f2c52c724a8bc52b4dd23b14f7"
+          "sha256": "bdd916bfcfac454fb2ba9ff2dd2e581d10f946654515ca860bf4b8f4e4b82561"
         }
       ],
       "status": "original-files-collected",
@@ -863,60 +719,24 @@
       }
     },
     {
-      "component": "@aws-sdk/util-locate-window@3.965.10",
-      "name": "@aws-sdk/util-locate-window",
-      "version": "3.965.10",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-sdk/util-locate-window",
-      "files": [
-        {
-          "source": "node_modules/@aws-sdk/util-locate-window/LICENSE",
-          "path": "licenses/npm/@aws-sdk/util-locate-window/3.965.10/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@aws-sdk/util-locate-window/package.json",
-          "path": "licenses/npm/@aws-sdk/util-locate-window/3.965.10/package.json",
-          "bytes": 1605,
-          "sha256": "b947cfff51e6f1249ff8c2931320bc9614b6bcafc541ea3e7483f83065395387"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/sdk-for-javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/aws/aws-sdk-js-v3.git",
-          "directory": "packages-internal/util-locate-window"
-        },
-        "homepage": "https://github.com/aws/aws-sdk-js-v3/tree/main/packages-internal/util-locate-window"
-      }
-    },
-    {
-      "component": "@aws-sdk/xml-builder@3.972.40",
+      "component": "@aws-sdk/xml-builder@3.972.41",
       "name": "@aws-sdk/xml-builder",
-      "version": "3.972.40",
+      "version": "3.972.41",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@aws-sdk/xml-builder",
       "files": [
         {
           "source": "node_modules/@aws-sdk/xml-builder/LICENSE",
-          "path": "licenses/npm/@aws-sdk/xml-builder/3.972.40/LICENSE",
+          "path": "licenses/npm/@aws-sdk/xml-builder/3.972.41/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
           "source": "node_modules/@aws-sdk/xml-builder/package.json",
-          "path": "licenses/npm/@aws-sdk/xml-builder/3.972.40/package.json",
+          "path": "licenses/npm/@aws-sdk/xml-builder/3.972.41/package.json",
           "bytes": 1958,
-          "sha256": "e59293b6e8c39a53773e214b5cf550822d0d30b69bc8a90c23d1194a1e1656f1"
+          "sha256": "103e94854d3f01cdb7eda3d170d3a8775e4fb107da472a1347418abb76116e08"
         }
       ],
       "status": "original-files-collected",
@@ -1464,30 +1284,30 @@
       }
     },
     {
-      "component": "@earendil-works/chord@0.85.1",
+      "component": "@earendil-works/chord@0.87.1",
       "name": "@earendil-works/chord",
-      "version": "0.85.1",
+      "version": "0.87.1",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@earendil-works/chord",
       "files": [
         {
-          "source": "scripts/license-evidence/pi-0.85.1-LICENSE",
-          "path": "licenses/npm/@earendil-works/chord/0.85.1/upstream/pi-0.85.1-LICENSE",
+          "source": "scripts/license-evidence/pi-0.87.1-LICENSE",
+          "path": "licenses/npm/@earendil-works/chord/0.87.1/upstream/pi-0.87.1-LICENSE",
           "bytes": 1069,
           "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
         },
         {
           "source": "node_modules/@earendil-works/chord/package.json",
-          "path": "licenses/npm/@earendil-works/chord/0.85.1/package.json",
+          "path": "licenses/npm/@earendil-works/chord/0.87.1/package.json",
           "bytes": 1572,
-          "sha256": "73d036ecc3b0c95a3a518f49ad168b77876849aa38568f0b110c776ad9d416d1"
+          "sha256": "d0d7fdfbbdc99dcae01311b589bd1b8b0861892d7a2bb09e666a134bf870e692"
         }
       ],
       "status": "original-files-collected",
       "licenseEvidence": {
-        "file": "scripts/license-evidence/pi-0.85.1-LICENSE",
-        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.85.1/LICENSE",
+        "file": "scripts/license-evidence/pi-0.87.1-LICENSE",
+        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.87.1/LICENSE",
         "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
       },
       "attributionMetadata": {
@@ -1502,30 +1322,30 @@
       }
     },
     {
-      "component": "@earendil-works/pi-agent-core@0.85.1",
+      "component": "@earendil-works/pi-agent-core@0.87.1",
       "name": "@earendil-works/pi-agent-core",
-      "version": "0.85.1",
+      "version": "0.87.1",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@earendil-works/pi-agent-core",
       "files": [
         {
-          "source": "scripts/license-evidence/pi-0.85.1-LICENSE",
-          "path": "licenses/npm/@earendil-works/pi-agent-core/0.85.1/upstream/pi-0.85.1-LICENSE",
+          "source": "scripts/license-evidence/pi-0.87.1-LICENSE",
+          "path": "licenses/npm/@earendil-works/pi-agent-core/0.87.1/upstream/pi-0.87.1-LICENSE",
           "bytes": 1069,
           "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
         },
         {
           "source": "node_modules/@earendil-works/pi-agent-core/package.json",
-          "path": "licenses/npm/@earendil-works/pi-agent-core/0.85.1/package.json",
-          "bytes": 2684,
-          "sha256": "f4c388363706ae0eb8eca4e7663f85f231bf0882d7e32c16f7cfd98153b26551"
+          "path": "licenses/npm/@earendil-works/pi-agent-core/0.87.1/package.json",
+          "bytes": 2810,
+          "sha256": "26f991ea26187d52978c303811f32032c9fcdaec197d4dcf08d793bedffdb87c"
         }
       ],
       "status": "original-files-collected",
       "licenseEvidence": {
-        "file": "scripts/license-evidence/pi-0.85.1-LICENSE",
-        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.85.1/LICENSE",
+        "file": "scripts/license-evidence/pi-0.87.1-LICENSE",
+        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.87.1/LICENSE",
         "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
       },
       "attributionMetadata": {
@@ -1540,30 +1360,30 @@
       }
     },
     {
-      "component": "@earendil-works/pi-ai@0.85.1",
+      "component": "@earendil-works/pi-ai@0.87.1",
       "name": "@earendil-works/pi-ai",
-      "version": "0.85.1",
+      "version": "0.87.1",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@earendil-works/pi-ai",
       "files": [
         {
-          "source": "scripts/license-evidence/pi-0.85.1-LICENSE",
-          "path": "licenses/npm/@earendil-works/pi-ai/0.85.1/upstream/pi-0.85.1-LICENSE",
+          "source": "scripts/license-evidence/pi-0.87.1-LICENSE",
+          "path": "licenses/npm/@earendil-works/pi-ai/0.87.1/upstream/pi-0.87.1-LICENSE",
           "bytes": 1069,
           "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
         },
         {
           "source": "node_modules/@earendil-works/pi-ai/package.json",
-          "path": "licenses/npm/@earendil-works/pi-ai/0.85.1/package.json",
-          "bytes": 2711,
-          "sha256": "b54df5a36d523febdeebfc5682dc4faed101fee10aba913d5f3679582f018da3"
+          "path": "licenses/npm/@earendil-works/pi-ai/0.87.1/package.json",
+          "bytes": 2713,
+          "sha256": "0422fc7227a158c3c843c1540edfff017d2103be33ee48b882e2ff9032a5f7d2"
         }
       ],
       "status": "original-files-collected",
       "licenseEvidence": {
-        "file": "scripts/license-evidence/pi-0.85.1-LICENSE",
-        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.85.1/LICENSE",
+        "file": "scripts/license-evidence/pi-0.87.1-LICENSE",
+        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.87.1/LICENSE",
         "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
       },
       "attributionMetadata": {
@@ -1578,30 +1398,30 @@
       }
     },
     {
-      "component": "@earendil-works/pi-telemetry@0.85.1",
+      "component": "@earendil-works/pi-telemetry@0.87.1",
       "name": "@earendil-works/pi-telemetry",
-      "version": "0.85.1",
+      "version": "0.87.1",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@earendil-works/pi-telemetry",
       "files": [
         {
-          "source": "scripts/license-evidence/pi-0.85.1-LICENSE",
-          "path": "licenses/npm/@earendil-works/pi-telemetry/0.85.1/upstream/pi-0.85.1-LICENSE",
+          "source": "scripts/license-evidence/pi-0.87.1-LICENSE",
+          "path": "licenses/npm/@earendil-works/pi-telemetry/0.87.1/upstream/pi-0.87.1-LICENSE",
           "bytes": 1069,
           "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
         },
         {
           "source": "node_modules/@earendil-works/pi-telemetry/package.json",
-          "path": "licenses/npm/@earendil-works/pi-telemetry/0.85.1/package.json",
+          "path": "licenses/npm/@earendil-works/pi-telemetry/0.87.1/package.json",
           "bytes": 996,
-          "sha256": "ef1fd481ce3c32458a6f4b41cf20dadf99765e9cbd31f44cc5a9ceabe4af8fcf"
+          "sha256": "779ed2fb46846eb4826e82722af9817493c055a86d3c59061e3ed40ce46e14f5"
         }
       ],
       "status": "original-files-collected",
       "licenseEvidence": {
-        "file": "scripts/license-evidence/pi-0.85.1-LICENSE",
-        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.85.1/LICENSE",
+        "file": "scripts/license-evidence/pi-0.87.1-LICENSE",
+        "source": "https://raw.githubusercontent.com/earendil-works/pi/v0.87.1/LICENSE",
         "sha256": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
       },
       "attributionMetadata": {
@@ -1616,22 +1436,22 @@
       }
     },
     {
-      "component": "@esbuild/win32-x64@0.28.1",
+      "component": "@esbuild/win32-x64@0.28.2",
       "name": "@esbuild/win32-x64",
-      "version": "0.28.1",
+      "version": "0.28.2",
       "license": "MIT",
       "selectedLicense": null,
-      "sourceRoot": "node_modules/@earendil-works/chord/node_modules/@esbuild/win32-x64",
+      "sourceRoot": "node_modules/@esbuild/win32-x64",
       "files": [
         {
-          "source": "node_modules/@earendil-works/chord/node_modules/@esbuild/win32-x64/package.json",
-          "path": "licenses/npm/@esbuild/win32-x64/0.28.1/package.json",
+          "source": "node_modules/@esbuild/win32-x64/package.json",
+          "path": "licenses/npm/@esbuild/win32-x64/0.28.2/package.json",
           "bytes": 374,
-          "sha256": "4a63b84fa1059fef348e29e3a39c26168213bb7f0aa1ac0174e439cc1e62a9f8"
+          "sha256": "89382df45735edcd917c492a810ab514920fa07d36c653cdc122bdfd8f526964"
         },
         {
-          "source": "node_modules/@earendil-works/chord/node_modules/@esbuild/win32-x64/README.md",
-          "path": "licenses/npm/@esbuild/win32-x64/0.28.1/README.md",
+          "source": "node_modules/@esbuild/win32-x64/README.md",
+          "path": "licenses/npm/@esbuild/win32-x64/0.28.2/README.md",
           "bytes": 143,
           "sha256": "29cf512fa580b72392176bf694933ae0decaf18116fdeee917511b445411ce16"
         }
@@ -1714,24 +1534,24 @@
       }
     },
     {
-      "component": "@google/genai@1.52.0",
+      "component": "@google/genai@2.21.0",
       "name": "@google/genai",
-      "version": "1.52.0",
+      "version": "2.21.0",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@google/genai",
       "files": [
         {
           "source": "node_modules/@google/genai/LICENSE",
-          "path": "licenses/npm/@google/genai/1.52.0/LICENSE",
+          "path": "licenses/npm/@google/genai/2.21.0/LICENSE",
           "bytes": 11358,
           "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
         },
         {
           "source": "node_modules/@google/genai/package.json",
-          "path": "licenses/npm/@google/genai/1.52.0/package.json",
-          "bytes": 7296,
-          "sha256": "ec761756421ea5502c23dbebfb4bc2b74c3ff842597199f2f330afc49cbdedc7"
+          "path": "licenses/npm/@google/genai/2.21.0/package.json",
+          "bytes": 6665,
+          "sha256": "64e3cd991d6b4749cd4b3afe46c8a0ad2f5d983f33df94081343797693fdbc81"
         }
       ],
       "status": "original-files-collected",
@@ -2349,24 +2169,24 @@
       }
     },
     {
-      "component": "@smithy/core@3.34.1",
+      "component": "@smithy/core@3.35.0",
       "name": "@smithy/core",
-      "version": "3.34.1",
+      "version": "3.35.0",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@smithy/core",
       "files": [
         {
           "source": "node_modules/@smithy/core/LICENSE",
-          "path": "licenses/npm/@smithy/core/3.34.1/LICENSE",
+          "path": "licenses/npm/@smithy/core/3.35.0/LICENSE",
           "bytes": 11385,
           "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
         },
         {
           "source": "node_modules/@smithy/core/package.json",
-          "path": "licenses/npm/@smithy/core/3.34.1/package.json",
+          "path": "licenses/npm/@smithy/core/3.35.0/package.json",
           "bytes": 10472,
-          "sha256": "945ea56345d855ccf5fe579deaa7b74b99dd1b46a7404bf69a9b62f614c61068"
+          "sha256": "b3a06d1c549d4b1ead3b19f7259d3506f3eaaac4b8fc0d3e9027c67aaf71a30d"
         }
       ],
       "status": "original-files-collected",
@@ -2458,57 +2278,21 @@
       }
     },
     {
-      "component": "@smithy/is-array-buffer@2.2.0",
-      "name": "@smithy/is-array-buffer",
-      "version": "2.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@smithy/is-array-buffer",
-      "files": [
-        {
-          "source": "node_modules/@smithy/is-array-buffer/LICENSE",
-          "path": "licenses/npm/@smithy/is-array-buffer/2.2.0/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@smithy/is-array-buffer/package.json",
-          "path": "licenses/npm/@smithy/is-array-buffer/2.2.0/package.json",
-          "bytes": 1948,
-          "sha256": "3a190be525bed484e272c54b4853e4184029f83546d4c30f62382073c1997e8e"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/awslabs/smithy-typescript.git",
-          "directory": "packages/is-array-buffer"
-        },
-        "homepage": "https://github.com/awslabs/smithy-typescript/tree/main/packages/is-array-buffer"
-      }
-    },
-    {
       "component": "@smithy/node-http-handler@4.12.1",
       "name": "@smithy/node-http-handler",
       "version": "4.12.1",
       "license": "Apache-2.0",
       "selectedLicense": null,
-      "sourceRoot": "node_modules/@aws-sdk/nested-clients/node_modules/@smithy/node-http-handler",
+      "sourceRoot": "node_modules/@smithy/node-http-handler",
       "files": [
         {
-          "source": "node_modules/@aws-sdk/nested-clients/node_modules/@smithy/node-http-handler/LICENSE",
+          "source": "node_modules/@smithy/node-http-handler/LICENSE",
           "path": "licenses/npm/@smithy/node-http-handler/4.12.1/LICENSE",
           "bytes": 11357,
           "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
         },
         {
-          "source": "node_modules/@aws-sdk/nested-clients/node_modules/@smithy/node-http-handler/package.json",
+          "source": "node_modules/@smithy/node-http-handler/package.json",
           "path": "licenses/npm/@smithy/node-http-handler/4.12.1/package.json",
           "bytes": 1649,
           "sha256": "e685e00a1e28371390ffab5711e5300b81743b7a7d5f5bf1a994e40197467221"
@@ -2520,43 +2304,6 @@
           "name": "AWS SDK for JavaScript Team",
           "email": "",
           "url": "https://aws.amazon.com/sdk-for-javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/smithy-lang/smithy-typescript.git",
-          "directory": "packages/node-http-handler"
-        },
-        "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/node-http-handler"
-      }
-    },
-    {
-      "component": "@smithy/node-http-handler@4.7.3",
-      "name": "@smithy/node-http-handler",
-      "version": "4.7.3",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@smithy/node-http-handler",
-      "files": [
-        {
-          "source": "node_modules/@smithy/node-http-handler/LICENSE",
-          "path": "licenses/npm/@smithy/node-http-handler/4.7.3/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@smithy/node-http-handler/package.json",
-          "path": "licenses/npm/@smithy/node-http-handler/4.7.3/package.json",
-          "bytes": 2202,
-          "sha256": "4e7f7aa591f5176b0e5169560c0a50c480882f44c684efd0c3b806f1d558033b"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "email": "",
-          "url": "https://aws.amazon.com/javascript/"
         },
         "contributors": null,
         "repository": {
@@ -2604,24 +2351,24 @@
       }
     },
     {
-      "component": "@smithy/types@4.18.0",
+      "component": "@smithy/types@4.19.0",
       "name": "@smithy/types",
-      "version": "4.18.0",
+      "version": "4.19.0",
       "license": "Apache-2.0",
       "selectedLicense": null,
       "sourceRoot": "node_modules/@smithy/types",
       "files": [
         {
           "source": "node_modules/@smithy/types/LICENSE",
-          "path": "licenses/npm/@smithy/types/4.18.0/LICENSE",
+          "path": "licenses/npm/@smithy/types/4.19.0/LICENSE",
           "bytes": 11385,
           "sha256": "07364a5f7d0177a59a05a0002187431f8f899320983c0dc049d72df015e8064c"
         },
         {
           "source": "node_modules/@smithy/types/package.json",
-          "path": "licenses/npm/@smithy/types/4.18.0/package.json",
+          "path": "licenses/npm/@smithy/types/4.19.0/package.json",
           "bytes": 1389,
-          "sha256": "7ebaa9023dcc247162ed27daf93ac21e269bdf20da83e58dcf86cedd32dc3da6"
+          "sha256": "3de7840fd63a03c33bb687fbdc4794884598402600b2ee02c68856e78e41bd52"
         }
       ],
       "status": "original-files-collected",
@@ -2638,78 +2385,6 @@
           "directory": "packages/types"
         },
         "homepage": "https://github.com/smithy-lang/smithy-typescript/tree/main/packages/types"
-      }
-    },
-    {
-      "component": "@smithy/util-buffer-from@2.2.0",
-      "name": "@smithy/util-buffer-from",
-      "version": "2.2.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@smithy/util-buffer-from",
-      "files": [
-        {
-          "source": "node_modules/@smithy/util-buffer-from/LICENSE",
-          "path": "licenses/npm/@smithy/util-buffer-from/2.2.0/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@smithy/util-buffer-from/package.json",
-          "path": "licenses/npm/@smithy/util-buffer-from/2.2.0/package.json",
-          "bytes": 1938,
-          "sha256": "832f2b74d1ed39244e70aee576330270e50355c8043bd9c063051d7384683a3a"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/awslabs/smithy-typescript.git",
-          "directory": "packages/util-buffer-from"
-        },
-        "homepage": "https://github.com/awslabs/smithy-typescript/tree/main/packages/util-buffer-from"
-      }
-    },
-    {
-      "component": "@smithy/util-utf8@2.3.0",
-      "name": "@smithy/util-utf8",
-      "version": "2.3.0",
-      "license": "Apache-2.0",
-      "selectedLicense": null,
-      "sourceRoot": "node_modules/@smithy/util-utf8",
-      "files": [
-        {
-          "source": "node_modules/@smithy/util-utf8/LICENSE",
-          "path": "licenses/npm/@smithy/util-utf8/2.3.0/LICENSE",
-          "bytes": 11357,
-          "sha256": "d82ceb8cbd004a2d4834085c557d55459f528e30268d95159ee1e4030a693a6e"
-        },
-        {
-          "source": "node_modules/@smithy/util-utf8/package.json",
-          "path": "licenses/npm/@smithy/util-utf8/2.3.0/package.json",
-          "bytes": 2088,
-          "sha256": "29a106e642afa19962dc0e33cfd019293b450a8b5c906041cfd13f649384829f"
-        }
-      ],
-      "status": "original-files-collected",
-      "attributionMetadata": {
-        "author": {
-          "name": "AWS SDK for JavaScript Team",
-          "url": "https://aws.amazon.com/javascript/"
-        },
-        "contributors": null,
-        "repository": {
-          "type": "git",
-          "url": "https://github.com/awslabs/smithy-typescript.git",
-          "directory": "packages/util-utf8"
-        },
-        "homepage": "https://github.com/awslabs/smithy-typescript/tree/main/packages/util-utf8"
       }
     },
     {
@@ -5636,6 +5311,39 @@
           "path": "licenses/npm/agent-base/7.1.4/package.json",
           "bytes": 1059,
           "sha256": "7a08cb2fe1d2b788e0a7bf6a9b7597dbeeeae804698c2fbd15de786d284d327c"
+        }
+      ],
+      "status": "original-files-collected",
+      "attributionMetadata": {
+        "author": "Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/TooTallNate/proxy-agents.git",
+          "directory": "packages/agent-base"
+        },
+        "homepage": null
+      }
+    },
+    {
+      "component": "agent-base@9.0.0",
+      "name": "agent-base",
+      "version": "9.0.0",
+      "license": "MIT",
+      "selectedLicense": null,
+      "sourceRoot": "node_modules/@earendil-works/pi-ai/node_modules/agent-base",
+      "files": [
+        {
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/agent-base/LICENSE",
+          "path": "licenses/npm/agent-base/9.0.0/LICENSE",
+          "bytes": 1101,
+          "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a"
+        },
+        {
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/agent-base/package.json",
+          "path": "licenses/npm/agent-base/9.0.0/package.json",
+          "bytes": 1000,
+          "sha256": "13df46dd018fcf2e4231a0f47a1a007dd7d5441d9f8efb108f50f9fb64a17138"
         }
       ],
       "status": "original-files-collected",
@@ -9013,24 +8721,24 @@
       }
     },
     {
-      "component": "esbuild@0.28.1",
+      "component": "esbuild@0.28.2",
       "name": "esbuild",
-      "version": "0.28.1",
+      "version": "0.28.2",
       "license": "MIT",
       "selectedLicense": null,
-      "sourceRoot": "node_modules/@earendil-works/chord/node_modules/esbuild",
+      "sourceRoot": "node_modules/esbuild",
       "files": [
         {
-          "source": "node_modules/@earendil-works/chord/node_modules/esbuild/LICENSE.md",
-          "path": "licenses/npm/esbuild/0.28.1/LICENSE.md",
+          "source": "node_modules/esbuild/LICENSE.md",
+          "path": "licenses/npm/esbuild/0.28.2/LICENSE.md",
           "bytes": 1069,
           "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
         },
         {
-          "source": "node_modules/@earendil-works/chord/node_modules/esbuild/package.json",
-          "path": "licenses/npm/esbuild/0.28.1/package.json",
+          "source": "node_modules/esbuild/package.json",
+          "path": "licenses/npm/esbuild/0.28.2/package.json",
           "bytes": 3980,
-          "sha256": "d55d1d19fcc5b6079e4a71dd4111340c79c682bc36835ac7058a0c364c7db58a"
+          "sha256": "9d0bc453f4e791553c4cc2298ba023b409241fd9801e494741666eb0f6051490"
         }
       ],
       "status": "original-files-collected",
@@ -9983,24 +9691,24 @@
       }
     },
     {
-      "component": "http-proxy-agent@7.0.2",
+      "component": "http-proxy-agent@9.1.0",
       "name": "http-proxy-agent",
-      "version": "7.0.2",
+      "version": "9.1.0",
       "license": "MIT",
       "selectedLicense": null,
-      "sourceRoot": "node_modules/http-proxy-agent",
+      "sourceRoot": "node_modules/@earendil-works/pi-ai/node_modules/http-proxy-agent",
       "files": [
         {
-          "source": "node_modules/http-proxy-agent/LICENSE",
-          "path": "licenses/npm/http-proxy-agent/7.0.2/LICENSE",
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/http-proxy-agent/LICENSE",
+          "path": "licenses/npm/http-proxy-agent/9.1.0/LICENSE",
           "bytes": 1102,
           "sha256": "71368fd0f5b4129191e9afcd1e1ef2dc89a9090d3e4d80bbab92dafd032b3bef"
         },
         {
-          "source": "node_modules/http-proxy-agent/package.json",
-          "path": "licenses/npm/http-proxy-agent/7.0.2/package.json",
-          "bytes": 1084,
-          "sha256": "38b61961aa0ba3028f2e120b3d883179281f6ba25fe22ff2214bf9f363161b65"
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/http-proxy-agent/package.json",
+          "path": "licenses/npm/http-proxy-agent/9.1.0/package.json",
+          "bytes": 1061,
+          "sha256": "03703c6c566b00d8fd85ba57cd6460b14d0b762f694e26f0efbfe4e5384e3081"
         }
       ],
       "status": "original-files-collected",
@@ -10034,6 +9742,39 @@
           "path": "licenses/npm/https-proxy-agent/7.0.6/package.json",
           "bytes": 1223,
           "sha256": "b08c1977d38f14f4be7fb5be33aab545e3e5a6e2e12100733a6ad97dec995206"
+        }
+      ],
+      "status": "original-files-collected",
+      "attributionMetadata": {
+        "author": "Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/TooTallNate/proxy-agents.git",
+          "directory": "packages/https-proxy-agent"
+        },
+        "homepage": null
+      }
+    },
+    {
+      "component": "https-proxy-agent@9.1.0",
+      "name": "https-proxy-agent",
+      "version": "9.1.0",
+      "license": "MIT",
+      "selectedLicense": null,
+      "sourceRoot": "node_modules/@earendil-works/pi-ai/node_modules/https-proxy-agent",
+      "files": [
+        {
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/https-proxy-agent/LICENSE",
+          "path": "licenses/npm/https-proxy-agent/9.1.0/LICENSE",
+          "bytes": 1101,
+          "sha256": "8d8c55319c7729d57be811c747452636688d54f19701ee0752b6b15ad3771d9a"
+        },
+        {
+          "source": "node_modules/@earendil-works/pi-ai/node_modules/https-proxy-agent/package.json",
+          "path": "licenses/npm/https-proxy-agent/9.1.0/package.json",
+          "bytes": 1202,
+          "sha256": "50d17385a8c63c0ed0e138069617d4d9236ce92bddbe6f52cfec0e3a834c97a0"
         }
       ],
       "status": "original-files-collected",
@@ -10174,24 +9915,24 @@
       }
     },
     {
-      "component": "ignore@7.0.5",
+      "component": "ignore@7.0.8",
       "name": "ignore",
-      "version": "7.0.5",
+      "version": "7.0.8",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/ignore",
       "files": [
         {
           "source": "node_modules/ignore/LICENSE-MIT",
-          "path": "licenses/npm/ignore/7.0.5/LICENSE-MIT",
+          "path": "licenses/npm/ignore/7.0.8/LICENSE-MIT",
           "bytes": 1095,
           "sha256": "9c94db23dc4b1e9aaee5d195668b916afc71efed54af226b66cf0ccc4389c1c0"
         },
         {
           "source": "node_modules/ignore/package.json",
-          "path": "licenses/npm/ignore/7.0.5/package.json",
-          "bytes": 3036,
-          "sha256": "9aea50de5a5f199b29b8f6d5e3c46ffac58958dd4d4f525bfde14214ad39417f"
+          "path": "licenses/npm/ignore/7.0.8/package.json",
+          "bytes": 3279,
+          "sha256": "809e28f354aca6ac273e9d455ee2ebd8f2c0e8676d0b62417a5b11ddda4ba8cd"
         }
       ],
       "status": "original-files-collected",
@@ -10200,7 +9941,7 @@
         "contributors": null,
         "repository": {
           "type": "git",
-          "url": "git@github.com:kaelzhang/node-ignore.git"
+          "url": "https://github.com/kaelzhang/node-ignore.git"
         },
         "homepage": null
       }
@@ -13053,6 +12794,33 @@
       }
     },
     {
+      "component": "proxy-agent-negotiate@1.1.0",
+      "name": "proxy-agent-negotiate",
+      "version": "1.1.0",
+      "license": "MIT",
+      "selectedLicense": null,
+      "sourceRoot": "node_modules/proxy-agent-negotiate",
+      "files": [
+        {
+          "source": "node_modules/proxy-agent-negotiate/package.json",
+          "path": "licenses/npm/proxy-agent-negotiate/1.1.0/package.json",
+          "bytes": 972,
+          "sha256": "7b7c2579ea138d20d4f7699ca78ef16c526f35168dbf694f1d47cc861b0954d4"
+        }
+      ],
+      "status": "needs-original-license-review",
+      "attributionMetadata": {
+        "author": "Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)",
+        "contributors": null,
+        "repository": {
+          "type": "git",
+          "url": "https://github.com/TooTallNate/proxy-agents.git",
+          "directory": "packages/negotiate"
+        },
+        "homepage": null
+      }
+    },
+    {
       "component": "qrcode@1.5.4",
       "name": "qrcode",
       "version": "1.5.4",
@@ -14708,24 +14476,24 @@
       }
     },
     {
-      "component": "typebox@1.3.7",
+      "component": "typebox@1.3.27",
       "name": "typebox",
-      "version": "1.3.7",
+      "version": "1.3.27",
       "license": "MIT",
       "selectedLicense": null,
       "sourceRoot": "node_modules/typebox",
       "files": [
         {
           "source": "node_modules/typebox/license",
-          "path": "licenses/npm/typebox/1.3.7/license",
+          "path": "licenses/npm/typebox/1.3.27/license",
           "bytes": 1094,
           "sha256": "e8a7cc256941a26ba8234f04390165243a4d42f74fd6491934140605bf7eae2d"
         },
         {
           "source": "node_modules/typebox/package.json",
-          "path": "licenses/npm/typebox/1.3.7/package.json",
-          "bytes": 2020,
-          "sha256": "0d54851ecbd094c1e0ea211e53d097eea3b1f9f05c7d895f072587c84d6131ed"
+          "path": "licenses/npm/typebox/1.3.27/package.json",
+          "bytes": 2021,
+          "sha256": "c59ddfd977ce941f1e8ee8b0a0b14396c332fa27cc5fa6fa165227ffd5a3992f"
         }
       ],
       "status": "original-files-collected",
@@ -16301,10 +16069,10 @@
     }
   ],
   "missingOriginalLicenseFiles": [
-    "@aws-sdk/credential-provider-http@3.972.73",
-    "@aws-sdk/credential-provider-login@3.972.78",
-    "@aws-sdk/nested-clients@3.997.45",
-    "@esbuild/win32-x64@0.28.1",
+    "@aws-sdk/credential-provider-http@3.972.74",
+    "@aws-sdk/credential-provider-login@3.972.79",
+    "@aws-sdk/nested-clients@3.997.46",
+    "@esbuild/win32-x64@0.28.2",
     "@pdf-lib/fontkit@1.1.1",
     "binary@0.3.0",
     "buffers@0.1.1",
@@ -16312,6 +16080,7 @@
     "dingbat-to-unicode@1.0.1",
     "https@1.0.0",
     "javascript-natural-sort@0.7.1",
+    "proxy-agent-negotiate@1.1.0",
     "standardwebhooks@1.1.1"
   ]
 }

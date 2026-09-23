@@ -1,37 +1,32 @@
 # 第三方逐包许可证与版权原文
 
-对应工作台 0.3.0-alpha.57。以下 420 项包含应用运行依赖、官方资源来源与传递依赖及 Electron；这是保守的构建来源清单，不代表每个源码包都完整分发。各包原始版权/许可内容在链接文件内保留，不以统一版权行替代。作者与来源元数据、每份原文的 SHA-256 见 [license-inventory.json](license-inventory.json)。
+对应工作台 0.4.0。以下 414 项包含应用运行依赖、官方资源来源与传递依赖及 Electron；这是保守的构建来源清单，不代表每个源码包都完整分发。各包原始版权/许可内容在链接文件内保留，不以统一版权行替代。作者与来源元数据、每份原文的 SHA-256 见 [license-inventory.json](license-inventory.json)。
 
 本索引中的“已收集”仅表示找到了原始文件，不证明条款完整性或所有法律义务均已履行。
 
 | 组件与版本 | 许可元数据 | 原文与归属材料 | 状态 |
 | --- | --- | --- | --- |
 | @antfu/install-pkg@2.0.1 | MIT | [LICENSE](licenses/npm/%40antfu/install-pkg/2.0.1/LICENSE) · [package.json](licenses/npm/%40antfu/install-pkg/2.0.1/package.json) | 已收集原文（非法律认证） |
-| @anthropic-ai/sdk@0.123.0 | MIT | [LICENSE](licenses/npm/%40anthropic-ai/sdk/0.123.0/LICENSE) · [LICENSE.md](licenses/npm/%40anthropic-ai/sdk/0.123.0/src/internal/qs/LICENSE.md) · [package.json](licenses/npm/%40anthropic-ai/sdk/0.123.0/package.json) | 已收集原文（非法律认证） |
-| @aws-crypto/sha256-browser@5.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-crypto/sha256-browser/5.2.0/LICENSE) · [package.json](licenses/npm/%40aws-crypto/sha256-browser/5.2.0/package.json) | 已收集原文（非法律认证） |
-| @aws-crypto/sha256-js@5.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-crypto/sha256-js/5.2.0/LICENSE) · [package.json](licenses/npm/%40aws-crypto/sha256-js/5.2.0/package.json) | 已收集原文（非法律认证） |
-| @aws-crypto/supports-web-crypto@5.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-crypto/supports-web-crypto/5.2.0/LICENSE) · [package.json](licenses/npm/%40aws-crypto/supports-web-crypto/5.2.0/package.json) | 已收集原文（非法律认证） |
-| @aws-crypto/util@5.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-crypto/util/5.2.0/LICENSE) · [package.json](licenses/npm/%40aws-crypto/util/5.2.0/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/client-bedrock-runtime@3.1048.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1048.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1048.0/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/core@3.978.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/core/3.978.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/core/3.978.0/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-env@3.972.71 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-env/3.972.71/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-env/3.972.71/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-http@3.972.73 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-http/3.972.73/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-http/3.972.73/README.md) | 需核对原文 |
-| @aws-sdk/credential-provider-ini@3.973.16 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.16/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.16/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-login@3.972.78 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-login/3.972.78/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-login/3.972.78/README.md) | 需核对原文 |
-| @aws-sdk/credential-provider-node@3.972.83 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-node/3.972.83/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-node/3.972.83/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-process@3.972.71 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-process/3.972.71/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-process/3.972.71/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-sso@3.973.15 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.15/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.15/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-web-identity@3.972.77 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-web-identity/3.972.77/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-web-identity/3.972.77/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/eventstream-handler-node@3.972.34 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.34/LICENSE) · [package.json](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.34/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/middleware-eventstream@3.972.29 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.29/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.29/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/middleware-websocket@3.972.53 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-websocket/3.972.53/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-websocket/3.972.53/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/nested-clients@3.997.45 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/nested-clients/3.997.45/package.json) · [README.md](licenses/npm/%40aws-sdk/nested-clients/3.997.45/README.md) | 需核对原文 |
-| @aws-sdk/signature-v4-multi-region@3.996.46 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.46/LICENSE) · [package.json](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.46/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/token-providers@3.1048.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1048.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1048.0/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/token-providers@3.1129.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1129.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1129.0/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/types@3.974.5 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/types/3.974.5/LICENSE) · [package.json](licenses/npm/%40aws-sdk/types/3.974.5/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/util-locate-window@3.965.10 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/util-locate-window/3.965.10/LICENSE) · [package.json](licenses/npm/%40aws-sdk/util-locate-window/3.965.10/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/xml-builder@3.972.40 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/xml-builder/3.972.40/LICENSE) · [package.json](licenses/npm/%40aws-sdk/xml-builder/3.972.40/package.json) | 已收集原文（非法律认证） |
+| @anthropic-ai/sdk@0.124.0 | MIT | [LICENSE](licenses/npm/%40anthropic-ai/sdk/0.124.0/LICENSE) · [LICENSE.md](licenses/npm/%40anthropic-ai/sdk/0.124.0/src/internal/qs/LICENSE.md) · [package.json](licenses/npm/%40anthropic-ai/sdk/0.124.0/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/client-bedrock-runtime@3.1127.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1127.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1127.0/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/core@3.978.1 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/core/3.978.1/LICENSE) · [package.json](licenses/npm/%40aws-sdk/core/3.978.1/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-env@3.972.72 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-env/3.972.72/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-env/3.972.72/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-http@3.972.74 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/README.md) | 需核对原文 |
+| @aws-sdk/credential-provider-ini@3.973.17 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.17/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.17/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-login@3.972.79 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/README.md) | 需核对原文 |
+| @aws-sdk/credential-provider-node@3.972.84 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-node/3.972.84/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-node/3.972.84/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-process@3.972.72 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-process/3.972.72/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-process/3.972.72/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-sso@3.973.16 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.16/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.16/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/credential-provider-web-identity@3.972.78 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-web-identity/3.972.78/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-web-identity/3.972.78/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/eventstream-handler-node@3.972.35 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.35/LICENSE) · [package.json](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.35/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/middleware-eventstream@3.972.30 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.30/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.30/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/middleware-websocket@3.972.54 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-websocket/3.972.54/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-websocket/3.972.54/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/nested-clients@3.997.46 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/nested-clients/3.997.46/package.json) · [README.md](licenses/npm/%40aws-sdk/nested-clients/3.997.46/README.md) | 需核对原文 |
+| @aws-sdk/signature-v4-multi-region@3.996.47 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.47/LICENSE) · [package.json](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.47/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/token-providers@3.1127.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1127.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1127.0/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/token-providers@3.1138.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1138.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1138.0/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/types@3.974.6 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/types/3.974.6/LICENSE) · [package.json](licenses/npm/%40aws-sdk/types/3.974.6/package.json) | 已收集原文（非法律认证） |
+| @aws-sdk/xml-builder@3.972.41 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/xml-builder/3.972.41/LICENSE) · [package.json](licenses/npm/%40aws-sdk/xml-builder/3.972.41/package.json) | 已收集原文（非法律认证） |
 | @aws/lambda-invoke-store@0.3.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws/lambda-invoke-store/0.3.0/LICENSE) · [package.json](licenses/npm/%40aws/lambda-invoke-store/0.3.0/package.json) | 已收集原文（非法律认证） |
 | @babel/runtime@7.29.7 | MIT | [LICENSE](licenses/npm/%40babel/runtime/7.29.7/LICENSE) · [package.json](licenses/npm/%40babel/runtime/7.29.7/package.json) | 已收集原文（非法律认证） |
 | @braintree/sanitize-url@7.1.2 | MIT | [LICENSE](licenses/npm/%40braintree/sanitize-url/7.1.2/LICENSE) · [package.json](licenses/npm/%40braintree/sanitize-url/7.1.2/package.json) | 已收集原文（非法律认证） |
@@ -48,14 +43,14 @@
 | @cropper/elements@2.2.0 | MIT | [LICENSE](licenses/npm/%40cropper/elements/2.2.0/LICENSE) · [package.json](licenses/npm/%40cropper/elements/2.2.0/package.json) | 已收集原文（非法律认证） |
 | @cropper/utils@2.2.0 | MIT | [LICENSE](licenses/npm/%40cropper/utils/2.2.0/LICENSE) · [package.json](licenses/npm/%40cropper/utils/2.2.0/package.json) | 已收集原文（非法律认证） |
 | @dimforge/rapier3d-compat@0.20.0 | Apache-2.0；模块选择 Apache-2.0 | [LICENSE](licenses/npm/%40dimforge/rapier3d-compat/0.20.0/LICENSE) · [package.json](licenses/npm/%40dimforge/rapier3d-compat/0.20.0/package.json) | 已收集原文（非法律认证） |
-| @earendil-works/chord@0.85.1 | MIT | [pi-0.85.1-LICENSE](licenses/npm/%40earendil-works/chord/0.85.1/upstream/pi-0.85.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/chord/0.85.1/package.json) | 已收集原文（非法律认证） |
-| @earendil-works/pi-agent-core@0.85.1 | MIT | [pi-0.85.1-LICENSE](licenses/npm/%40earendil-works/pi-agent-core/0.85.1/upstream/pi-0.85.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-agent-core/0.85.1/package.json) | 已收集原文（非法律认证） |
-| @earendil-works/pi-ai@0.85.1 | MIT | [pi-0.85.1-LICENSE](licenses/npm/%40earendil-works/pi-ai/0.85.1/upstream/pi-0.85.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-ai/0.85.1/package.json) | 已收集原文（非法律认证） |
-| @earendil-works/pi-telemetry@0.85.1 | MIT | [pi-0.85.1-LICENSE](licenses/npm/%40earendil-works/pi-telemetry/0.85.1/upstream/pi-0.85.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-telemetry/0.85.1/package.json) | 已收集原文（非法律认证） |
-| @esbuild/win32-x64@0.28.1 | MIT | [package.json](licenses/npm/%40esbuild/win32-x64/0.28.1/package.json) · [README.md](licenses/npm/%40esbuild/win32-x64/0.28.1/README.md) | 需核对原文 |
+| @earendil-works/chord@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/chord/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/chord/0.87.1/package.json) | 已收集原文（非法律认证） |
+| @earendil-works/pi-agent-core@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-agent-core/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-agent-core/0.87.1/package.json) | 已收集原文（非法律认证） |
+| @earendil-works/pi-ai@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-ai/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-ai/0.87.1/package.json) | 已收集原文（非法律认证） |
+| @earendil-works/pi-telemetry@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-telemetry/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-telemetry/0.87.1/package.json) | 已收集原文（非法律认证） |
+| @esbuild/win32-x64@0.28.2 | MIT | [package.json](licenses/npm/%40esbuild/win32-x64/0.28.2/package.json) · [README.md](licenses/npm/%40esbuild/win32-x64/0.28.2/README.md) | 需核对原文 |
 | @fast-csv/format@4.3.5 | MIT | [LICENSE](licenses/npm/%40fast-csv/format/4.3.5/LICENSE) · [package.json](licenses/npm/%40fast-csv/format/4.3.5/package.json) | 已收集原文（非法律认证） |
 | @fast-csv/parse@4.3.6 | MIT | [LICENSE](licenses/npm/%40fast-csv/parse/4.3.6/LICENSE) · [package.json](licenses/npm/%40fast-csv/parse/4.3.6/package.json) | 已收集原文（非法律认证） |
-| @google/genai@1.52.0 | Apache-2.0 | [LICENSE](licenses/npm/%40google/genai/1.52.0/LICENSE) · [package.json](licenses/npm/%40google/genai/1.52.0/package.json) | 已收集原文（非法律认证） |
+| @google/genai@2.21.0 | Apache-2.0 | [LICENSE](licenses/npm/%40google/genai/2.21.0/LICENSE) · [package.json](licenses/npm/%40google/genai/2.21.0/package.json) | 已收集原文（非法律认证） |
 | @iconify/types@2.0.0 | MIT | [license.txt](licenses/npm/%40iconify/types/2.0.0/license.txt) · [package.json](licenses/npm/%40iconify/types/2.0.0/package.json) | 已收集原文（非法律认证） |
 | @iconify/utils@3.1.5 | MIT | [licenses.d.ts](licenses/npm/%40iconify/utils/3.1.5/lib/misc/licenses.d.ts) · [licenses.js](licenses/npm/%40iconify/utils/3.1.5/lib/misc/licenses.js) · [license.txt](licenses/npm/%40iconify/utils/3.1.5/license.txt) · [package.json](licenses/npm/%40iconify/utils/3.1.5/package.json) | 已收集原文（非法律认证） |
 | @kurkle/color@0.3.4 | MIT | [LICENSE.md](licenses/npm/%40kurkle/color/0.3.4/LICENSE.md) · [package.json](licenses/npm/%40kurkle/color/0.3.4/package.json) | 已收集原文（非法律认证） |
@@ -74,16 +69,12 @@
 | @protobufjs/path@1.1.2 | BSD-3-Clause | [LICENSE](licenses/npm/%40protobufjs/path/1.1.2/LICENSE) · [package.json](licenses/npm/%40protobufjs/path/1.1.2/package.json) | 已收集原文（非法律认证） |
 | @protobufjs/pool@1.1.0 | BSD-3-Clause | [LICENSE](licenses/npm/%40protobufjs/pool/1.1.0/LICENSE) · [package.json](licenses/npm/%40protobufjs/pool/1.1.0/package.json) | 已收集原文（非法律认证） |
 | @protobufjs/utf8@1.1.2 | BSD-3-Clause | [LICENSE](licenses/npm/%40protobufjs/utf8/1.1.2/LICENSE) · [package.json](licenses/npm/%40protobufjs/utf8/1.1.2/package.json) | 已收集原文（非法律认证） |
-| @smithy/core@3.34.1 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/core/3.34.1/LICENSE) · [package.json](licenses/npm/%40smithy/core/3.34.1/package.json) | 已收集原文（非法律认证） |
+| @smithy/core@3.35.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/core/3.35.0/LICENSE) · [package.json](licenses/npm/%40smithy/core/3.35.0/package.json) | 已收集原文（非法律认证） |
 | @smithy/credential-provider-imds@4.5.2 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/credential-provider-imds/4.5.2/LICENSE) · [package.json](licenses/npm/%40smithy/credential-provider-imds/4.5.2/package.json) | 已收集原文（非法律认证） |
 | @smithy/fetch-http-handler@5.8.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/fetch-http-handler/5.8.0/LICENSE) · [package.json](licenses/npm/%40smithy/fetch-http-handler/5.8.0/package.json) | 已收集原文（非法律认证） |
-| @smithy/is-array-buffer@2.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/is-array-buffer/2.2.0/LICENSE) · [package.json](licenses/npm/%40smithy/is-array-buffer/2.2.0/package.json) | 已收集原文（非法律认证） |
 | @smithy/node-http-handler@4.12.1 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/node-http-handler/4.12.1/LICENSE) · [package.json](licenses/npm/%40smithy/node-http-handler/4.12.1/package.json) | 已收集原文（非法律认证） |
-| @smithy/node-http-handler@4.7.3 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/node-http-handler/4.7.3/LICENSE) · [package.json](licenses/npm/%40smithy/node-http-handler/4.7.3/package.json) | 已收集原文（非法律认证） |
 | @smithy/signature-v4@5.7.3 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/signature-v4/5.7.3/LICENSE) · [package.json](licenses/npm/%40smithy/signature-v4/5.7.3/package.json) | 已收集原文（非法律认证） |
-| @smithy/types@4.18.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/types/4.18.0/LICENSE) · [package.json](licenses/npm/%40smithy/types/4.18.0/package.json) | 已收集原文（非法律认证） |
-| @smithy/util-buffer-from@2.2.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/util-buffer-from/2.2.0/LICENSE) · [package.json](licenses/npm/%40smithy/util-buffer-from/2.2.0/package.json) | 已收集原文（非法律认证） |
-| @smithy/util-utf8@2.3.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/util-utf8/2.3.0/LICENSE) · [package.json](licenses/npm/%40smithy/util-utf8/2.3.0/package.json) | 已收集原文（非法律认证） |
+| @smithy/types@4.19.0 | Apache-2.0 | [LICENSE](licenses/npm/%40smithy/types/4.19.0/LICENSE) · [package.json](licenses/npm/%40smithy/types/4.19.0/package.json) | 已收集原文（非法律认证） |
 | @stablelib/base64@1.0.1 | MIT | [LICENSE](licenses/npm/%40stablelib/base64/1.0.1/LICENSE) · [package.json](licenses/npm/%40stablelib/base64/1.0.1/package.json) | 已收集原文（非法律认证） |
 | @types/d3-array@3.2.2 | MIT | [LICENSE](licenses/npm/%40types/d3-array/3.2.2/LICENSE) · [package.json](licenses/npm/%40types/d3-array/3.2.2/package.json) | 已收集原文（非法律认证） |
 | @types/d3-axis@3.0.6 | MIT | [LICENSE](licenses/npm/%40types/d3-axis/3.0.6/LICENSE) · [package.json](licenses/npm/%40types/d3-axis/3.0.6/package.json) | 已收集原文（非法律认证） |
@@ -131,6 +122,7 @@
 | @zhibian/game-audio@1.0.0 | MIT；模块选择 MIT | [LICENSE](licenses/vendor/%40zhibian/game-audio/1.0.0/LICENSE) | 已收集原文（非法律认证） |
 | @zhibian/game-input@1.0.0 | MIT；模块选择 MIT | [LICENSE](licenses/vendor/%40zhibian/game-input/1.0.0/LICENSE) | 已收集原文（非法律认证） |
 | agent-base@7.1.4 | MIT | [LICENSE](licenses/npm/agent-base/7.1.4/LICENSE) · [package.json](licenses/npm/agent-base/7.1.4/package.json) | 已收集原文（非法律认证） |
+| agent-base@9.0.0 | MIT | [LICENSE](licenses/npm/agent-base/9.0.0/LICENSE) · [package.json](licenses/npm/agent-base/9.0.0/package.json) | 已收集原文（非法律认证） |
 | ansi-styles@4.3.0 | MIT | [license](licenses/npm/ansi-styles/4.3.0/license) · [package.json](licenses/npm/ansi-styles/4.3.0/package.json) | 已收集原文（非法律认证） |
 | archiver-utils@2.1.0 | MIT | [LICENSE](licenses/npm/archiver-utils/2.1.0/LICENSE) · [package.json](licenses/npm/archiver-utils/2.1.0/package.json) | 已收集原文（非法律认证） |
 | archiver-utils@3.0.4 | MIT | [LICENSE](licenses/npm/archiver-utils/3.0.4/LICENSE) · [package.json](licenses/npm/archiver-utils/3.0.4/package.json) | 已收集原文（非法律认证） |
@@ -228,7 +220,7 @@
 | electron@44.0.0 | MIT | [LICENSE](licenses/npm/electron/44.0.0/LICENSE) · [package.json](licenses/npm/electron/44.0.0/package.json) | 已收集原文（非法律认证） |
 | end-of-stream@1.4.5 | MIT | [LICENSE](licenses/npm/end-of-stream/1.4.5/LICENSE) · [package.json](licenses/npm/end-of-stream/1.4.5/package.json) | 已收集原文（非法律认证） |
 | es-toolkit@1.52.0 | MIT | [LICENSE](licenses/npm/es-toolkit/1.52.0/LICENSE) · [NOTICE](licenses/npm/es-toolkit/1.52.0/NOTICE) · [package.json](licenses/npm/es-toolkit/1.52.0/package.json) | 已收集原文（非法律认证） |
-| esbuild@0.28.1 | MIT | [LICENSE.md](licenses/npm/esbuild/0.28.1/LICENSE.md) · [package.json](licenses/npm/esbuild/0.28.1/package.json) | 已收集原文（非法律认证） |
+| esbuild@0.28.2 | MIT | [LICENSE.md](licenses/npm/esbuild/0.28.2/LICENSE.md) · [package.json](licenses/npm/esbuild/0.28.2/package.json) | 已收集原文（非法律认证） |
 | escape-latex@1.2.0 | MIT | [LICENSE.md](licenses/npm/escape-latex/1.2.0/LICENSE.md) · [package.json](licenses/npm/escape-latex/1.2.0/package.json) | 已收集原文（非法律认证） |
 | eventemitter3@5.0.4 | MIT | [LICENSE](licenses/npm/eventemitter3/5.0.4/LICENSE) · [package.json](licenses/npm/eventemitter3/5.0.4/package.json) | 已收集原文（非法律认证） |
 | exceljs@4.4.0 | MIT；模块选择 MIT | [LICENSE](licenses/npm/exceljs/4.4.0/dist/LICENSE) · [LICENSE](licenses/npm/exceljs/4.4.0/LICENSE) · [package.json](licenses/npm/exceljs/4.4.0/package.json) | 已收集原文（非法律认证） |
@@ -257,13 +249,14 @@
 | hash.js@1.1.7 | MIT | [README.md](licenses/npm/hash.js/1.1.7/upstream/README.md) · [package.json](licenses/npm/hash.js/1.1.7/package.json) | 已收集原文（非法律认证） |
 | html-to-image@1.11.13 | MIT；模块选择 MIT | [LICENSE](licenses/npm/html-to-image/1.11.13/LICENSE) · [package.json](licenses/npm/html-to-image/1.11.13/package.json) | 已收集原文（非法律认证） |
 | html2canvas@1.4.1 | MIT | [LICENSE](licenses/npm/html2canvas/1.4.1/LICENSE) · [package.json](licenses/npm/html2canvas/1.4.1/package.json) | 已收集原文（非法律认证） |
-| http-proxy-agent@7.0.2 | MIT | [LICENSE](licenses/npm/http-proxy-agent/7.0.2/LICENSE) · [package.json](licenses/npm/http-proxy-agent/7.0.2/package.json) | 已收集原文（非法律认证） |
+| http-proxy-agent@9.1.0 | MIT | [LICENSE](licenses/npm/http-proxy-agent/9.1.0/LICENSE) · [package.json](licenses/npm/http-proxy-agent/9.1.0/package.json) | 已收集原文（非法律认证） |
 | https-proxy-agent@7.0.6 | MIT | [LICENSE](licenses/npm/https-proxy-agent/7.0.6/LICENSE) · [package.json](licenses/npm/https-proxy-agent/7.0.6/package.json) | 已收集原文（非法律认证） |
+| https-proxy-agent@9.1.0 | MIT | [LICENSE](licenses/npm/https-proxy-agent/9.1.0/LICENSE) · [package.json](licenses/npm/https-proxy-agent/9.1.0/package.json) | 已收集原文（非法律认证） |
 | https@1.0.0 | ISC | [package.json](licenses/npm/https/1.0.0/package.json) | 需核对原文 |
 | iconv-lite@0.6.3 | MIT | [LICENSE](licenses/npm/iconv-lite/0.6.3/LICENSE) · [package.json](licenses/npm/iconv-lite/0.6.3/package.json) | 已收集原文（非法律认证） |
 | iconv-lite@0.7.3 | MIT | [LICENSE](licenses/npm/iconv-lite/0.7.3/LICENSE) · [package.json](licenses/npm/iconv-lite/0.7.3/package.json) | 已收集原文（非法律认证） |
 | ieee754@1.2.1 | BSD-3-Clause | [LICENSE](licenses/npm/ieee754/1.2.1/LICENSE) · [package.json](licenses/npm/ieee754/1.2.1/package.json) | 已收集原文（非法律认证） |
-| ignore@7.0.5 | MIT | [LICENSE-MIT](licenses/npm/ignore/7.0.5/LICENSE-MIT) · [package.json](licenses/npm/ignore/7.0.5/package.json) | 已收集原文（非法律认证） |
+| ignore@7.0.8 | MIT | [LICENSE-MIT](licenses/npm/ignore/7.0.8/LICENSE-MIT) · [package.json](licenses/npm/ignore/7.0.8/package.json) | 已收集原文（非法律认证） |
 | image-size@1.2.1 | MIT | [LICENSE](licenses/npm/image-size/1.2.1/LICENSE) · [package.json](licenses/npm/image-size/1.2.1/package.json) | 已收集原文（非法律认证） |
 | immediate@3.0.6 | MIT | [LICENSE.txt](licenses/npm/immediate/3.0.6/LICENSE.txt) · [package.json](licenses/npm/immediate/3.0.6/package.json) | 已收集原文（非法律认证） |
 | import-meta-resolve@4.2.0 | MIT | [license](licenses/npm/import-meta-resolve/4.2.0/license) · [package.json](licenses/npm/import-meta-resolve/4.2.0/package.json) | 已收集原文（非法律认证） |
@@ -348,6 +341,7 @@
 | pptxgenjs@4.0.1 | MIT；模块选择 MIT | [LICENSE](licenses/npm/pptxgenjs/4.0.1/LICENSE) · [package.json](licenses/npm/pptxgenjs/4.0.1/package.json) | 已收集原文（非法律认证） |
 | process-nextick-args@2.0.1 | MIT | [license.md](licenses/npm/process-nextick-args/2.0.1/license.md) · [package.json](licenses/npm/process-nextick-args/2.0.1/package.json) | 已收集原文（非法律认证） |
 | protobufjs@7.6.6 | BSD-3-Clause | [LICENSE](licenses/npm/protobufjs/7.6.6/google/LICENSE) · [LICENSE](licenses/npm/protobufjs/7.6.6/LICENSE) · [package.json](licenses/npm/protobufjs/7.6.6/package.json) | 已收集原文（非法律认证） |
+| proxy-agent-negotiate@1.1.0 | MIT | [package.json](licenses/npm/proxy-agent-negotiate/1.1.0/package.json) | 需核对原文 |
 | qrcode@1.5.4 | MIT；模块选择 MIT | [license](licenses/npm/qrcode/1.5.4/license) · [package.json](licenses/npm/qrcode/1.5.4/package.json) | 已收集原文（非法律认证） |
 | queue@6.0.2 | MIT | [LICENSE](licenses/npm/queue/6.0.2/LICENSE) · [package.json](licenses/npm/queue/6.0.2/package.json) | 已收集原文（非法律认证） |
 | quill-delta@5.1.0 | MIT | [LICENSE](licenses/npm/quill-delta/5.1.0/LICENSE) · [package.json](licenses/npm/quill-delta/5.1.0/package.json) | 已收集原文（非法律认证） |
@@ -398,7 +392,7 @@
 | tslib@1.14.1 | 0BSD | [LICENSE.txt](licenses/npm/tslib/1.14.1/LICENSE.txt) · [package.json](licenses/npm/tslib/1.14.1/package.json) | 已收集原文（非法律认证） |
 | tslib@2.3.0 | 0BSD | [LICENSE.txt](licenses/npm/tslib/2.3.0/LICENSE.txt) · [package.json](licenses/npm/tslib/2.3.0/package.json) | 已收集原文（非法律认证） |
 | tslib@2.8.1 | 0BSD | [LICENSE.txt](licenses/npm/tslib/2.8.1/LICENSE.txt) · [package.json](licenses/npm/tslib/2.8.1/package.json) | 已收集原文（非法律认证） |
-| typebox@1.3.7 | MIT | [license](licenses/npm/typebox/1.3.7/license) · [package.json](licenses/npm/typebox/1.3.7/package.json) | 已收集原文（非法律认证） |
+| typebox@1.3.27 | MIT | [license](licenses/npm/typebox/1.3.27/license) · [package.json](licenses/npm/typebox/1.3.27/package.json) | 已收集原文（非法律认证） |
 | typed-function@4.2.2 | MIT | [LICENSE](licenses/npm/typed-function/4.2.2/LICENSE) · [package.json](licenses/npm/typed-function/4.2.2/package.json) | 已收集原文（非法律认证） |
 | underscore@1.13.8 | MIT | [LICENSE](licenses/npm/underscore/1.13.8/LICENSE) · [package.json](licenses/npm/underscore/1.13.8/package.json) | 已收集原文（非法律认证） |
 | undici-types@6.21.0 | MIT | [LICENSE](licenses/npm/undici-types/6.21.0/LICENSE) · [package.json](licenses/npm/undici-types/6.21.0/package.json) | 已收集原文（非法律认证） |

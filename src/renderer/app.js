@@ -15,6 +15,8 @@ const state = {
   aiProfiles: [],
   aiUtilityProfiles: {},
   editingAiUtilityKind: null,
+  aiUtilityReturnTarget: null,
+  navigatingAiUtility: false,
   editingProviderId: null,
   credentialSourceProfileId: null,
   providerEditorOpen: false,
@@ -147,6 +149,7 @@ const elements = {
   submitRestoreButton: document.getElementById("submitRestoreButton"),
   providerDialog: document.getElementById("providerDialog"),
   aiUtilityDialog: document.getElementById("aiUtilityDialog"),
+  aiUtilityBackButton: document.getElementById("aiUtilityBackButton"),
   aiUtilityForm: document.getElementById("aiUtilityForm"),
   aiUtilityTitle: document.getElementById("aiUtilityTitle"),
   aiUtilityIntro: document.getElementById("aiUtilityIntro"),
@@ -436,6 +439,7 @@ function updateSettingsSummary() {
 const AI_UTILITY_META = Object.freeze({
   embedding: Object.freeze({
     title: "Embedding 模型",
+    help: "把文字变成可比较的向量，用于语义搜索、知识库和查找相似内容。",
     intro: "把文本转换为向量，供语义搜索、知识库、聚类和相似度计算使用。",
     protocol: "调用 OpenAI 兼容的 POST /embeddings；房间使用 room.ai.embed()，无需接触 API Key。",
     label: "Embedding 模型",
@@ -444,6 +448,7 @@ const AI_UTILITY_META = Object.freeze({
   }),
   rerank: Object.freeze({
     title: "Rerank 模型",
+    help: "把初步找到的候选内容重新排序，让最相关的结果排在前面。",
     intro: "根据查询重新排列候选文本，适合在向量检索之后提高最终结果相关性。",
     protocol: "调用常见的 POST /rerank 协议，兼容 Cohere、Jina 与同结构网关；房间使用 room.ai.rerank()。",
     label: "Rerank 模型",
@@ -452,6 +457,7 @@ const AI_UTILITY_META = Object.freeze({
   }),
   intuition: Object.freeze({
     title: "直觉模型 · Jev",
+    help: "快速给出是非、选项或评分的概率判断，适合分类和流程分支。",
     intro: "Jev 是 TypeSafe AI 的 System One 模型：快速返回有类型的选择、评分或是非概率，不生成自由文本。",
     protocol: "调用 POST /systemone；房间使用 room.ai.intuition() 提交 state 和 noul、score、choice 问题。",
     label: "TypeSafe AI · Jev",
@@ -463,6 +469,9 @@ const AI_UTILITY_META = Object.freeze({
 function renderAiUtilityProfiles() {
   for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
     const kind = card.dataset.aiUtilityKind;
+    const help = AI_UTILITY_META[kind]?.help || "";
+    card.dataset.aiUtilityHelp = help;
+    card.setAttribute("aria-description", help);
     const profile = state.aiUtilityProfiles?.[kind] || null;
     const status = card.querySelector("[data-ai-utility-status]");
     card.classList.toggle("configured", Boolean(profile));
@@ -476,10 +485,15 @@ function renderAiUtilityProfiles() {
 async function showAiUtilityDialog(kind) {
   const meta = AI_UTILITY_META[kind];
   if (!meta) return;
-  closeSettingsHub();
-  if (elements.providerDialog.open) elements.providerDialog.close();
-  await hideRoomForModal();
+  state.aiUtilityReturnTarget = elements.providerDialog.open ? "provider" : "settings";
+  state.navigatingAiUtility = true;
+  try {
+    closeSettingsHub();
+    if (elements.providerDialog.open) elements.providerDialog.close();
+    await hideRoomForModal();
+  } finally { state.navigatingAiUtility = false; }
   state.editingAiUtilityKind = kind;
+  elements.aiUtilityBackButton.textContent = state.aiUtilityReturnTarget === "provider" ? "← 返回 AI 能力中心" : "← 返回设置";
   const profile = state.aiUtilityProfiles?.[kind] || null;
   elements.aiUtilityTitle.textContent = meta.title;
   elements.aiUtilityIntro.textContent = meta.intro;
@@ -499,6 +513,18 @@ async function showAiUtilityDialog(kind) {
     Boolean(profile && !profile.ready)
   );
   elements.aiUtilityDialog.showModal();
+}
+
+async function returnFromAiUtilityDialog() {
+  const target = state.aiUtilityReturnTarget;
+  state.navigatingAiUtility = true;
+  elements.aiUtilityDialog.close();
+  try {
+    if (target === "provider") await showProviderDialog();
+    else await showSettingsHub("ai");
+  } finally {
+    state.navigatingAiUtility = false;
+  }
 }
 
 function aiUtilityPayload() {
@@ -3812,10 +3838,10 @@ async function modifyRoom(event) {
 }
 
 async function restoreActiveRoomAfterDialog() {
-  if (document.querySelector("dialog[open]:not(#generateDialog)")) return;
+  if (state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
   if (state.activeRoomId) {
     await syncViewport();
-    if (document.querySelector("dialog[open]:not(#generateDialog)")) return;
+    if (state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
     await window.workbench.openRoom(state.activeRoomId);
   }
 }
@@ -3905,6 +3931,7 @@ document.getElementById("openAiCenterButton").addEventListener("click", () => { 
 for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
   card.addEventListener("click", () => showAiUtilityDialog(card.dataset.aiUtilityKind).catch((error) => showToast(formatError(error))));
 }
+elements.aiUtilityBackButton.addEventListener("click", () => returnFromAiUtilityDialog().catch((error) => showToast(formatError(error))));
 elements.saveAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile());
 elements.testAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile({ test: true }));
 elements.clearAiUtilityKeyButton.addEventListener("click", async () => {
@@ -4429,6 +4456,7 @@ elements.providerDialog.addEventListener("close", () => {
 });
 elements.aiUtilityDialog.addEventListener("close", () => {
   state.editingAiUtilityKind = null;
+  state.aiUtilityReturnTarget = null;
   restoreActiveRoomAfterDialog();
 });
 elements.workbenchSettingsDialog.addEventListener("close", restoreActiveRoomAfterDialog);

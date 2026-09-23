@@ -16,14 +16,14 @@ Third-party dependencies, fonts, Electron, Git toolchains, and independently lic
 
 ## Try the MVP
 
-The current Windows development release is **0.3.0-alpha.43**. The generic Linux x64 technical preview remains **0.3.0-alpha.36**. Both are prereleases.
+The current Windows source version is **0.4.0**. The generic Linux x64 technical preview remains **0.3.0-alpha.36**.
 
 Windows users should normally choose the per-user installer. It does not require administrator privileges and registers the `.room` file association. A portable folder ZIP and a single-file portable executable are also available.
 
 ```text
-release/Roomillion-0.3.0-alpha.43-Setup.exe
-release/Roomillion-0.3.0-alpha.43-Portable-Folder.zip
-release/Roomillion-0.3.0-alpha.43-Portable.exe
+release/Roomillion-0.4.0-Setup.exe
+release/Roomillion-0.4.0-Portable-Folder.zip
+release/Roomillion-0.4.0-Portable.exe
 release/linux/Roomillion-0.3.0-alpha.36-linux-x64.tar.xz
 release/linux/Roomillion-0.3.0-alpha.36-x86_64.AppImage
 ```
@@ -112,7 +112,7 @@ sh scripts/linux/verify-pilot.sh release/linux/linux-unpacked/roomillion
 
 ## Platform status
 
-- **Windows x64:** `0.3.0-alpha.43` development release. Installer, portable folder ZIP, and single-file portable builds are supported.
+- **Windows x64:** `0.4.0` source version. Installer, portable folder ZIP, and single-file portable builds are supported.
 - **Generic Linux x64:** `0.3.0-alpha.36` technical preview. Automated smoke tests passed on WSL2 Ubuntu 24.04 with an empty PATH and no outbound network attempts. This does not replace validation on a specific UnionTech UOS release with real GPU, Chinese input, drag-and-drop, and native file dialogs.
 - **macOS:** no publishable artifact yet. Intel and Apple Silicon Git toolchains, packaging, icons, `.room` document association, signing, and notarization remain to be completed.
 

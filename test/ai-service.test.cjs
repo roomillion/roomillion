@@ -348,7 +348,7 @@ test("Pi provider catalog supplies MiMo Token Plan settings and selectable model
   assert.equal(mimo.source, "pi-builtin");
   assert.equal(mimo.baseUrl, "https://token-plan-cn.xiaomimimo.com/v1");
   assert.equal(mimo.defaultModel, "mimo-v2.5");
-  assert.deepEqual(mimo.models.map((model) => model.id), ["mimo-v2.5", "mimo-v2.5-pro"]);
+  assert.ok(["mimo-v2.5", "mimo-v2.5-pro"].every((id) => mimo.models.some((model) => model.id === id)));
 
   const saved = await service.saveProfile({
     providerId: "xiaomi-token-plan-cn",
@@ -375,8 +375,8 @@ test("workbench mirrors the complete Pi provider catalog and keeps Kimi Code sep
   const nativeProviders = catalog.filter((provider) => provider.source === "pi-builtin");
   const { builtinProviders } = await import("@earendil-works/pi-ai/providers/all");
   const expectedProviderIds = builtinProviders().map((provider) => provider.id).sort();
-  assert.equal(nativeProviders.length, 40);
-  assert.equal(new Set(nativeProviders.map((provider) => provider.id)).size, 40);
+  assert.equal(nativeProviders.length, expectedProviderIds.length);
+  assert.equal(new Set(nativeProviders.map((provider) => provider.id)).size, expectedProviderIds.length);
   assert.deepEqual(nativeProviders.map((provider) => provider.id).sort(), expectedProviderIds);
   assert.equal(catalog.filter((provider) => provider.id === "custom-openai-compatible").length, 1);
 

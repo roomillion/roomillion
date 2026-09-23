@@ -1134,8 +1134,11 @@ html[data-theme] .dropOverlay { border-color: var(--ui-highlight); background: v
 .aiUtilitySummaryHeader strong { font-size: 13px; }
 .aiUtilitySummaryHeader small { color: var(--ui-text-secondary); font-size: 11px; line-height: 1.55; }
 .aiUtilityGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.aiUtilityCard { min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface-muted); color: var(--ui-text); text-align: left; }
+.aiUtilityCard { position: relative; min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr); align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface-muted); color: var(--ui-text); text-align: left; }
 .aiUtilityCard:hover { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+.aiUtilityCard::after { content: attr(data-ai-utility-help); position: absolute; z-index: 3; bottom: calc(100% + 7px); left: 0; width: max-content; max-width: min(230px, calc(100vw - 80px)); padding: 9px 11px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); color: var(--ui-text); box-shadow: 0 8px 24px rgba(15,43,33,.18); font-size: 11px; font-weight: 500; line-height: 1.5; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; }
+.aiUtilityCard[data-ai-utility-kind="intuition"]::after { left: auto; right: 0; }
+.aiUtilityCard:hover::after, .aiUtilityCard:focus-visible::after { opacity: 1; visibility: visible; }
 .aiUtilityCard.configured { border-color: color-mix(in srgb, var(--ui-accent) 58%, var(--ui-border)); }
 .aiUtilityCard.ready { box-shadow: inset 3px 0 var(--ui-accent); }
 .aiUtilityCard > span:last-child { min-width: 0; }
@@ -1145,6 +1148,9 @@ html[data-theme] .dropOverlay { border-color: var(--ui-highlight); background: v
 .aiUtilityGlyph { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--ui-accent-soft); color: var(--ui-accent-strong); font-size: 12px; font-weight: 900; }
 .providerUtilitySummary { margin-bottom: 12px; padding: 13px; border: 1px solid var(--ui-border); border-radius: 13px; background: var(--ui-surface-soft); }
 .aiUtilityDialog form { display: grid; gap: 12px; }
+.aiUtilityHeading { display: grid; gap: 9px; }
+.aiUtilityBackButton { width: fit-content; padding: 0; border: 0; background: none; color: var(--ui-accent-strong); font-size: 12px; font-weight: 800; text-align: left; }
+.aiUtilityBackButton:hover, .aiUtilityBackButton:focus-visible { text-decoration: underline; }
 .aiUtilityDialog label { display: grid; gap: 6px; }
 .aiUtilityDialog label small { color: var(--ui-text-secondary); font-size: 10px; line-height: 1.5; }
 

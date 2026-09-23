@@ -9,7 +9,7 @@
 
 本次改造把这个入口升级为真正的房间开发 Agent：
 
-- 使用官方 `@earendil-works/pi-agent-core` 运行有状态 Agent 工具循环；版本与 `@earendil-works/pi-ai` 固定为同一个 `0.84.3`。
+- 使用官方 `@earendil-works/pi-agent-core` 运行有状态 Agent 工具循环；它与 `@earendil-works/pi-ai` 固定为相同的精确版本，当前版本以 `package.json` 为准。
 - 点击“AI 创建房间”会进入全尺寸聊天工作区，而不是一次性表单。
 - AI 创建工作区和普通房间一样进入顶部标签栏；可以点击 `↗` 或拖出标签单独使用，关闭独立窗口后回到主工作台。
 - 支持流式回复、运行状态、停止、补充消息排队、工具执行时间线和历史会话恢复。

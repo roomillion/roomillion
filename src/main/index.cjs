@@ -177,9 +177,7 @@ function createMainWindow() {
     minHeight: 680,
     backgroundColor: "#edf2ef",
     title: "千万间 Roomillion",
-    ...(process.platform === "linux" ? { icon: app.isPackaged
-      ? path.join(process.resourcesPath, "app-icon.png")
-      : path.join(__dirname, "..", "..", "build", "generated", "icons", "256x256.png") } : {}),
+    icon: getAppIconPath(),
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: "#f7faf8",
@@ -203,15 +201,21 @@ function createMainWindow() {
   return mainWindow;
 }
 
-function getTrayIconPath() {
+function getAppIconPath() {
   if (app.isPackaged) {
     return process.platform === "linux"
       ? path.join(process.resourcesPath, "app-icon.png")
-      : path.join(process.resourcesPath, "room.ico");
+      : path.join(process.resourcesPath, "app.ico");
   }
   return process.platform === "linux"
-    ? path.join(__dirname, "..", "..", "build", "generated", "icons", "32x32.png")
+    ? path.join(__dirname, "..", "..", "build", "generated", "icons", "256x256.png")
     : path.join(__dirname, "..", "..", "build", "generated", "app.ico");
+}
+
+function getTrayIconPath() {
+  return process.platform === "linux" && !app.isPackaged
+    ? path.join(__dirname, "..", "..", "build", "generated", "icons", "32x32.png")
+    : getAppIconPath();
 }
 
 function terminateSmoke(code) {
@@ -241,6 +245,10 @@ async function writeSmokeReport(payload) {
 }
 
 async function runSmokeCheck(dataRoot) {
+  if (!fs.existsSync(getAppIconPath()) || !fs.existsSync(getTrayIconPath()) ||
+    (process.platform === "win32" && getTrayIconPath() !== getAppIconPath())) {
+    throw new Error("工作台窗口与托盘图标资源不一致或缺失");
+  }
   const richText = await mainWindow.webContents.executeJavaScript(`(() => {
     const node=document.createElement('div');
     renderAgentRichText(node, '**方案**\\n\\n- 添加图书\\n\\n| 字段 | 说明 |\\n| --- | --- |\\n| 书名 | 文本 |\\n\\n<img src=x onerror=alert(1)>');
@@ -255,6 +263,27 @@ async function runSmokeCheck(dataRoot) {
     throw new Error(`Agent JavaScript 网页渲染检查失败：${JSON.stringify(renderedAgentPage)}`);
   }
   const initialRooms = await mainWindow.webContents.executeJavaScript("window.workbench.getState().then((state) => state.rooms.length)");
+  const aiUtilityNavigation = await mainWindow.webContents.executeJavaScript(`(async () => {
+    await showSettingsHub("ai");
+    const cards = [...document.querySelectorAll(".aiUtilityCard")];
+    const helpReady = cards.length === 6 && cards.every((card) => card.dataset.aiUtilityHelp?.length > 20 && card.getAttribute("aria-description") === card.dataset.aiUtilityHelp);
+    await showAiUtilityDialog("rerank");
+    const settingsBackLabel = elements.aiUtilityBackButton.textContent;
+    await returnFromAiUtilityDialog();
+    const returnedToSettings = elements.settingsHubDialog.open && Boolean(elements.settingsHubDialog.querySelector('[data-settings-panel="ai"].active'));
+    elements.settingsHubDialog.close();
+    await showProviderDialog();
+    await showAiUtilityDialog("intuition");
+    const providerBackLabel = elements.aiUtilityBackButton.textContent;
+    await returnFromAiUtilityDialog();
+    const returnedToProvider = elements.providerDialog.open;
+    elements.providerDialog.close();
+    return { helpReady, settingsBackLabel, returnedToSettings, providerBackLabel, returnedToProvider };
+  })()`);
+  if (!aiUtilityNavigation.helpReady || !aiUtilityNavigation.returnedToSettings || !aiUtilityNavigation.returnedToProvider ||
+    !aiUtilityNavigation.settingsBackLabel.includes("设置") || !aiUtilityNavigation.providerBackLabel.includes("AI 能力中心")) {
+    throw new Error(`专用 AI 能力说明或返回导航检查失败：${JSON.stringify(aiUtilityNavigation)}`);
+  }
   const providerUiResult = await mainWindow.webContents.executeJavaScript(`(async () => {
     await showProviderDialog();
     const result = {
@@ -408,7 +437,7 @@ async function runSmokeCheck(dataRoot) {
     providerUiResult.pickerSelectedProvider !== "kimi-coding" ||
     !providerUiResult.pickerValue.includes("Kimi") ||
     !providerUiResult.pickerClosedAfterSelection ||
-    !providerUiResult.providerCatalogSummary.includes("Pi 原生 40 个") ||
+    !providerUiResult.providerCatalogSummary.includes(`Pi 原生 ${providerUiResult.providerCount - 1} 个`) ||
     providerUiResult.selectedProvider !== "xiaomi-token-plan-cn" ||
     !providerUiResult.models.includes("mimo-v2.5") ||
     !providerUiResult.models.includes("mimo-v2.5-pro") ||
