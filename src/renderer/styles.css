@@ -1108,6 +1108,7 @@ html[data-theme] .dropOverlay { border-color: var(--ui-highlight); background: v
 /* Settings hub: single sidebar entry opens a categorized settings dialog */
 .settingsGlyph .statusDot.networkDot { right: 8px; }
 .modal.settingsHubModal { width: min(640px, calc(100vw - 40px)); }
+.settingsHubModal form { max-height: min(760px, calc(100vh - 48px)); overflow: auto; }
 .settingsHubBody { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
 .settingsHubNav { display: grid; gap: 7px; }
 .settingsHubNavItem { display: grid; gap: 3px; text-align: left; padding: 11px 13px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); color: var(--ui-text); }

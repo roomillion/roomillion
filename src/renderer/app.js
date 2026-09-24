@@ -3872,9 +3872,12 @@ async function initialize() {
     state.activeSurface = "agent";
     state.agentTabOpen = true;
   }
-  elements.appVersionLabel.textContent = `v${initial.environment.appVersion} 技术预览 · 房间运行时`;
+  elements.appVersionLabel.textContent = `v${initial.environment.appVersion} 技术预览 · AI 房间工作台`;
   state.detachedRoomIds = new Set((initial.roomWindows || []).filter((item) => item.mode === "detached").map((item) => item.roomId));
-  document.getElementById("environmentSummary").textContent = `v${initial.environment.appVersion} · Electron ${initial.environment.electron} · ${initial.environment.platform}/${initial.environment.arch} · 官方模块 ${initial.roomModules.length} 个 · ${initial.environment.git}`;
+  const environmentSummary = document.getElementById("environmentSummary");
+  environmentSummary.textContent = `Electron ${initial.environment.electron} · 内置 Node.js ${initial.environment.node} · ${initial.environment.platform}/${initial.environment.arch}`;
+  environmentSummary.title = `工作台 v${initial.environment.appVersion} · Chromium ${initial.environment.chrome} · 官方模块 ${initial.roomModules.length} 个 · ${initial.environment.git}`;
+  document.getElementById("runtimeDetails").textContent = `工作台：v${initial.environment.appVersion} · Electron ${initial.environment.electron} · 内置 Node.js ${initial.environment.node}\n房间界面：Chromium ${initial.environment.chrome}（隔离运行）\n系统：${initial.environment.platform}/${initial.environment.arch}\n官方模块：${initial.roomModules.length} 个 · ${initial.environment.git}`;
   renderRooms();
   renderTabs();
   renderProvider();

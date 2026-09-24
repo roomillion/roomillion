@@ -29,7 +29,13 @@ To run from source (Node.js 22 or a newer compatible version):
     npm run build:resources
     npm start
 
-Node.js and npm are needed here only to install, build, and start the development version from source. Published packages start with Electron's bundled runtime, so users do not need to install Node.js. The current release neither bundles nor invokes Bun. An early design proposed Bun for compiling Rooms, but Rooms now run in isolated Chromium contexts while the workbench main process and AI agent run in Electron.
+These commands are for development from source. Users of published packages do not need to install Node.js or npm.
+
+## Architecture at a glance
+
+- **Workbench main process:** Electron's bundled Node.js runtime manages windows, Room installation, permissions, storage, files, the AI gateway, and bundled Git. The Pi SDK-based Room development agent runs in the workbench too.
+- **Workbench UI and Rooms:** Chromium renders the UI and each Room in an isolated context. Rooms request capabilities through the controlled Room SDK; they cannot call Node.js or Electron directly or read credentials.
+- **Build and distribution:** Node.js, npm, and electron-builder build the workbench; published packages carry their own runtime. Rooms ship as .room packages and share the workbench's official modules. The current version does not use Bun; the Bun compiler in early design documents was never implemented.
 
 ## Rooms and AI
 

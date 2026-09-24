@@ -29,7 +29,13 @@ Windows 产物目前未签名。三种 Windows 包均不要求目标电脑预装
     npm run build:resources
     npm start
 
-这里的 Node.js 和 npm 只用于源码安装、构建与启动开发版。发布包由 Electron 自带运行时启动，用户无需另装 Node.js；当前版本也没有内置或调用 Bun。早期设计曾考虑用 Bun 编译房间，但现行房间运行在隔离的 Chromium 环境中，工作台主进程和 AI Agent 运行在 Electron 环境中。
+这些命令用于源码开发。安装发布包的用户无需另装 Node.js 或 npm。
+
+## 架构概览
+
+- **工作台主进程**运行在 Electron 自带的 Node.js 环境中，管理窗口、房间安装、权限、数据、文件、AI 网关和内置 Git。基于 Pi SDK 的房间开发 Agent 也在工作台中运行。
+- **工作台界面与房间**运行在 Chromium 中。每个房间处于隔离的渲染环境，通过受控的 Room SDK 请求工作台能力，不能直接调用 Node.js、Electron 或读取密钥。
+- **开发与交付**使用 Node.js、npm 和 electron-builder 构建工作台；发布包自带所需运行时。房间以 .room 包分发，共用工作台提供的官方模块。当前版本不使用 Bun；早期设计文档中的 Bun 编译器并未实现。
 
 ## 房间与 AI 能力
 

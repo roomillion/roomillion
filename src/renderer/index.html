@@ -19,7 +19,7 @@
     <aside id="mainSidebar" class="sidebar" aria-label="工作台栏目">
       <div class="brand">
         <div class="brandMark" aria-hidden="true"><img src="./assets/app-icon.svg" alt=""></div>
-        <div class="brandText"><h1>千万间 <span>Roomillion</span></h1><p id="appVersionLabel">技术预览版 · 房间运行时</p></div>
+        <div class="brandText"><h1>千万间 <span>Roomillion</span></h1><p id="appVersionLabel">技术预览版 · AI 房间工作台</p></div>
       </div>
 
       <div class="primaryActions">
@@ -204,6 +204,7 @@
           <button type="button" class="settingsHubNavItem" data-settings-section="network"><strong>联网控制</strong><small id="networkSummaryNav">联网已关闭</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="storage"><strong>房间位置</strong><small id="storageSummaryNav">查看安装目录</small></button>
           <button type="button" class="settingsHubNavItem" data-settings-section="diagnostics"><strong>诊断报告</strong><small>导出脱敏报告</small></button>
+          <button type="button" class="settingsHubNavItem" data-settings-section="runtime"><strong>运行环境</strong><small>查看工作台架构</small></button>
         </nav>
         <div class="settingsHubPanels">
           <section class="settingsHubPanel active" data-settings-panel="appearance">
@@ -240,6 +241,11 @@
           <section class="settingsHubPanel" data-settings-panel="diagnostics">
             <div class="settingsHubPanelIntro"><strong>诊断报告</strong><small>导出前可预览内容；预览版默认脱敏，不包含密钥和业务数据。</small></div>
             <button type="button" id="openDiagnosticsButton" class="settingsHubAction">导出诊断报告<span>预览并导出脱敏报告</span></button>
+          </section>
+          <section class="settingsHubPanel" data-settings-panel="runtime">
+            <div class="settingsHubPanelIntro"><strong>运行环境与架构</strong><small>区分工作台、房间与源码构建工具。</small></div>
+            <p id="runtimeDetails" class="detailSummary"></p>
+            <p class="detailSummary">工作台主进程与 AI Agent 使用 Electron 自带的 Node.js；房间在隔离的 Chromium 环境中运行，通过受控 Room SDK 访问工作台能力。源码开发和打包需要 Node.js、npm；安装发布包无需另装它们。当前版本不使用 Bun。</p>
           </section>
         </div>
       </div>
