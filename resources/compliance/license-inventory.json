@@ -187,19 +187,24 @@
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-http",
       "files": [
         {
+          "source": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.74/upstream/aws-sdk-js-v3-c68e50e-LICENSE",
+          "bytes": 11352,
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        },
+        {
           "source": "node_modules/@aws-sdk/credential-provider-http/package.json",
           "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.74/package.json",
           "bytes": 2410,
           "sha256": "6db5ed1c0c41ca8672b0eb663e539f87ed0deb7fc96d241ef766d2b441fe59a1"
-        },
-        {
-          "source": "node_modules/@aws-sdk/credential-provider-http/README.md",
-          "path": "licenses/npm/@aws-sdk/credential-provider-http/3.972.74/README.md",
-          "bytes": 468,
-          "sha256": "27ef1d7518b40bb68d188dc925e6499fa5fc403e89b3c44eb8b61554980163e3"
         }
       ],
-      "status": "needs-original-license-review",
+      "status": "original-files-collected",
+      "licenseEvidence": {
+        "file": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+        "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+        "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+      },
       "attributionMetadata": {
         "author": {
           "name": "AWS SDK for JavaScript Team",
@@ -259,19 +264,24 @@
       "sourceRoot": "node_modules/@aws-sdk/credential-provider-login",
       "files": [
         {
+          "source": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.79/upstream/aws-sdk-js-v3-c68e50e-LICENSE",
+          "bytes": 11352,
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        },
+        {
           "source": "node_modules/@aws-sdk/credential-provider-login/package.json",
           "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.79/package.json",
           "bytes": 1975,
           "sha256": "5993af12213692c03386b8af68d3894c007c87fcbee64356743668aa9ea39696"
-        },
-        {
-          "source": "node_modules/@aws-sdk/credential-provider-login/README.md",
-          "path": "licenses/npm/@aws-sdk/credential-provider-login/3.972.79/README.md",
-          "bytes": 657,
-          "sha256": "a33261115ded62f80ada337b9ed2193392837a6dd49d3ce89ec81fc48fbe33fd"
         }
       ],
-      "status": "needs-original-license-review",
+      "status": "original-files-collected",
+      "licenseEvidence": {
+        "file": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+        "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+        "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+      },
       "attributionMetadata": {
         "author": {
           "name": "AWS SDK for JavaScript Team",
@@ -547,19 +557,24 @@
       "sourceRoot": "node_modules/@aws-sdk/nested-clients",
       "files": [
         {
+          "source": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.46/upstream/aws-sdk-js-v3-c68e50e-LICENSE",
+          "bytes": 11352,
+          "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+        },
+        {
           "source": "node_modules/@aws-sdk/nested-clients/package.json",
           "path": "licenses/npm/@aws-sdk/nested-clients/3.997.46/package.json",
           "bytes": 4419,
           "sha256": "dd334b9f6453d2e9094bf36a10e3a1a5637fa6c43fe38ca42e649e3fae4fdbd3"
-        },
-        {
-          "source": "node_modules/@aws-sdk/nested-clients/README.md",
-          "path": "licenses/npm/@aws-sdk/nested-clients/3.997.46/README.md",
-          "bytes": 418,
-          "sha256": "92cdad5ce2f6c085d7b65ee8c701340a75799ae6045f1b526b49a28caad27c30"
         }
       ],
-      "status": "needs-original-license-review",
+      "status": "original-files-collected",
+      "licenseEvidence": {
+        "file": "scripts/license-evidence/aws-sdk-js-v3-c68e50e-LICENSE",
+        "source": "https://raw.githubusercontent.com/aws/aws-sdk-js-v3/c68e50e4a6e0469a20c2894fe8a29c140553ebb8/LICENSE",
+        "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
+      },
       "attributionMetadata": {
         "author": {
           "name": "AWS SDK for JavaScript Team",
@@ -1444,19 +1459,24 @@
       "sourceRoot": "node_modules/@esbuild/win32-x64",
       "files": [
         {
+          "source": "scripts/license-evidence/esbuild-0.28.2-LICENSE.md",
+          "path": "licenses/npm/@esbuild/win32-x64/0.28.2/upstream/esbuild-0.28.2-LICENSE.md",
+          "bytes": 1069,
+          "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+        },
+        {
           "source": "node_modules/@esbuild/win32-x64/package.json",
           "path": "licenses/npm/@esbuild/win32-x64/0.28.2/package.json",
           "bytes": 374,
           "sha256": "89382df45735edcd917c492a810ab514920fa07d36c653cdc122bdfd8f526964"
-        },
-        {
-          "source": "node_modules/@esbuild/win32-x64/README.md",
-          "path": "licenses/npm/@esbuild/win32-x64/0.28.2/README.md",
-          "bytes": 143,
-          "sha256": "29cf512fa580b72392176bf694933ae0decaf18116fdeee917511b445411ce16"
         }
       ],
-      "status": "needs-original-license-review",
+      "status": "original-files-collected",
+      "licenseEvidence": {
+        "file": "scripts/license-evidence/esbuild-0.28.2-LICENSE.md",
+        "source": "https://raw.githubusercontent.com/evanw/esbuild/v0.28.2/LICENSE.md",
+        "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681"
+      },
       "attributionMetadata": {
         "author": null,
         "contributors": null,
@@ -13832,19 +13852,24 @@
       "sourceRoot": "node_modules/standardwebhooks",
       "files": [
         {
+          "source": "scripts/license-evidence/standardwebhooks-1.1.1-LICENSE",
+          "path": "licenses/npm/standardwebhooks/1.1.1/upstream/standardwebhooks-1.1.1-LICENSE",
+          "bytes": 1088,
+          "sha256": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27"
+        },
+        {
           "source": "node_modules/standardwebhooks/package.json",
           "path": "licenses/npm/standardwebhooks/1.1.1/package.json",
           "bytes": 1033,
           "sha256": "686397f0f0202e0b693cfd3f6241d7a8da3df326f9642867a484fbbd295690b6"
-        },
-        {
-          "source": "node_modules/standardwebhooks/README.md",
-          "path": "licenses/npm/standardwebhooks/1.1.1/README.md",
-          "bytes": 497,
-          "sha256": "d904d315274ae461f19d32dc96e3da1f0dc567ede4075258dc57a465ddb8f1a8"
         }
       ],
-      "status": "needs-original-license-review",
+      "status": "original-files-collected",
+      "licenseEvidence": {
+        "file": "scripts/license-evidence/standardwebhooks-1.1.1-LICENSE",
+        "source": "https://raw.githubusercontent.com/standard-webhooks/standard-webhooks/b4d2c14fc5b4ccff3ff271e3b087dff812254c59/libraries/LICENSE",
+        "sha256": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27"
+      },
       "attributionMetadata": {
         "author": "Standard Webhooks",
         "contributors": null,
@@ -16069,10 +16094,6 @@
     }
   ],
   "missingOriginalLicenseFiles": [
-    "@aws-sdk/credential-provider-http@3.972.74",
-    "@aws-sdk/credential-provider-login@3.972.79",
-    "@aws-sdk/nested-clients@3.997.46",
-    "@esbuild/win32-x64@0.28.2",
     "@pdf-lib/fontkit@1.1.1",
     "binary@0.3.0",
     "buffers@0.1.1",
@@ -16080,7 +16101,6 @@
     "dingbat-to-unicode@1.0.1",
     "https@1.0.0",
     "javascript-natural-sort@0.7.1",
-    "proxy-agent-negotiate@1.1.0",
-    "standardwebhooks@1.1.1"
+    "proxy-agent-negotiate@1.1.0"
   ]
 }

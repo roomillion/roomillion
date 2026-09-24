@@ -11,9 +11,9 @@
 | @aws-sdk/client-bedrock-runtime@3.1127.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1127.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/client-bedrock-runtime/3.1127.0/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/core@3.978.1 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/core/3.978.1/LICENSE) · [package.json](licenses/npm/%40aws-sdk/core/3.978.1/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/credential-provider-env@3.972.72 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-env/3.972.72/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-env/3.972.72/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-http@3.972.74 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/README.md) | 需核对原文 |
+| @aws-sdk/credential-provider-http@3.972.74 | Apache-2.0 | [aws-sdk-js-v3-c68e50e-LICENSE](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/upstream/aws-sdk-js-v3-c68e50e-LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-http/3.972.74/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/credential-provider-ini@3.973.17 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.17/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-ini/3.973.17/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/credential-provider-login@3.972.79 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/package.json) · [README.md](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/README.md) | 需核对原文 |
+| @aws-sdk/credential-provider-login@3.972.79 | Apache-2.0 | [aws-sdk-js-v3-c68e50e-LICENSE](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/upstream/aws-sdk-js-v3-c68e50e-LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-login/3.972.79/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/credential-provider-node@3.972.84 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-node/3.972.84/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-node/3.972.84/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/credential-provider-process@3.972.72 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-process/3.972.72/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-process/3.972.72/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/credential-provider-sso@3.973.16 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.16/LICENSE) · [package.json](licenses/npm/%40aws-sdk/credential-provider-sso/3.973.16/package.json) | 已收集原文（非法律认证） |
@@ -21,7 +21,7 @@
 | @aws-sdk/eventstream-handler-node@3.972.35 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.35/LICENSE) · [package.json](licenses/npm/%40aws-sdk/eventstream-handler-node/3.972.35/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/middleware-eventstream@3.972.30 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.30/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-eventstream/3.972.30/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/middleware-websocket@3.972.54 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/middleware-websocket/3.972.54/LICENSE) · [package.json](licenses/npm/%40aws-sdk/middleware-websocket/3.972.54/package.json) | 已收集原文（非法律认证） |
-| @aws-sdk/nested-clients@3.997.46 | Apache-2.0 | [package.json](licenses/npm/%40aws-sdk/nested-clients/3.997.46/package.json) · [README.md](licenses/npm/%40aws-sdk/nested-clients/3.997.46/README.md) | 需核对原文 |
+| @aws-sdk/nested-clients@3.997.46 | Apache-2.0 | [aws-sdk-js-v3-c68e50e-LICENSE](licenses/npm/%40aws-sdk/nested-clients/3.997.46/upstream/aws-sdk-js-v3-c68e50e-LICENSE) · [package.json](licenses/npm/%40aws-sdk/nested-clients/3.997.46/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/signature-v4-multi-region@3.996.47 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.47/LICENSE) · [package.json](licenses/npm/%40aws-sdk/signature-v4-multi-region/3.996.47/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/token-providers@3.1127.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1127.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1127.0/package.json) | 已收集原文（非法律认证） |
 | @aws-sdk/token-providers@3.1138.0 | Apache-2.0 | [LICENSE](licenses/npm/%40aws-sdk/token-providers/3.1138.0/LICENSE) · [package.json](licenses/npm/%40aws-sdk/token-providers/3.1138.0/package.json) | 已收集原文（非法律认证） |
@@ -47,7 +47,7 @@
 | @earendil-works/pi-agent-core@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-agent-core/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-agent-core/0.87.1/package.json) | 已收集原文（非法律认证） |
 | @earendil-works/pi-ai@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-ai/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-ai/0.87.1/package.json) | 已收集原文（非法律认证） |
 | @earendil-works/pi-telemetry@0.87.1 | MIT | [pi-0.87.1-LICENSE](licenses/npm/%40earendil-works/pi-telemetry/0.87.1/upstream/pi-0.87.1-LICENSE) · [package.json](licenses/npm/%40earendil-works/pi-telemetry/0.87.1/package.json) | 已收集原文（非法律认证） |
-| @esbuild/win32-x64@0.28.2 | MIT | [package.json](licenses/npm/%40esbuild/win32-x64/0.28.2/package.json) · [README.md](licenses/npm/%40esbuild/win32-x64/0.28.2/README.md) | 需核对原文 |
+| @esbuild/win32-x64@0.28.2 | MIT | [esbuild-0.28.2-LICENSE.md](licenses/npm/%40esbuild/win32-x64/0.28.2/upstream/esbuild-0.28.2-LICENSE.md) · [package.json](licenses/npm/%40esbuild/win32-x64/0.28.2/package.json) | 已收集原文（非法律认证） |
 | @fast-csv/format@4.3.5 | MIT | [LICENSE](licenses/npm/%40fast-csv/format/4.3.5/LICENSE) · [package.json](licenses/npm/%40fast-csv/format/4.3.5/package.json) | 已收集原文（非法律认证） |
 | @fast-csv/parse@4.3.6 | MIT | [LICENSE](licenses/npm/%40fast-csv/parse/4.3.6/LICENSE) · [package.json](licenses/npm/%40fast-csv/parse/4.3.6/package.json) | 已收集原文（非法律认证） |
 | @google/genai@2.21.0 | Apache-2.0 | [LICENSE](licenses/npm/%40google/genai/2.21.0/LICENSE) · [package.json](licenses/npm/%40google/genai/2.21.0/package.json) | 已收集原文（非法律认证） |
@@ -372,7 +372,7 @@
 | sprintf-js@1.0.3 | BSD-3-Clause | [LICENSE](licenses/npm/sprintf-js/1.0.3/LICENSE) · [package.json](licenses/npm/sprintf-js/1.0.3/package.json) | 已收集原文（非法律认证） |
 | sql.js@1.14.2 | MIT | [AUTHORS](licenses/npm/sql.js/1.14.2/AUTHORS) · [LICENSE](licenses/npm/sql.js/1.14.2/LICENSE) · [package.json](licenses/npm/sql.js/1.14.2/package.json) | 已收集原文（非法律认证） |
 | stackblur-canvas@2.7.0 | MIT | [LICENSE-MIT.txt](licenses/npm/stackblur-canvas/2.7.0/LICENSE-MIT.txt) · [package.json](licenses/npm/stackblur-canvas/2.7.0/package.json) | 已收集原文（非法律认证） |
-| standardwebhooks@1.1.1 | MIT | [package.json](licenses/npm/standardwebhooks/1.1.1/package.json) · [README.md](licenses/npm/standardwebhooks/1.1.1/README.md) | 需核对原文 |
+| standardwebhooks@1.1.1 | MIT | [standardwebhooks-1.1.1-LICENSE](licenses/npm/standardwebhooks/1.1.1/upstream/standardwebhooks-1.1.1-LICENSE) · [package.json](licenses/npm/standardwebhooks/1.1.1/package.json) | 已收集原文（非法律认证） |
 | strictdom@1.0.1 | MIT | [README.md](licenses/npm/strictdom/1.0.1/upstream/README.md) · [package.json](licenses/npm/strictdom/1.0.1/package.json) | 已收集原文（非法律认证） |
 | string_decoder@1.1.1 | MIT | [LICENSE](licenses/npm/string_decoder/1.1.1/LICENSE) · [package.json](licenses/npm/string_decoder/1.1.1/package.json) | 已收集原文（非法律认证） |
 | string-width@4.2.3 | MIT | [license](licenses/npm/string-width/4.2.3/license) · [package.json](licenses/npm/string-width/4.2.3/package.json) | 已收集原文（非法律认证） |

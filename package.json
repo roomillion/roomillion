@@ -10,6 +10,7 @@
   "scripts": {
     "build:example": "node scripts/build-example-room.cjs",
     "build:room-modules": "node scripts/build-room-modules.cjs",
+    "prebuild:compliance": "node node_modules/electron/install.js",
     "build:compliance": "node scripts/build-compliance.cjs",
     "build:icon": "node scripts/build-app-icon.cjs",
     "build:splash": "npm run build:icon && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-splash.ps1",
