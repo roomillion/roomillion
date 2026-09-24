@@ -29,6 +29,8 @@ To run from source (Node.js 22 or a newer compatible version):
     npm run build:resources
     npm start
 
+Node.js and npm are needed here only to install, build, and start the development version from source. Published packages start with Electron's bundled runtime, so users do not need to install Node.js. The current release neither bundles nor invokes Bun. An early design proposed Bun for compiling Rooms, but Rooms now run in isolated Chromium contexts while the workbench main process and AI agent run in Electron.
+
 ## Rooms and AI
 
 The workbench includes eight public example Rooms: Inventory Ledger, Meeting Action Items, Offline 3D Crystal Challenge, AI Debate Arena, AI Model Capability Benchmark, Roomillion Browser, Document Browser & Converter, and Audio Analysis Studio. They demonstrate private data, file import and export, 3D interaction, multiple models, document conversion, audio analysis, and controlled web browsing. Unpublished examples are not included in this repository or its distribution packages.
