@@ -125,7 +125,11 @@ document.getElementById("translate").addEventListener("click", async () => {
   let chunks = 0;
   try {
     const result = await window.room.ai.generate("请翻译：" + source.value, {
-      onChunk: delta => { chunks += 1; target.textContent += delta; }
+      onChunk: async delta => {
+        await new Promise(resolve => setTimeout(resolve, 2));
+        chunks += 1;
+        target.textContent += delta;
+      }
     });
     if (chunks < 2 || target.textContent !== result.text) target.textContent = "增量不完整";
   } catch (error) { target.textContent = "调用失败：" + error.message; }

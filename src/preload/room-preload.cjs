@@ -11,23 +11,32 @@ async function generateAi(prompt, options = {}) {
   if (typeof onChunk !== "function") return ipcRenderer.invoke("room:aiGenerate", prompt, requestOptions);
   const requestId = `r${Date.now().toString(36)}-${++aiRequestCounter}`;
   let received = "";
+  let closed = false;
+  let callbacks = Promise.resolve();
+  const deliver = (delta) => {
+    received += delta;
+    const fullText = received;
+    callbacks = callbacks.then(async () => {
+      try { await onChunk(delta, fullText); } catch (error) { console.error(error); }
+    });
+  };
   const listener = (_event, payload) => {
-    if (payload?.requestId !== requestId || typeof payload.delta !== "string") return;
-    received += payload.delta;
-    try { onChunk(payload.delta, received); } catch (error) { console.error(error); }
+    if (closed || payload?.requestId !== requestId || typeof payload.delta !== "string") return;
+    deliver(payload.delta);
   };
   ipcRenderer.on("room:aiTextDelta", listener);
   try {
     const result = await ipcRenderer.invoke("room:aiGenerate", prompt, { ...requestOptions, streamRequestId: requestId });
+    closed = true;
+    ipcRenderer.removeListener("room:aiTextDelta", listener);
     const finalText = typeof result?.text === "string" ? result.text : "";
-    const streamedText = received.trimStart();
-    if (finalText.startsWith(streamedText) && finalText.length > streamedText.length) {
-      const remaining = finalText.slice(streamedText.length);
-      received += remaining;
-      try { onChunk(remaining, received); } catch (error) { console.error(error); }
+    if (finalText.startsWith(received) && finalText.length > received.length) {
+      deliver(finalText.slice(received.length));
     }
+    await callbacks;
     return result;
   } finally {
+    closed = true;
     ipcRenderer.removeListener("room:aiTextDelta", listener);
   }
 }
