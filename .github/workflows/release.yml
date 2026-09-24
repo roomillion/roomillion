@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'publish/v*'
 
 permissions:
   contents: read
@@ -75,14 +75,15 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
-          test "$GITHUB_REF_NAME" = "v$version"
-          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq .object)
+          release_tag=${GITHUB_REF_NAME#publish/}
+          test "$release_tag" = "v$version"
+          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$release_tag" --jq .object)
           target=$(jq -r .sha <<< "$ref")
           if [ "$(jq -r .type <<< "$ref")" = tag ]; then
             target=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$target" --jq .object.sha)
           fi
           test "$target" = "$GITHUB_SHA"
-          test -f ".github/release-notes/$GITHUB_REF_NAME.md"
+          test -f ".github/release-notes/$release_tag.md"
           cd release-assets
           for file in \
             "Roomillion-$version-Portable.exe" \
@@ -99,12 +100,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" release-assets/Roomillion-* release-assets/SHA256SUMS.txt --clobber
+          release_tag=${GITHUB_REF_NAME#publish/}
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release upload "$release_tag" release-assets/Roomillion-* release-assets/SHA256SUMS.txt --clobber
           else
-            gh release create "$GITHUB_REF_NAME" release-assets/Roomillion-* release-assets/SHA256SUMS.txt \
-              --verify-tag --prerelease --title "Roomillion $GITHUB_REF_NAME" \
-              --notes-file ".github/release-notes/$GITHUB_REF_NAME.md"
+            gh release create "$release_tag" release-assets/Roomillion-* release-assets/SHA256SUMS.txt \
+              --verify-tag --prerelease --title "Roomillion $release_tag" \
+              --notes-file ".github/release-notes/$release_tag.md"
           fi
       - name: Record successful publication
         env:
@@ -112,7 +114,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url=$(gh release view "$GITHUB_REF_NAME" --json url --jq .url)
+          release_tag=${GITHUB_REF_NAME#publish/}
+          url=$(gh release view "$release_tag" --json url --jq .url)
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin refs/notes/roomillion-releases:refs/notes/roomillion-releases || true
