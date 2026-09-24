@@ -128,10 +128,13 @@ if [ "${ROOMILLION_CI_SUID_SANDBOX:-0}" = 1 ]; then
   sudo -n chmod 4755 "$SANDBOX_HELPER"
   [ "$(stat -c '%a' "$SANDBOX_HELPER")" = 4755 ] || { echo "FAIL: Electron 沙箱辅助程序权限不正确。" >&2; exit 4; }
 fi
-npm test
 if [ "${ROOMILLION_CI_SUID_SANDBOX:-0}" = 1 ]; then
+  command -v xvfb-run >/dev/null 2>&1 || { echo "FAIL: CI 隔离测试需要 xvfb-run 提供虚拟显示。" >&2; exit 4; }
+  xvfb-run -a npm test
   sudo -n chown "$(id -u):$(id -g)" "$SANDBOX_HELPER"
   chmod 0755 "$SANDBOX_HELPER"
+else
+  npm test
 fi
 
 if [ "$WITH_APPIMAGE" = true ]; then
