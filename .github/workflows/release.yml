@@ -69,11 +69,19 @@ jobs:
           merge-multiple: true
           path: release-assets
       - name: Verify version and create checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
           test "$GITHUB_REF_NAME" = "v$version"
+          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq .object)
+          target=$(jq -r .sha <<< "$ref")
+          if [ "$(jq -r .type <<< "$ref")" = tag ]; then
+            target=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$target" --jq .object.sha)
+          fi
+          test "$target" = "$GITHUB_SHA"
           test -f ".github/release-notes/$GITHUB_REF_NAME.md"
           cd release-assets
           for file in \
