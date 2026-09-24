@@ -33,9 +33,17 @@ These commands are for development from source. Users of published packages do n
 
 ## Architecture at a glance
 
+```mermaid
+flowchart LR
+  UI["Workbench UI<br/>Chromium"] <-->|Controlled bridge| Host["Workbench main process<br/>Electron · bundled Node.js<br/>Permissions · AI gateway · Pi Agent"]
+  Room["Isolated Room<br/>Chromium"] <-->|Room SDK · controlled bridge| Host
+  Host --> Data["Local data and .room packages"]
+  Host --> Models["User-configured AI models"]
+```
+
 - **Workbench main process:** Electron's bundled Node.js runtime manages windows, Room installation, permissions, storage, files, the AI gateway, and bundled Git. The Pi SDK-based Room development agent runs in the workbench too.
 - **Workbench UI and Rooms:** Chromium renders the UI and each Room in an isolated context. Rooms request capabilities through the controlled Room SDK; they cannot call Node.js or Electron directly or read credentials.
-- **Build and distribution:** Node.js, npm, and electron-builder build the workbench; published packages carry their own runtime. Rooms ship as .room packages and share the workbench's official modules. The current version does not use Bun; the Bun compiler in early design documents was never implemented.
+- **Build and distribution:** Node.js, npm, and electron-builder build the workbench; published packages carry their own runtime. Rooms ship as .room packages and share the workbench's official modules.
 
 ## Rooms and AI
 

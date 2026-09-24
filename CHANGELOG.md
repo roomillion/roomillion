@@ -2,8 +2,8 @@
 
 ## 未发布
 
-- 修正工作台运行环境文案，在设置中区分 Electron 主进程、Chromium 房间和源码构建工具；中英文 README 补充简明架构说明。
-- 在中英文 README 中明确区分源码开发所需的 Node.js、发布包自带的 Electron 运行时，以及当前并未使用 Bun 的实现状态。
+- 修正工作台运行环境文案，在设置中区分 Electron 主进程、Chromium 房间和源码构建工具；中英文 README 补充简明架构图与说明。
+- 在中英文 README 中明确区分源码开发所需的 Node.js 与发布包自带的 Electron 运行时。
 - 中英文 README 按 0.4.0 功能与八个公开示例重写；内部 docs/ 退出公开仓库并加入忽略规则，UOS 验收包不再依赖或携带这些内部记录。
 - 修复 Windows GitHub Actions 临时目录经过系统联接时，真实项目目录被错误拒绝的问题；直接选择的符号链接或目录联接仍不可导入。
 - 修复全新依赖安装后缺少 Electron 运行时、导致 GitHub Actions 的资源构建与许可证收集失败；合规构建前按需安装对应版本的 Electron。

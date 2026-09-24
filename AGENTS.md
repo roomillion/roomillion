@@ -52,7 +52,7 @@ CI (`.github/workflows/test.yml`): `npm ci` → `npm run build:resources` → `n
 - Version discipline: `npm run release:portable` bumps the version; same-version rebuilds use `build:portable`. Never hand-add suffixes like "fixed" or dates to artifact names; artifacts use standard `release/Roomillion-<version>-...` names.
 - Only the eight public example rooms (`examples/`) may be committed; new public examples must update the catalog, packaging list (`package.json` `extraResources`), and regression tests. Unpublished examples, user data, and `.room` packages must not enter the repo.
 - Third-party deps: keep exact pinned versions; adding/changing one requires its license registration (catalog metadata / `scripts/third-party-licenses.cjs` / `resources/compliance/`, see LICENSE-REVIEW.md). Code is Apache-2.0; don't relicense third-party material.
-- Windows artifacts are unsigned; the Linux toolchain must be provided via `resources/toolchains` (never system Git/Bun). macOS is not buildable yet (runtime supports only win32-x64 / linux-x64).
+- Windows artifacts are unsigned; the Linux Git toolchain must be provided via `resources/toolchains`, never system Git. macOS is not buildable yet (runtime supports only win32-x64 / linux-x64).
 
 ## Sensitive areas
 
