@@ -123,9 +123,9 @@ npm run build:resources
 npm test
 
 if [ "$WITH_APPIMAGE" = true ]; then
-  node node_modules/electron-builder/cli.js --linux dir tar.xz AppImage --x64 --config build/electron-builder.linux.cjs
+  node node_modules/electron-builder/cli.js --linux dir tar.xz AppImage --x64 --config build/electron-builder.linux.cjs --publish never
 else
-  node node_modules/electron-builder/cli.js --linux dir tar.xz --x64 --config build/electron-builder.linux.cjs
+  node node_modules/electron-builder/cli.js --linux dir tar.xz --x64 --config build/electron-builder.linux.cjs --publish never
 fi
 
 [ -x "$SOURCE_ROOT/release/linux/linux-unpacked/roomillion" ] || { echo "FAIL: Linux 解包版不存在。" >&2; exit 5; }

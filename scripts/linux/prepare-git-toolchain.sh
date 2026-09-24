@@ -39,6 +39,8 @@ command -v ldd >/dev/null 2>&1 || { echo "FAIL: 缺少 ldd，无法审计动态�
 command -v sha256sum >/dev/null 2>&1 || { echo "FAIL: 缺少 sha256sum。" >&2; exit 4; }
 
 if [ "$MODE" = output ]; then
+  command -v realpath >/dev/null 2>&1 || { echo "FAIL: 缺少 realpath。" >&2; exit 4; }
+  OUTPUT_ROOT=$(realpath -m -- "$OUTPUT_ROOT")
   case $OUTPUT_ROOT in
     ""|/|/usr|/etc|/var|/home) echo "FAIL: 输出目录不安全。" >&2; exit 5 ;;
   esac
