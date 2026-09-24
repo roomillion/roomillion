@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:resources
+      - run: npm test
+      - run: npm run build:portable
+      - run: npm run build:portable-folder
+      - run: npm run build:installer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            release/Roomillion-*-Portable.exe
+            release/Roomillion-*-Portable-Folder.zip
+            release/Roomillion-*-Setup.exe
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare bundled Linux Git
+        run: |
+          mkdir -p .linux-build
+          sh scripts/linux/prepare-git-toolchain.sh --output .linux-build/git-linux-x64
+      - name: Build and test Linux preview
+        run: sh scripts/linux/build-generic-preview.sh --toolchain .linux-build/git-linux-x64 --appimage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            release/linux/Roomillion-*-linux-x64.tar.xz
+            release/linux/Roomillion-*-x86_64.AppImage
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: '*-release'
+          merge-multiple: true
+          path: release-assets
+      - name: Verify version and create checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          test "$GITHUB_REF_NAME" = "v$version"
+          test -f ".github/release-notes/$GITHUB_REF_NAME.md"
+          cd release-assets
+          for file in \
+            "Roomillion-$version-Portable.exe" \
+            "Roomillion-$version-Portable-Folder.zip" \
+            "Roomillion-$version-Setup.exe" \
+            "Roomillion-$version-linux-x64.tar.xz" \
+            "Roomillion-$version-x86_64.AppImage"; do
+            test -s "$file"
+          done
+          sha256sum Roomillion-* > SHA256SUMS.txt
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release-assets/Roomillion-* release-assets/SHA256SUMS.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/Roomillion-* release-assets/SHA256SUMS.txt \
+              --verify-tag --prerelease --title "Roomillion $GITHUB_REF_NAME" \
+              --notes-file ".github/release-notes/$GITHUB_REF_NAME.md"
+          fi
+      - name: Record successful publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url=$(gh release view "$GITHUB_REF_NAME" --json url --jq .url)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin refs/notes/roomillion-releases:refs/notes/roomillion-releases || true
+          git notes --ref=roomillion-releases add -f -m "$url" HEAD
+          git push origin refs/notes/roomillion-releases

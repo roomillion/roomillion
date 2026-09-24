@@ -115,7 +115,7 @@ fi
 [ "$(sed -n '1p' node_modules/electron/dist/version)" = "44.0.0" ] || { echo "FAIL: Linux Electron dist 版本不匹配。" >&2; exit 4; }
 # npm 11 may defer Electron's install script. The cached archive contains the
 # complete dist directory, so restore the small launcher marker explicitly.
-printf 'electron\n' > node_modules/electron/path.txt
+printf 'electron' > node_modules/electron/path.txt
 export ELECTRON_OVERRIDE_DIST_PATH="$SOURCE_ROOT/node_modules/electron/dist"
 
 npm run verify:linux-toolchain
