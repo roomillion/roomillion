@@ -119,7 +119,10 @@ function start(input, schemeRegistered = false) {
         return await aiMock.stream({ signal: request.signal, options, onTextDelta: options.streamRequestId ? delta => {
           if (!event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, delta });
         } : undefined });
-      } finally { request.finish(); }
+      } finally {
+        if (options.streamRequestId && !event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: options.streamRequestId, done: true });
+        request.finish();
+      }
     }, runtimeAiPermission, true);
     handle("room:aiBatch", (requests, options) => aiMock.batch(requests, options), runtimeAiPermission);
     handle("room:credentialList", () => []);

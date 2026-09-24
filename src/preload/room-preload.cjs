@@ -13,6 +13,8 @@ async function generateAi(prompt, options = {}) {
   let received = "";
   let closed = false;
   let callbacks = Promise.resolve();
+  let finishStream;
+  const streamFinished = new Promise(resolve => { finishStream = resolve; });
   const deliver = (delta) => {
     received += delta;
     const fullText = received;
@@ -21,12 +23,18 @@ async function generateAi(prompt, options = {}) {
     });
   };
   const listener = (_event, payload) => {
-    if (closed || payload?.requestId !== requestId || typeof payload.delta !== "string") return;
+    if (closed || payload?.requestId !== requestId) return;
+    if (payload.done === true) { finishStream(); return; }
+    if (typeof payload.delta !== "string") return;
     deliver(payload.delta);
   };
   ipcRenderer.on("room:aiTextDelta", listener);
   try {
     const result = await ipcRenderer.invoke("room:aiGenerate", prompt, { ...requestOptions, streamRequestId: requestId });
+    let finishTimeout;
+    try {
+      await Promise.race([streamFinished, new Promise(resolve => { finishTimeout = setTimeout(resolve, 5000); })]);
+    } finally { clearTimeout(finishTimeout); }
     closed = true;
     ipcRenderer.removeListener("room:aiTextDelta", listener);
     const finalText = typeof result?.text === "string" ? result.text : "";

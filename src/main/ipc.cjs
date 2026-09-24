@@ -1410,7 +1410,10 @@ function registerIpcHandlers({
         } : undefined
       });
       return { text: result.text, model: result.model, profileId, usage: result.usage };
-    } finally { request.finish(); }
+    } finally {
+      if (streamRequestId && !event.sender.isDestroyed()) event.sender.send("room:aiTextDelta", { requestId: streamRequestId, done: true });
+      request.finish();
+    }
   });
 
   handle("room:aiBatch", async (event, requests, options = {}) => {
