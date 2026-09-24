@@ -38,7 +38,7 @@ grep -q '"status": "ready"' "$TOOLCHAIN_ROOT/metadata.json" || { echo "FAIL: 工
 if [ "$OFFLINE" = true ]; then
   export ZHIBIAN_BUILD_OFFLINE=1
 fi
-"$SCRIPT_DIR/bootstrap-build-runtime.sh"
+sh "$SCRIPT_DIR/bootstrap-build-runtime.sh"
 
 NODE_VERSION=24.20.0
 CACHE_ROOT=${ZHIBIAN_LINUX_BUILD_CACHE:-"$PROJECT_ROOT/.linux-build"}
@@ -137,7 +137,7 @@ rm -rf "$DESTINATION"
 mkdir -p "$DESTINATION"
 cp -a "$SOURCE_ROOT/release/linux/." "$DESTINATION/"
 
-"$SCRIPT_DIR/collect-system-profile.sh" "$DESTINATION/build-system-profile.json"
+sh "$SCRIPT_DIR/collect-system-profile.sh" "$DESTINATION/build-system-profile.json"
 (
   cd "$DESTINATION"
   find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 -r sha256sum > SHA256SUMS.txt

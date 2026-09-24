@@ -11,8 +11,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-"$SCRIPT_DIR/collect-system-profile.sh" "$PROFILE_PATH"
-"$SCRIPT_DIR/prepare-git-toolchain.sh" --output "$TOOLCHAIN_ROOT"
+sh "$SCRIPT_DIR/collect-system-profile.sh" "$PROFILE_PATH"
+sh "$SCRIPT_DIR/prepare-git-toolchain.sh" --output "$TOOLCHAIN_ROOT"
 
 grep -q '"kind": "zhibian-linux-system-profile"' "$PROFILE_PATH"
 grep -q '"hostnameCollected": false' "$PROFILE_PATH"
