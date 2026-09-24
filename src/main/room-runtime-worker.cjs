@@ -281,7 +281,7 @@ function start(input, schemeRegistered = false) {
         "  const seen = new WeakSet();",
         "  const tested = [];",
         "  const skipped = [];",
-        "  const capabilityPattern = /(?:\\bAI\\b|人工智能|模型|联网|网络请求|导入|上传|选择文件|打开文件|打开文档|选择一个文档|导出|下载|浏览网页)/i;",
+        "  const capabilityPattern = /(?:\\bAI\\b|\\bOCR\\b|人工智能|模型|识别|翻译|转写|摘要|生成|分析|联网|网络请求|导入|上传|选择文件|打开文件|打开文档|选择一个文档|导出|下载|浏览网页)/i;",
         "  const visible = (element) => {",
         "    const style = getComputedStyle(element);",
         "    const rect = element.getBoundingClientRect();",

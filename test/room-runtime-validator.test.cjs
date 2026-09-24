@@ -48,6 +48,7 @@ document.getElementById('ocr').onclick=async()=>{try{const id=await room.storage
   };
   const result = await validateRoomRuntime({ spec });
   assert.equal(result.passed, true, JSON.stringify(result));
+  assert.ok(result.checks.find(check => check.id === "interactions")?.skipped.includes("识别"));
 });
 
 test("isolated room runtime exposes embedding, rerank and Jev-shaped intuition contracts", async () => {
