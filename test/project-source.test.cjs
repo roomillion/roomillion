@@ -54,6 +54,20 @@ test("snapshot rejects links and source read accepts only snapshot paths with bo
   assert.equal((await readProjectFile(source, "app.js")).content, "x".repeat(LIMITS.readChars));
 });
 
+test("snapshot accepts a real project below a linked ancestor but rejects the link itself", async t => {
+  const base = await fsp.mkdtemp(path.join(os.tmpdir(), "project-source-ancestor-"));
+  t.after(() => fsp.rm(base, { recursive: true, force: true }));
+  const actual = path.join(base, "actual");
+  const project = path.join(actual, "project");
+  const alias = path.join(base, "alias");
+  await fsp.mkdir(project, { recursive: true });
+  await fsp.writeFile(path.join(project, "index.html"), "<main>ok</main>");
+  await fsp.symlink(actual, alias, process.platform === "win32" ? "junction" : "dir");
+  const source = await snapshotProject(path.join(alias, "project"), { snapshotsRoot: path.join(base, "snapshots") });
+  assert.deepEqual(source.files.map(file => file.path), ["index.html"]);
+  await assert.rejects(snapshotProject(alias), /符号链接|目录联接/);
+});
+
 test("project assessment maps installed libraries and surfaces backend and external dependency limitations", async t => {
   const root = await fixture(t);
   await fsp.writeFile(path.join(root, "package.json"), JSON.stringify({ dependencies: { three: "^0.180.0", express: "^5.0.0" } }));

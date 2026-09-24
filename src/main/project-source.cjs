@@ -49,8 +49,11 @@ async function readStableFile(filename, before) {
 
 async function snapshotProject(directory, options = {}) {
   const requested = path.resolve(directory);
+  const requestedStat = await fsp.lstat(requested);
+  // An ancestor may be an OS-managed junction (for example a CI temp root).
+  // Reject a link at the selected directory itself, then scan its canonical path.
+  if (!requestedStat.isDirectory() || requestedStat.isSymbolicLink()) throw new Error("请选择真实项目文件夹，不支持符号链接或目录联接");
   const root = await fsp.realpath(requested);
-  if ((process.platform === "win32" ? root.toLowerCase() !== requested.toLowerCase() : root !== requested) || !(await fsp.lstat(requested)).isDirectory()) throw new Error("请选择真实项目文件夹，不支持符号链接或目录联接");
   const id = `project_${crypto.randomBytes(16).toString("hex")}`;
   const snapshotsRoot = path.resolve(options.snapshotsRoot || path.join(path.dirname(root), ".zhibian-project-snapshots"));
   const storageRoot = path.join(snapshotsRoot, id);
