@@ -120,7 +120,19 @@ export ELECTRON_OVERRIDE_DIST_PATH="$SOURCE_ROOT/node_modules/electron/dist"
 
 npm run verify:linux-toolchain
 npm run build:resources
+if [ "${ROOMILLION_CI_SUID_SANDBOX:-0}" = 1 ]; then
+  SANDBOX_HELPER="$SOURCE_ROOT/node_modules/electron/dist/chrome-sandbox"
+  [ -f "$SANDBOX_HELPER" ] || { echo "FAIL: 缺少 Electron 沙箱辅助程序。" >&2; exit 4; }
+  command -v sudo >/dev/null 2>&1 || { echo "FAIL: CI 测试需要 sudo 配置临时沙箱辅助程序。" >&2; exit 4; }
+  sudo -n chown root:root "$SANDBOX_HELPER"
+  sudo -n chmod 4755 "$SANDBOX_HELPER"
+  [ "$(stat -c '%a' "$SANDBOX_HELPER")" = 4755 ] || { echo "FAIL: Electron 沙箱辅助程序权限不正确。" >&2; exit 4; }
+fi
 npm test
+if [ "${ROOMILLION_CI_SUID_SANDBOX:-0}" = 1 ]; then
+  sudo -n chown "$(id -u):$(id -g)" "$SANDBOX_HELPER"
+  chmod 0755 "$SANDBOX_HELPER"
+fi
 
 if [ "$WITH_APPIMAGE" = true ]; then
   node node_modules/electron-builder/cli.js --linux dir tar.xz AppImage --x64 --config build/electron-builder.linux.cjs --publish never
