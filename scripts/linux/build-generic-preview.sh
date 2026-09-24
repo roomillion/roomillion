@@ -61,6 +61,7 @@ mkdir -p "$SOURCE_ROOT" "$NPM_CACHE" "$ELECTRON_CACHE" "$ELECTRON_BUILDER_CACHE"
   cd "$PROJECT_ROOT"
   tar \
     --exclude='./.git' \
+    --exclude='./docs' \
     --exclude='./node_modules' \
     --exclude='./release' \
     --exclude='./.linux-build' \

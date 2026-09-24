@@ -6,6 +6,7 @@ node_modules/
 .linux-build/
 release/
 /release-*/
+/docs/
 coverage/
 build/generated/
 resources/examples/*.room

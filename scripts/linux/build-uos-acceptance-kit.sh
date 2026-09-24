@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.3.0-alpha.1
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PROJECT_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+VERSION=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "$PROJECT_ROOT/package.json" | sed -n '1p')
+[ -n "$VERSION" ] || { echo "FAIL: 无法读取工作台版本。" >&2; exit 2; }
 RELEASE_ROOT="$PROJECT_ROOT/release"
 SOURCE_VECTOR="$RELEASE_ROOT/migration/windows-source"
 KIT_NAME="Roomillion-${VERSION}-UOS-x64-Acceptance-Kit"
@@ -31,7 +32,7 @@ done
 
 rm -rf "$STAGE_ROOT"
 rm -f "$ARCHIVE_PATH" "$ARCHIVE_PART" "$ARCHIVE_SHA_PATH"
-mkdir -p "$STAGE_ROOT/artifacts" "$STAGE_ROOT/vectors/windows-source" "$STAGE_ROOT/tools" "$STAGE_ROOT/compliance" "$STAGE_ROOT/docs"
+mkdir -p "$STAGE_ROOT/artifacts" "$STAGE_ROOT/vectors/windows-source" "$STAGE_ROOT/tools" "$STAGE_ROOT/compliance"
 
 cp "$LINUX_RELEASE/$APP_ARCHIVE" "$STAGE_ROOT/artifacts/"
 cp "$LINUX_RELEASE/$APPIMAGE" "$STAGE_ROOT/artifacts/"
@@ -39,9 +40,9 @@ cp "$SOURCE_VECTOR/vector.json" "$SOURCE_VECTOR/migration-room.room" "$SOURCE_VE
 cp "$PROJECT_ROOT/pilot/uos/README.md" "$STAGE_ROOT/README.md"
 cp "$PROJECT_ROOT/pilot/uos/人工验收清单.md" "$STAGE_ROOT/人工验收清单.md"
 cp "$PROJECT_ROOT/pilot/uos/run-uos-acceptance.sh" "$STAGE_ROOT/run-uos-acceptance.sh"
+printf '%s\n' "$VERSION" > "$STAGE_ROOT/VERSION"
 cp "$PROJECT_ROOT/scripts/linux/collect-system-profile.sh" "$PROJECT_ROOT/scripts/linux/verify-pilot.sh" "$STAGE_ROOT/tools/"
 cp "$PROJECT_ROOT/resources/compliance/THIRD-PARTY-NOTICES.md" "$PROJECT_ROOT/resources/compliance/sbom.cdx.json" "$STAGE_ROOT/compliance/"
-cp "$PROJECT_ROOT/docs/15-阶段三-UOS-Linux-x64技术验证计划.md" "$PROJECT_ROOT/docs/16-0.3阶段三实施记录.md" "$STAGE_ROOT/docs/"
 chmod 0755 "$STAGE_ROOT/run-uos-acceptance.sh" "$STAGE_ROOT/tools/collect-system-profile.sh" "$STAGE_ROOT/tools/verify-pilot.sh" "$STAGE_ROOT/artifacts/$APPIMAGE"
 
 (

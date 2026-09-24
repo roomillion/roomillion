@@ -1,4 +1,4 @@
-# 千万间 Roomillion 0.3 UOS/Linux x64 离线验收包
+# 千万间 Roomillion UOS/Linux x64 离线验收包
 
 本验收包用于认证一个**精确版本**的统信 UOS/Linux x64 环境。它不安装系统包、不需要 root，也不会把当前设备自动写入“已认证”列表。
 

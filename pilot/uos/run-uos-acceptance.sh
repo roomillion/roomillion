@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.3.0-alpha.1
 KIT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+VERSION=$(sed -n '1p' "$KIT_ROOT/VERSION")
+[ -n "$VERSION" ] || { echo "FAIL: 验收包缺少版本信息。" >&2; exit 2; }
 OUTPUT_ROOT=""
 
 usage() {
