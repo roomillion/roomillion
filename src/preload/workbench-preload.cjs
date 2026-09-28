@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld("workbench", Object.freeze({
   saveProvider: (profile) => ipcRenderer.invoke("workbench:saveProvider", profile),
   setActiveProvider: (profileId) => ipcRenderer.invoke("workbench:setActiveProvider", profileId),
   deleteProvider: (profileId) => ipcRenderer.invoke("workbench:deleteProvider", profileId),
+  deleteProviderProfiles: (profileIds) => ipcRenderer.invoke("workbench:deleteProviderProfiles", profileIds),
   clearSessionKey: (profileId) => ipcRenderer.invoke("workbench:clearSessionKey", profileId),
   saveAiCapabilityProfile: (kind, input) => ipcRenderer.invoke("workbench:saveAiCapabilityProfile", kind, input),
   testAiCapabilityProfile: (kind) => ipcRenderer.invoke("workbench:testAiCapabilityProfile", kind),

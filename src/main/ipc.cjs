@@ -700,6 +700,12 @@ function registerIpcHandlers({
     notifyAiModelsChanged();
     return result;
   });
+  handle("workbench:deleteProviderProfiles", async (event, profileIds) => {
+    requireWorkbench(event);
+    const result = await aiService.deleteProfiles(profileIds);
+    notifyAiModelsChanged();
+    return result;
+  });
   handle("workbench:clearSessionKey", async (event, profileId) => {
     requireWorkbench(event);
     const result = await aiService.clearSessionKey(profileId);

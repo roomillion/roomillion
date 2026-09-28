@@ -500,21 +500,32 @@ class AiService {
   }
 
   async deleteProfile(profileId) {
-    if (!this.profiles.has(profileId)) return this.getPublicState();
-    this.profiles.delete(profileId);
-    this.sessionApiKeys.delete(profileId);
-    this.storedKeyIds.delete(profileId);
-    this.keyStorageErrors.delete(profileId);
-    await fsp.rm(this.secretPathFor(profileId), { force: true });
+    return this.deleteProfiles([profileId]);
+  }
+
+  async deleteProfiles(profileIds) {
+    if (!Array.isArray(profileIds) || profileIds.length > 1000 || profileIds.some((id) => typeof id !== "string" || !id)) {
+      throw new Error("模型配置 ID 列表无效");
+    }
+    const deleted = new Set(profileIds.filter((id) => this.profiles.has(id)));
+    if (!deleted.size) return this.getPublicState();
+    await Promise.all([...deleted].map((id) => fsp.rm(this.secretPathFor(id), { force: true })));
+    for (const id of deleted) {
+      this.profiles.delete(id);
+      this.sessionApiKeys.delete(id);
+      this.storedKeyIds.delete(id);
+      this.keyStorageErrors.delete(id);
+      this.connectionTests.delete(id);
+    }
     for (const [roomId, selectedProfileId] of this.roomSelections) {
-      if (selectedProfileId === profileId) this.roomSelections.delete(roomId);
+      if (deleted.has(selectedProfileId)) this.roomSelections.delete(roomId);
     }
     for (const [roomId, slots] of this.roomModelSlots) {
-      const next = Object.fromEntries(Object.entries(slots).filter(([, selectedProfileId]) => selectedProfileId !== profileId));
+      const next = Object.fromEntries(Object.entries(slots).filter(([, selectedProfileId]) => !deleted.has(selectedProfileId)));
       if (Object.keys(next).length) this.roomModelSlots.set(roomId, next);
       else this.roomModelSlots.delete(roomId);
     }
-    if (this.activeProfileId === profileId) this.activeProfileId = this.profiles.keys().next().value || null;
+    if (deleted.has(this.activeProfileId)) this.activeProfileId = this.profiles.keys().next().value || null;
     await this.persistRegistry();
     return this.getPublicState();
   }

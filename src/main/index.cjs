@@ -291,8 +291,14 @@ async function runSmokeCheck(dataRoot) {
       title: document.querySelector("#providerDialog h2")?.textContent,
       listHeading: document.querySelector(".providerProfilesHeader strong")?.textContent,
       newConnectionAction: document.getElementById("newProviderButton")?.textContent,
-      editorInitiallyHidden: document.getElementById("providerEditorPanel").hidden
+      editorInitiallyHidden: document.getElementById("providerEditorPanel").hidden,
+      backButtonLabel: document.getElementById("providerBackButton")?.textContent
     };
+    await returnFromProviderDialog();
+    result.backToSettingsAi = document.getElementById("settingsHubDialog").open
+      && document.querySelector('[data-settings-panel="ai"]').classList.contains("active");
+    closeSettingsHub();
+    await showProviderDialog();
     startNewProvider();
     const picker = document.getElementById("providerPickerButton");
     // Adding a provider now opens the searchable directory immediately.
@@ -381,12 +387,25 @@ async function runSmokeCheck(dataRoot) {
     renderProvider();
     const addButton = document.querySelector('[data-add-provider-model="' + source.id + '"]');
     addButton?.click();
+    search.focus();
+    search.value = "kimi";
+    search.dispatchEvent(new InputEvent("input", { bubbles: true, data: "kimi" }));
+    result.manageSearch = {
+      focused: document.activeElement === search,
+      editable: !search.matches(":disabled"),
+      pickerOpened: !document.getElementById("providerChoiceList").hidden,
+      foundKimi: Boolean(document.querySelector('[data-provider-choice="kimi-coding"]')),
+      providerUnchanged: document.getElementById("providerSelect").value === "xiaomi-token-plan-cn"
+    };
+    search.value = "";
+    search.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
+    document.querySelector('[data-provider-model-id="mimo-v2.5-pro"]')?.click();
     result.quickAdd = {
       hasAction: Boolean(addButton),
       selectedProvider: document.getElementById("providerSelect").value,
       providerLocked: document.getElementById("providerSelect").disabled,
       selectedModels: [...document.querySelectorAll("[data-provider-model-id]:checked:not(:disabled)")].map((input) => input.dataset.providerModelId),
-      enabledModelsVisible: [...document.querySelectorAll("[data-provider-model-id]:disabled")].map((input) => input.dataset.providerModelId),
+      enabledModelCanToggle: !document.querySelector('[data-provider-model-id="mimo-v2.5"]').disabled,
       keyRequired: document.getElementById("providerApiKey").required,
       keyValue: document.getElementById("providerApiKey").value,
       reuseVisible: !document.getElementById("credentialReuseNotice").hidden,
@@ -403,9 +422,22 @@ async function runSmokeCheck(dataRoot) {
     startEditingProvider(snapshot.aiProfiles.find((profile) => profile.id === added.id));
     result.editPreservesDefault = providerFormPayload().activate === false;
     closeProviderEditor();
-    await window.workbench.deleteProvider(source.id);
-    await window.workbench.deleteProvider(added.id);
+    startProviderModel(source);
+    document.querySelector('[data-provider-model-id="mimo-v2.5"]').click();
+    result.canUncheckConfigured = !document.querySelector('[data-provider-model-id="mimo-v2.5"]').checked;
+    const originalConfirm = window.confirm;
+    window.confirm = () => true;
+    try {
+      await saveProviderSelection();
+      snapshot = await window.workbench.getState();
+      result.afterUncheck = snapshot.aiProfiles.map((profile) => ({ model: profile.model, isActive: profile.isActive }));
+      result.deleteProviderActionVisible = Boolean(document.querySelector("#providerProfileList .providerConnectionHeader .dangerText"));
+      await deleteProviderConnection(snapshot.aiProfiles);
+    } finally {
+      window.confirm = originalConfirm;
+    }
     snapshot = await window.workbench.getState();
+    result.afterDeleteProvider = snapshot.aiProfiles.length;
     state.provider = snapshot.provider;
     state.aiProfiles = snapshot.aiProfiles;
     state.providerEditorOpen = false;
@@ -421,6 +453,8 @@ async function runSmokeCheck(dataRoot) {
     providerUiResult.listHeading !== "已连接提供商" ||
     !providerUiResult.newConnectionAction.includes("添加提供商") ||
     !providerUiResult.editorInitiallyHidden ||
+    providerUiResult.backButtonLabel !== "← 返回设置" ||
+    !providerUiResult.backToSettingsAi ||
     providerUiResult.providerCount < 41 ||
     !providerUiResult.providerIds.includes("kimi-coding") ||
     !providerUiResult.providerIds.includes("moonshotai-cn") ||
@@ -446,19 +480,26 @@ async function runSmokeCheck(dataRoot) {
     !providerUiResult.apiKeyRequired ||
     !providerUiResult.endpoint.includes("token-plan-cn.xiaomimimo.com") ||
     !providerUiResult.quickAdd?.hasAction ||
+    Object.values(providerUiResult.manageSearch || {}).some((value) => value !== true) ||
     providerUiResult.quickAdd.selectedProvider !== "xiaomi-token-plan-cn" ||
     !providerUiResult.quickAdd.providerLocked ||
-    providerUiResult.quickAdd.selectedModels.join(",") !== "mimo-v2.5-pro" ||
-    providerUiResult.quickAdd.enabledModelsVisible.join(",") !== "mimo-v2.5" ||
+    providerUiResult.quickAdd.selectedModels.join(",") !== "mimo-v2.5,mimo-v2.5-pro" ||
+    !providerUiResult.quickAdd.enabledModelCanToggle ||
     providerUiResult.quickAdd.keyRequired ||
     providerUiResult.quickAdd.keyValue !== "" ||
     !providerUiResult.quickAdd.reuseVisible ||
     !providerUiResult.quickAdd.reuseText.includes("明文不会返回") ||
-    providerUiResult.quickAdd.saveAction !== "启用所选模型" ||
+    providerUiResult.quickAdd.saveAction !== "保存模型选择" ||
     providerUiResult.enabledModels.length !== 2 ||
     providerUiResult.enabledModels.some((profile) => !profile.hasSessionKey) ||
     providerUiResult.enabledModels.filter((profile) => profile.isActive).length !== 1 ||
-    !providerUiResult.editPreservesDefault
+    !providerUiResult.editPreservesDefault ||
+    !providerUiResult.canUncheckConfigured ||
+    providerUiResult.afterUncheck.length !== 1 ||
+    providerUiResult.afterUncheck[0].model !== "mimo-v2.5-pro" ||
+    !providerUiResult.afterUncheck[0].isActive ||
+    !providerUiResult.deleteProviderActionVisible ||
+    providerUiResult.afterDeleteProvider !== 0
   ) {
     throw new Error(`AI 能力中心 Provider 选择检查失败：${JSON.stringify(providerUiResult)}`);
   }

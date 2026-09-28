@@ -239,7 +239,7 @@ button { cursor: pointer; }
 .providerConnectionHeader > div:first-child { min-width: 0; }
 .providerConnectionHeader strong, .providerConnectionHeader small { display: block; }
 .providerConnectionHeader small { margin-top: 3px; color: #71827a; font-size: 9px; }
-.providerConnectionHeader > div:last-child { display: flex; align-items: center; gap: 6px; }
+.providerConnectionHeader > div:last-child { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .providerConnectionModels { display: grid; }
 .providerProfileCard { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 8px 11px; border-top: 1px solid #edf2ef; background: #fff; }
 .providerProfileCard:first-child { border-top: 0; }
@@ -251,6 +251,7 @@ button { cursor: pointer; }
 .providerProfileCard small { margin-top: 3px; color: #71827a; font-size: 9px; }
 .providerProfileCard > div:last-child { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
 .providerCardButton { border: 0; background: transparent; color: #3a705d; padding: 5px; font-size: 9px; cursor: pointer; }
+.providerCardButton.providerConnectionDelete { border: 1px solid #e8c5bf; border-radius: 7px; padding: 6px 8px; background: #fff5f2; color: #a6412d; font-size: 10px; font-weight: 800; }
 .providerAddModelButton { border-radius: 7px; background: #e8f5ef; color: #236b50; padding-inline: 7px; font-weight: 850; }
 .providerDefaultBadge { border-radius: 999px; padding: 4px 7px; background: #dff0e8; color: #267052; font-size: 9px; font-weight: 850; }
 .providerProfilesEmpty { color: #75867e; font-size: 10px; padding: 10px; text-align: center; border: 1px dashed #cedbd5; border-radius: 10px; }
@@ -313,6 +314,7 @@ button { cursor: pointer; }
 .providerModelList { display: grid; gap: 5px; max-height: 230px; overflow: auto; }
 .providerModelOption { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 8px 9px; border: 1px solid #dce8e2; border-radius: 9px; background: #fff; cursor: pointer; }
 .providerModelOption.configured { background: #f2f6f4; color: #6e7e77; cursor: default; }
+.providerModelOption.configured:has(input:not(:disabled)) { color: #20302a; cursor: pointer; }
 .providerModelOption:has(input:disabled) { opacity: .7; cursor: not-allowed; }
 .providerModelOption[hidden] { display: none; }
 .providerModelOption input { width: 16px; height: 16px; margin: 0; padding: 0; accent-color: #2b7d61; }
@@ -1029,6 +1031,7 @@ html[data-theme] .agentRoomResult { border-color: var(--ui-border); background: 
 html[data-theme] .providerChoice,
 html[data-theme] .providerCardButton,
 html[data-theme] .providerEditorClose { color: var(--ui-text); }
+html[data-theme] .providerCardButton.providerConnectionDelete { color: #a6412d; }
 html[data-theme] .providerChoice small,
 html[data-theme] .providerProfileCard small,
 html[data-theme] .providerConnectionHeader small,
@@ -1317,6 +1320,7 @@ html[data-theme-mode="dark"] .permissionRisk.high { color: #ffb5a5; background: 
 html[data-theme-mode="dark"] .dangerText,
 html[data-theme-mode="dark"] .inlineStatus.error,
 html[data-theme-mode="dark"] .contextMenu button.danger { color: #ff9e87; }
+html[data-theme-mode="dark"] .providerCardButton.providerConnectionDelete { border-color: #694039; background: #37201c; color: #ffac98; }
 html[data-theme-mode="dark"] .secondaryButton.dangerText,
 html[data-theme-mode="dark"] .agentStopButton { border-color: #694039; background: #37201c; color: #ffac98; }
 

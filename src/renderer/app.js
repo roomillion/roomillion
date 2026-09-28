@@ -148,6 +148,7 @@ const elements = {
   restoreStatus: document.getElementById("restoreStatus"),
   submitRestoreButton: document.getElementById("submitRestoreButton"),
   providerDialog: document.getElementById("providerDialog"),
+  providerBackButton: document.getElementById("providerBackButton"),
   aiUtilityDialog: document.getElementById("aiUtilityDialog"),
   aiUtilityBackButton: document.getElementById("aiUtilityBackButton"),
   aiUtilityForm: document.getElementById("aiUtilityForm"),
@@ -1256,6 +1257,13 @@ function credentialSourceProfile() {
     : null;
 }
 
+function managedProviderProfiles() {
+  const source = credentialSourceProfile();
+  return source && source.providerId !== "custom-openai-compatible" && !editingProviderProfile()
+    ? state.aiProfiles.filter((profile) => providerConnectionKey(profile) === providerConnectionKey(source))
+    : [];
+}
+
 function applyAiState(result) {
   state.provider = result?.activeProfile || null;
   state.aiProfiles = Array.isArray(result?.profiles) ? result.profiles : [];
@@ -1347,9 +1355,15 @@ function renderProviderProfiles() {
     manage.type = "button";
     manage.className = "providerCardButton providerAddModelButton";
     manage.dataset.addProviderModel = sourceProfile.id;
-    manage.textContent = "管理 / 添加模型";
+    manage.textContent = sourceProfile.providerId === "custom-openai-compatible" ? "添加模型" : "管理模型";
     manage.addEventListener("click", () => startProviderModel(sourceProfile));
-    connectionActions.append(connected, manage);
+    const removeConnection = document.createElement("button");
+    removeConnection.type = "button";
+    removeConnection.className = "providerCardButton providerConnectionDelete dangerText";
+    removeConnection.textContent = "删除提供商";
+    removeConnection.title = `删除这个连接下的 ${profiles.length} 个模型及其密钥`;
+    removeConnection.addEventListener("click", () => deleteProviderConnection(profiles));
+    connectionActions.append(connected, manage, removeConnection);
     header.append(identity, connectionActions);
     const models = document.createElement("div");
     models.className = "providerConnectionModels";
@@ -1415,23 +1429,16 @@ function renderProviderChoices(preferredProviderId) {
       provider.categoryLabel
     ].filter(Boolean).join(" ").toLowerCase().includes(query);
   });
-  const groups = new Map();
-  for (const provider of matchedProviders) {
+  const nativeGroups = new Map();
+  for (const provider of state.aiProviders) {
     const label = provider.categoryLabel || "其他";
-    if (!groups.has(label)) groups.set(label, []);
-    groups.get(label).push(provider);
+    if (!nativeGroups.has(label)) nativeGroups.set(label, []);
+    nativeGroups.get(label).push(provider);
   }
   elements.providerSelect.replaceChildren();
-  elements.providerChoiceList.replaceChildren();
-  for (const [label, providers] of groups) {
+  for (const [label, providers] of nativeGroups) {
     const group = document.createElement("optgroup");
     group.label = label;
-    const choiceGroup = document.createElement("section");
-    choiceGroup.className = "providerChoiceGroup";
-    const choiceHeading = document.createElement("strong");
-    choiceHeading.className = "providerChoiceGroupLabel";
-    choiceHeading.textContent = label;
-    choiceGroup.appendChild(choiceHeading);
     for (const provider of providers) {
       const option = document.createElement("option");
       option.value = provider.id;
@@ -1439,6 +1446,25 @@ function renderProviderChoices(preferredProviderId) {
       const stateLabel = provider.configurable === false ? " · 需额外配置" : "";
       option.textContent = `${provider.featured ? "推荐 · " : ""}${provider.displayName} · ${modelCount}${stateLabel}`;
       group.appendChild(option);
+    }
+    elements.providerSelect.appendChild(group);
+  }
+  const groups = new Map();
+  for (const provider of matchedProviders) {
+    const label = provider.categoryLabel || "其他";
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(provider);
+  }
+  elements.providerChoiceList.replaceChildren();
+  for (const [label, providers] of groups) {
+    const choiceGroup = document.createElement("section");
+    choiceGroup.className = "providerChoiceGroup";
+    const choiceHeading = document.createElement("strong");
+    choiceHeading.className = "providerChoiceGroupLabel";
+    choiceHeading.textContent = label;
+    choiceGroup.appendChild(choiceHeading);
+    for (const provider of providers) {
+      const modelCount = provider.id === "custom-openai-compatible" ? "手动填写模型" : `${provider.models.length} 个模型`;
       const choice = document.createElement("button");
       choice.type = "button";
       choice.className = "providerChoice";
@@ -1457,24 +1483,18 @@ function renderProviderChoices(preferredProviderId) {
       choice.addEventListener("click", () => selectProviderChoice(provider.id));
       choiceGroup.appendChild(choice);
     }
-    elements.providerSelect.appendChild(group);
     elements.providerChoiceList.appendChild(choiceGroup);
   }
   if (!matchedProviders.length) {
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.disabled = true;
-    empty.textContent = "没有匹配的 Pi Provider";
-    elements.providerSelect.appendChild(empty);
     const choiceEmpty = document.createElement("div");
     choiceEmpty.className = "providerChoiceEmpty";
     choiceEmpty.textContent = "没有匹配的 Pi Provider，请更换搜索词。";
     elements.providerChoiceList.appendChild(choiceEmpty);
   }
-  const nextProviderId = matchedProviders.some((provider) => provider.id === preferredProviderId)
+  const nextProviderId = state.aiProviders.some((provider) => provider.id === preferredProviderId)
     ? preferredProviderId
-    : matchedProviders.find((provider) => provider.configurable !== false)?.id
-      || matchedProviders[0]?.id
+    : state.aiProviders.find((provider) => provider.configurable !== false)?.id
+      || state.aiProviders[0]?.id
       || "";
   elements.providerSelect.value = nextProviderId;
   const selected = state.aiProviders.find((provider) => provider.id === nextProviderId);
@@ -1494,7 +1514,7 @@ function renderProviderChoices(preferredProviderId) {
 }
 
 function setProviderPickerOpen(open, { focusChoice = true } = {}) {
-  const canOpen = open && !elements.providerPickerButton.disabled;
+  const canOpen = open && state.providerEditorOpen && !elements.providerEditorFields.disabled;
   elements.providerChoiceList.hidden = !canOpen;
   elements.providerPickerButton.setAttribute("aria-expanded", String(canOpen));
   elements.providerPickerField.classList.toggle("open", canOpen);
@@ -1536,7 +1556,7 @@ function renderProvider() {
   elements.providerEditorTitle.textContent = profile
     ? `编辑模型：${profile.label}`
     : credentialSource
-      ? `管理 ${credentialSource.name} / 添加模型`
+      ? `管理 ${credentialSource.name} 的模型`
       : "添加 AI 提供商";
   elements.providerProfileLabel.value = profile?.label || "";
   const selectedProviderId = profile?.providerId || credentialSource?.providerId || elements.providerSelect.value || state.aiProviders.find((provider) => provider.featured)?.id || "custom-openai-compatible";
@@ -1545,8 +1565,9 @@ function renderProvider() {
   elements.providerPickerButton.disabled = elements.providerSelect.disabled;
   if (elements.providerPickerButton.disabled) setProviderPickerOpen(false);
   elements.clearKeyButton.hidden = !profile;
-  elements.saveProviderButton.textContent = profile ? "保存修改" : "启用所选模型";
+  elements.saveProviderButton.textContent = profile ? "保存修改" : managedProviderProfiles().length ? "保存模型选择" : "启用所选模型";
   elements.testProviderButton.textContent = profile ? "保存并测试" : "启用并测试首个";
+  elements.testProviderButton.hidden = managedProviderProfiles().length > 0;
   renderProviderFields(profile?.model);
   elements.providerApiKey.value = "";
   const secureStorageAvailable = profile?.secureStorageAvailable ?? credentialSource?.secureStorageAvailable ?? state.aiCapabilities?.secureStorageAvailable ?? false;
@@ -1628,12 +1649,24 @@ function catalogExtraModels(provider) {
   };
   for (const modelId of manualCatalogModelIds()) push(modelId, "manual");
   for (const modelId of state.remoteProviderModels.get(provider.id) || []) push(modelId, "remote");
+  for (const profile of state.aiProfiles.filter((entry) => entry.providerId === provider.id && entry.modelSource === "custom")) {
+    if (catalogIds.has(profile.model) || extras.some((model) => model.id === profile.model)) continue;
+    extras.push({
+      id: profile.model,
+      name: profile.model,
+      reasoning: false,
+      input: profile.modelCapabilities?.input || ["text"],
+      contextWindow: profile.modelCapabilities?.contextWindow || 128000,
+      source: "configured"
+    });
+  }
   return extras;
 }
 
 function renderProviderModelList(provider) {
   elements.providerModelList.replaceChildren();
   const configured = configuredModelIds(provider);
+  const managing = managedProviderProfiles().length > 0;
   const providerUnavailable = provider.configurable === false;
   const contextKey = [
     provider.id,
@@ -1642,10 +1675,12 @@ function renderProviderModelList(provider) {
   ].join("|");
   if (state.providerModelContextKey !== contextKey) {
     state.providerModelContextKey = contextKey;
-    state.pendingProviderModelIds = new Set();
-    const suggested = provider.models.find((model) => model.id === provider.defaultModel && !configured.has(model.id))
-      || provider.models.find((model) => !configured.has(model.id));
-    if (suggested) state.pendingProviderModelIds.add(suggested.id);
+    state.pendingProviderModelIds = managing ? new Set(managedProviderProfiles().map((profile) => profile.model)) : new Set();
+    if (!managing) {
+      const suggested = provider.models.find((model) => model.id === provider.defaultModel && !configured.has(model.id))
+        || provider.models.find((model) => !configured.has(model.id));
+      if (suggested) state.pendingProviderModelIds.add(suggested.id);
+    }
   }
   const query = state.providerModelQuery.trim().toLowerCase();
   const extraModels = catalogExtraModels(provider);
@@ -1659,13 +1694,17 @@ function renderProviderModelList(provider) {
     option.className = "providerModelOption" + (alreadyEnabled ? " configured" : "");
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = alreadyEnabled || state.pendingProviderModelIds.has(model.id);
-    checkbox.disabled = alreadyEnabled || providerUnavailable;
+    checkbox.checked = managing ? state.pendingProviderModelIds.has(model.id) : alreadyEnabled || state.pendingProviderModelIds.has(model.id);
+    checkbox.disabled = providerUnavailable || (alreadyEnabled && !managing);
     checkbox.dataset.providerModelId = model.id;
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) state.pendingProviderModelIds.add(model.id);
       else state.pendingProviderModelIds.delete(model.id);
+      const scrollTop = elements.providerModelList.scrollTop;
       renderProviderModelList(provider);
+      elements.providerModelList.scrollTop = scrollTop;
+      [...elements.providerModelList.querySelectorAll("input[data-provider-model-id]")]
+        .find((input) => input.dataset.providerModelId === model.id)?.focus({ preventScroll: true });
     });
     const identity = document.createElement("span");
     identity.className = "providerModelIdentity";
@@ -1700,11 +1739,15 @@ function renderProviderModelList(provider) {
   }
   const availableCount = providerUnavailable ? 0 : allModels.filter((model) => !configured.has(model.id)).length;
   const selectedCount = [...state.pendingProviderModelIds].filter((modelId) => !configured.has(modelId)).length;
+  const removedCount = managing ? [...configured].filter((modelId) => !state.pendingProviderModelIds.has(modelId)).length : 0;
   elements.providerModelCount.textContent = providerUnavailable
     ? `Pi 目录含 ${provider.models.length} 个模型 · ${provider.limitation}`
-    : `已启用 ${configured.size} · 本次选择 ${selectedCount} · 尚可添加 ${availableCount}`;
-  elements.selectAllProviderModels.disabled = providerUnavailable || availableCount === 0;
-  elements.clearProviderModels.disabled = providerUnavailable || selectedCount === 0;
+    : managing
+      ? `已启用 ${configured.size} · 待新增 ${selectedCount} · 待取消 ${removedCount}；取消勾选后点“保存模型选择”`
+      : `已启用 ${configured.size} · 本次选择 ${selectedCount} · 尚可添加 ${availableCount}`;
+  elements.selectAllProviderModels.textContent = managing ? "全选" : "全选未启用";
+  elements.selectAllProviderModels.disabled = providerUnavailable || (managing ? state.pendingProviderModelIds.size === allModels.length : availableCount === 0);
+  elements.clearProviderModels.disabled = providerUnavailable || state.pendingProviderModelIds.size === 0;
 }
 
 function renderProviderFields(preferredModel) {
@@ -2794,11 +2837,21 @@ async function showProviderDialog() {
   setInlineStatus(
     elements.providerStatus,
     state.aiProfiles.length
-      ? `已连接 ${connectionCount} 个提供商连接、启用 ${state.aiProfiles.length} 个模型。点击“管理 / 添加模型”可继续批量导入。`
+      ? `已连接 ${connectionCount} 个提供商连接、启用 ${state.aiProfiles.length} 个模型。点击“管理模型”可调整启用状态。`
       : "尚未连接提供商。点击“添加提供商”开始。",
     false
   );
   elements.providerDialog.showModal();
+}
+
+async function returnFromProviderDialog() {
+  state.navigatingAiUtility = true;
+  elements.providerDialog.close();
+  try {
+    await showSettingsHub("ai");
+  } finally {
+    state.navigatingAiUtility = false;
+  }
 }
 
 function closeProviderEditor() {
@@ -2842,7 +2895,9 @@ function startProviderModel(profile) {
   elements.providerForm.reset();
   elements.providerSelect.value = profile.providerId;
   renderProvider();
-  setInlineStatus(elements.providerStatus, `已沿用“${profile.label}”的安全连接；可一次勾选多个尚未启用的模型，不必重复填写 Key。`, false);
+  setInlineStatus(elements.providerStatus, profile.providerId === "custom-openai-compatible"
+    ? `已沿用“${profile.label}”的安全连接；填写新的模型 ID 后即可添加。`
+    : `已沿用“${profile.label}”的安全连接；可取消已启用模型的勾选，或勾选新模型，然后统一保存。`, false);
 }
 
 function startEditingProvider(profile) {
@@ -2882,6 +2937,22 @@ async function deleteProvider(profile) {
   }
 }
 
+async function deleteProviderConnection(profiles) {
+  const currentProfiles = profiles.filter((profile) => state.aiProfiles.some((entry) => entry.id === profile.id));
+  if (!currentProfiles.length) return;
+  const name = currentProfiles[0].name;
+  if (!window.confirm(`删除提供商“${name}”及其 ${currentProfiles.length} 个已配置模型？相关密钥也会删除，使用这些模型的房间会回退到默认模型。`)) return;
+  const wasEditing = currentProfiles.some((profile) => profile.id === state.credentialSourceProfileId || profile.id === state.editingProviderId);
+  try {
+    applyAiState(await window.workbench.deleteProviderProfiles(currentProfiles.map((profile) => profile.id)));
+    if (wasEditing) closeProviderEditor();
+    else renderProvider();
+    setInlineStatus(elements.providerStatus, `已删除“${name}”的全部 ${currentProfiles.length} 个模型配置及密钥。`, false);
+  } catch (error) {
+    setInlineStatus(elements.providerStatus, formatError(error), true);
+  }
+}
+
 async function saveProvider() {
   if (!elements.providerForm.reportValidity()) throw new Error("请完整填写 AI 提供商配置");
   const reusedConnection = Boolean(state.credentialSourceProfileId);
@@ -2901,6 +2972,50 @@ async function saveProviderSelection() {
   const provider = selectedProvider();
   if (!provider) throw new Error("请选择 AI 提供商");
   if (provider.configurable === false) throw new Error(provider.limitation || "当前工作台尚不能配置该 Pi Provider");
+  const managedProfiles = managedProviderProfiles();
+  if (managedProfiles.length) {
+    const configured = new Set(managedProfiles.map((profile) => profile.model));
+    const available = new Set([...provider.models, ...catalogExtraModels(provider)].map((model) => model.id));
+    const selected = new Set([...state.pendingProviderModelIds].filter((modelId) => available.has(modelId) || configured.has(modelId)));
+    const removed = managedProfiles.filter((profile) => !selected.has(profile.model));
+    const additions = [...selected].filter((modelId) => !configured.has(modelId));
+    if (!removed.length && !additions.length) {
+      setInlineStatus(elements.providerStatus, "模型选择没有变化。", false);
+      return [];
+    }
+    if (removed.length && !window.confirm(`取消启用 ${removed.length} 个模型？这些模型的配置和密钥会删除，使用它们的房间会回退到默认模型。`)) return [];
+    if (additions.length && !elements.providerForm.reportValidity()) throw new Error("请完整填写 AI 提供商配置");
+    const source = credentialSourceProfile();
+    const enteredKey = elements.providerApiKey.value;
+    const rememberKey = elements.providerForm.elements.rememberKey.checked;
+    const labelPrefix = elements.providerProfileLabel.value.trim();
+    const savedProfiles = [];
+    for (let index = 0; index < additions.length; index += 1) {
+      const modelId = additions[index];
+      const definition = provider.models.find((model) => model.id === modelId);
+      const modelName = definition?.name || modelId;
+      const saved = await window.workbench.saveProvider({
+        label: labelPrefix ? additions.length === 1 ? labelPrefix : `${labelPrefix} · ${modelName}` : `${provider.displayName} · ${modelName}`,
+        providerId: provider.id,
+        model: modelId,
+        apiKey: index === 0 ? enteredKey : "",
+        rememberKey,
+        activate: false,
+        ...(definition ? {} : { modelSource: "custom", modelCapabilities: customCatalogModelCapabilities() }),
+        credentialSourceProfileId: index === 0 ? source.id : savedProfiles[0].id
+      });
+      applySavedProvider(saved);
+      savedProfiles.push(saved);
+    }
+    if (removed.some((profile) => profile.isActive) && selected.size) {
+      const replacement = managedProfiles.find((profile) => selected.has(profile.model)) || savedProfiles[0];
+      if (replacement) applyAiState(await window.workbench.setActiveProvider(replacement.id));
+    }
+    if (removed.length) applyAiState(await window.workbench.deleteProviderProfiles(removed.map((profile) => profile.id)));
+    closeProviderEditor();
+    setInlineStatus(elements.providerStatus, `已新增 ${savedProfiles.length} 个模型，取消启用 ${removed.length} 个模型。`, false);
+    return savedProfiles;
+  }
   if (!elements.providerForm.reportValidity()) throw new Error("请完整填写 AI 提供商配置");
   if (editingProviderProfile()) return [await saveProvider()];
   const modelIds = selectedProviderModelIds(provider);
@@ -3931,6 +4046,7 @@ for (const item of elements.settingsHubDialog.querySelectorAll("[data-settings-s
 }
 document.getElementById("openAppearanceButton").addEventListener("click", () => { closeSettingsHub(); showWorkbenchSettings().catch((error) => showToast(formatError(error))); });
 document.getElementById("openAiCenterButton").addEventListener("click", () => { closeSettingsHub(); showProviderDialog().catch((error) => showToast(formatError(error))); });
+elements.providerBackButton.addEventListener("click", () => returnFromProviderDialog().catch((error) => showToast(formatError(error))));
 for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
   card.addEventListener("click", () => showAiUtilityDialog(card.dataset.aiUtilityKind).catch((error) => showToast(formatError(error))));
 }
@@ -4120,16 +4236,8 @@ elements.providerSelect.addEventListener("change", () => {
   );
 });
 elements.providerSearch.addEventListener("input", () => {
-  const previousProviderId = elements.providerSelect.value;
   state.providerQuery = elements.providerSearch.value;
-  renderProviderChoices(previousProviderId);
-  if (elements.providerSelect.value !== previousProviderId) {
-    state.credentialSourceProfileId = null;
-    resetProviderModelSelection();
-    elements.providerApiKey.value = "";
-    elements.providerForm.elements.rememberKey.checked = false;
-  }
-  renderProviderFields();
+  renderProviderChoices(elements.providerSelect.value);
   // Filtering must not move focus/caret out of the search input (including IME input).
   setProviderPickerOpen(true, { focusChoice: false });
 });
@@ -4169,7 +4277,7 @@ elements.selectAllProviderModels.addEventListener("click", () => {
   if (!provider) return;
   const configured = configuredModelIds(provider);
   for (const model of [...provider.models, ...catalogExtraModels(provider)]) {
-    if (!configured.has(model.id)) state.pendingProviderModelIds.add(model.id);
+    if (managedProviderProfiles().length || !configured.has(model.id)) state.pendingProviderModelIds.add(model.id);
   }
   renderProviderModelList(provider);
 });

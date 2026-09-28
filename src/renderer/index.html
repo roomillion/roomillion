@@ -303,7 +303,7 @@
 
   <dialog id="providerDialog" class="modal providerModal">
     <form id="providerForm" method="dialog">
-      <div class="modalHeader"><div><p class="eyebrow">Powered by Pi AI</p><h2>AI 能力中心</h2></div><button type="button" class="closeButton" data-close="providerDialog">×</button></div>
+      <div class="modalHeader"><div class="aiUtilityHeading"><button type="button" id="providerBackButton" class="aiUtilityBackButton">← 返回设置</button><div><p class="eyebrow">Powered by Pi AI</p><h2>AI 能力中心</h2></div></div><button type="button" class="closeButton" data-close="providerDialog">×</button></div>
       <p class="modalIntro">提供商目录直接同步 Pi AI 原生能力。凭据与模型分开管理：连接一次后，可以批量启用该提供商的多个模型。</p>
       <section class="providerDefaultModelSection" aria-labelledby="providerDefaultModelTitle">
         <div><strong id="providerDefaultModelTitle">房间默认 AI 模型</strong><small>未单独选择模型的房间会调用它；切换后立即生效。</small></div>
@@ -318,7 +318,7 @@
         </div>
       </section>
       <section class="providerProfiles">
-        <div class="providerProfilesHeader"><div><strong>已连接提供商</strong><small>这里显示已经启用的模型；“房间默认”同时用于未单独选模型的房间和新建 AI 对话</small></div><button type="button" id="newProviderButton" class="primaryButton compact">＋ 添加提供商</button></div>
+        <div class="providerProfilesHeader"><div><strong>已连接提供商</strong><small>点击“管理模型”可勾选或取消模型；“房间默认”用于未单独选模型的房间和新建 AI 对话</small></div><button type="button" id="newProviderButton" class="primaryButton compact">＋ 添加提供商</button></div>
         <div id="providerProfileList" class="providerProfileList"></div>
       </section>
       <section id="providerEditorPanel" class="providerEditorPanel" hidden>

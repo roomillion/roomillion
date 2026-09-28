@@ -610,6 +610,32 @@ test("multiple model profiles keep separate credentials and expose a sanitized r
   assert.equal(reloaded.getRoomModelSelection("cn.zhibian.test.room").source, "default");
 });
 
+test("deleting a provider's models together removes keys and room selections but keeps other providers", async (t) => {
+  const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-ai-provider-bulk-delete-"));
+  t.after(() => fsp.rm(tempRoot, { recursive: true, force: true }));
+  const secureStorage = {
+    isEncryptionAvailable: () => true,
+    encryptString: (value) => Buffer.from(`encrypted:${value}`),
+    decryptString: (buffer) => buffer.toString().slice("encrypted:".length)
+  };
+  const service = await new AiService(tempRoot, { secureStorage }).init();
+  const first = await service.saveProfile({ providerId: "xiaomi-token-plan-cn", model: "mimo-v2.5", apiKey: "first-key", rememberKey: true });
+  const second = await service.saveProfile({ providerId: "xiaomi-token-plan-cn", model: "mimo-v2.5-pro", credentialSourceProfileId: first.id, rememberKey: true, activate: false });
+  const other = await service.saveProfile({ name: "本地服务", baseUrl: "http://127.0.0.1:8000/v1", model: "local-model", activate: false });
+  await service.selectRoomModel("cn.roomillion.test", second.id);
+  await service.selectRoomModelSlot("cn.roomillion.test", "vision", first.id);
+  await assert.rejects(service.deleteProfiles("invalid"), /ID 列表无效/);
+  const result = await service.deleteProfiles([first.id, second.id, second.id]);
+  assert.deepEqual(result.profiles.map((profile) => profile.id), [other.id]);
+  assert.equal(result.activeProfile.id, other.id);
+  assert.equal(service.getRoomModelSelection("cn.roomillion.test").source, "default");
+  assert.deepEqual(service.getRoomModelSlots("cn.roomillion.test"), {});
+  await assert.rejects(fsp.access(service.secretPathFor(first.id)), { code: "ENOENT" });
+  await assert.rejects(fsp.access(service.secretPathFor(second.id)), { code: "ENOENT" });
+  const reloaded = await new AiService(tempRoot, { secureStorage }).init();
+  assert.deepEqual(reloaded.listPublicProfiles().map((profile) => profile.id), [other.id]);
+});
+
 test("legacy single profile and encrypted key migrate into the multi-profile registry", async (t) => {
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "zhibian-ai-legacy-registry-test-"));
   t.after(() => fsp.rm(tempRoot, { recursive: true, force: true }));

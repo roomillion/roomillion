@@ -442,6 +442,56 @@ test("Agent context compaction removes thinking but preserves valid recent sourc
   assert.doesNotMatch(serialized, /内容已由 Harness 保存/);
 });
 
+test("Agent context compaction preserves the Pi system prompt and tool declarations", async () => {
+  const pi = await import("@earendil-works/pi-ai");
+  const tools = [{ name: "inspect_room_capabilities", description: "读取房间能力", parameters: { type: "object", properties: {} } }];
+  const original = pi.createInitialSystemMessage("你是房间开发 Agent", tools);
+  const compacted = compactAgentContext([
+    original,
+    { role: "user", content: "创建俄罗斯方块房间", timestamp: 1 }
+  ]);
+  assert.equal(compacted[0].role, "system");
+  assert.equal(pi.getCurrentSystemPrompt(compacted), "你是房间开发 Agent");
+  assert.deepEqual(pi.getCurrentTools(compacted).map(tool => tool.name), ["inspect_room_capabilities"]);
+  assert.deepEqual(compactAgentContext(compacted), compacted);
+});
+
+test("resumed room run refreshes the current workflow prompt in its saved Pi transcript", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "roomillion-resumed-prompt-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const pi = await import("@earendil-works/pi-ai");
+  let captured;
+  class CapturingAgent {
+    constructor(options) { captured = options.initialState; this.state = { messages: options.initialState.messages }; }
+    subscribe() { return () => {}; }
+    async prompt() {}
+    clearAllQueues() {}
+    abort() {}
+  }
+  const service = await new RoomAgentService({
+    roomStore,
+    aiService: {
+      getPublicProfile: () => ({ id: "test", name: "测试", model: "test", hasSessionKey: true }),
+      createAgentRuntime: async () => ({ pi, model: { id: "test", maxTokens: 8000 }, streamFn: () => {} })
+    },
+    agentModuleLoader: async () => ({ Agent: CapturingAgent })
+  }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  session.workflow = { phase: "implementing", mode: "creation", plan: { id: "plan" }, approvedPlanId: "plan" };
+  session.agentMessages = [
+    { role: "system", content: "旧的需求沟通提示", toolsAdded: [{ name: "inspect_room_capabilities", parameters: { type: "object" } }], timestamp: 0 },
+    { role: "user", content: "先前的需求", timestamp: 1 }
+  ];
+  await service.run(session, "继续实施");
+  assert.equal(captured.messages[0].role, "system");
+  assert.equal(captured.messages[0].content, captured.systemPrompt);
+  assert.match(captured.systemPrompt, /当前工作流.*implementing/);
+  assert.match(captured.systemPrompt, /room_builder_skill/);
+  assert.equal(captured.messages[0].toolsAdded[0].name, "inspect_room_capabilities");
+});
+
 test("write summaries preserve pending calls and paired reads while migrating legacy omissions", () => {
   const history = [
     { role: "user", content: "继续", timestamp: 1 },
@@ -993,6 +1043,9 @@ test("stream retry works with the installed Pi Agent API", async t => {
   assert.equal(result.status, "idle");
   assert.equal(result.error, "");
   assert.equal(result.runs.at(-1).streamRetries, 1);
+  assert.equal(contexts[0][0].role, "system");
+  assert.match(contexts[0][0].content, /房间开发 Agent/);
+  assert.ok(contexts[0][0].toolsAdded.some(tool => tool.name === "inspect_room_capabilities"));
   assert.deepEqual(contexts[1], contexts[0]);
   assert.ok(result.messages.some(message => message.content === "recovered"));
 });

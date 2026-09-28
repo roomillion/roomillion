@@ -234,6 +234,10 @@ function compactAgentContext(messages) {
     const activeStart = userIndexes.length
       ? userIndexes[Math.max(0, userIndexes.length - CONTEXT_ACTIVE_USER_TURNS)]
       : Math.max(0, source.length - CONTEXT_KEEP_MESSAGES);
+    // Pi 0.87 stores both the system prompt and the callable tool declarations
+    // in system transcript messages. Keep those declarations when trimming old
+    // user turns, or the provider receives only the latest user request.
+    const systemMessages = source.slice(0, activeStart).filter((message) => message?.role === "system");
     const historical = [];
     let historicalCharacters = 0;
     for (let index = Math.max(0, activeStart - 24); index < activeStart; index += 1) {
@@ -280,7 +284,7 @@ function compactAgentContext(messages) {
       }
       return message;
     });
-    return [...historical, ...active].filter(message => message?.role !== "assistant" || message.content.length > 0);
+    return [...systemMessages, ...historical, ...active].filter(message => message?.role !== "assistant" || message.content.length > 0);
   } catch {
     return Array.isArray(messages) ? messages : [];
   }
@@ -2428,9 +2432,16 @@ ${currentContext}`;
       runtime.harnessState = { subagentCount: 0 };
       const { Agent } = agentModule;
       runState = { assistantMessageId: null, run, seenUsage: new WeakSet() };
+      const currentSystemPrompt = await this.systemPrompt(session);
+      const previousMessages = await this.hydrateAgentMessages(session);
+      if (previousMessages[0]?.role === "system") {
+        // Pi reuses the transcript's leading system message in preference to
+        // initialState.systemPrompt. Refresh its task phase for resumed turns.
+        previousMessages[0] = { ...previousMessages[0], content: currentSystemPrompt };
+      }
       agent = new Agent({
         initialState: {
-          systemPrompt: await this.systemPrompt(session),
+          systemPrompt: currentSystemPrompt,
           model: runtime.model,
           thinkingLevel: runtime.thinkingLevel || "medium",
           tools: this.createTools(session, runtime).filter((tool) => {
@@ -2442,7 +2453,7 @@ ${currentContext}`;
             }
             return ["inspect_room_capabilities", "inspect_source_project", "read_source_project_file", "inspect_current_room", "read_current_room_file", "assess_project_migration", "ask_room_questions", "propose_room_plan", "web_search", "read_web_page"].includes(tool.name);
           }),
-          messages: await this.hydrateAgentMessages(session)
+          messages: previousMessages
         },
         streamFn: runtime.streamFn,
         transformContext: async (messages) => compactAgentContext(messages),
