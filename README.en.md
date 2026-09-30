@@ -4,7 +4,7 @@
 
 Roomillion is an offline-first desktop workbench. Its AI can create, revise, install, and share “Rooms”: small applications for office work, documents, data, and interactive tools. Rooms use controlled workbench APIs for files, storage, and AI. They cannot directly read system credentials or arbitrary files.
 
-The current source version is 0.4.0. Windows x64 has an installer and two portable formats; generic Linux x64 is a technical preview. Each platform needs its own workbench build, but compatible .room packages can move between them. There is no publishable macOS build yet. This is still a technical preview, and the Linux build is not certification for any particular UOS release.
+The current source version is 0.4.1. Windows x64 has an installer and two portable formats; generic Linux x64 is a technical preview. Each platform needs its own workbench build, but compatible .room packages can move between them. There is no publishable macOS build yet. This is still a technical preview, and the Linux build is not certification for any particular UOS release.
 
 ## Get started
 
@@ -12,10 +12,10 @@ When release assets are published, download them from the matching GitHub Releas
 
 | Platform | Artifact | Intended use |
 | --- | --- | --- |
-| Windows x64 | Roomillion-0.4.0-Setup.exe | Per-user installation with .room file association |
-| Windows x64 | Roomillion-0.4.0-Portable-Folder.zip | Extract and run; data defaults to the extracted folder |
-| Windows x64 | Roomillion-0.4.0-Portable.exe | Single-file portable build; data defaults to the user's application-data folder |
-| Linux x64 | Roomillion-0.4.0-linux-x64.tar.xz and Roomillion-0.4.0-x86_64.AppImage | Generic technical preview; validate on the target distribution |
+| Windows x64 | Roomillion-0.4.1-Setup.exe | Per-user installation with .room file association |
+| Windows x64 | Roomillion-0.4.1-Portable-Folder.zip | Extract and run; data defaults to the extracted folder |
+| Windows x64 | Roomillion-0.4.1-Portable.exe | Single-file portable build; data defaults to the user's application-data folder |
+| Linux x64 | Roomillion-0.4.1-linux-x64.tar.xz and Roomillion-0.4.1-x86_64.AppImage | Generic technical preview; validate on the target distribution |
 
 Windows binaries are currently unsigned. None of the three Windows formats requires Node.js, Git, SQLite, or npm packages on the target computer.
 
@@ -67,7 +67,7 @@ Validate the current source:
     npm test
     npm run smoke
 
-On Windows, use npm run build:portable, npm run build:portable-folder, or npm run build:installer to rebuild the current version. npm run release:portable increments the version first, so do not use it merely to rebuild 0.4.0. For Linux x64, prepare a verified Git toolchain on a Linux build host, then run:
+On Windows, use npm run build:portable, npm run build:portable-folder, or npm run build:installer to rebuild the current version. npm run release:portable increments the version first, so do not use it merely to rebuild 0.4.1. For Linux x64, prepare a verified Git toolchain on a Linux build host, then run:
 
     sh scripts/linux/prepare-git-toolchain.sh --output .linux-build/git-linux-x64
     sh scripts/linux/build-generic-preview.sh --toolchain .linux-build/git-linux-x64 --appimage

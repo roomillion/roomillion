@@ -4,7 +4,7 @@
 
 千万间是一个离线优先的桌面工作台。它让 AI 创建可安装、可修改、可分享的“房间”（小应用），用于办公、文档处理、数据整理和交互工具。房间通过工作台提供的受控接口使用文件、数据和 AI 能力；它们不能直接读取系统密钥或任意文件。
 
-当前源码版本为 0.4.0。Windows x64 提供安装版、目录便携版和单文件便携版；generic Linux x64 提供技术预览。两种系统使用各自的工作台程序，但可以交换兼容的 .room 房间包。macOS 尚无可发布版本。项目仍处于技术预览阶段，Linux 预览不等于已通过指定 UOS 版本认证。
+当前源码版本为 0.4.1。Windows x64 提供安装版、目录便携版和单文件便携版；generic Linux x64 提供技术预览。两种系统使用各自的工作台程序，但可以交换兼容的 .room 房间包。macOS 尚无可发布版本。项目仍处于技术预览阶段，Linux 预览不等于已通过指定 UOS 版本认证。
 
 ## 获取和运行
 
@@ -12,10 +12,10 @@
 
 | 平台 | 产物 | 适用场景 |
 | --- | --- | --- |
-| Windows x64 | Roomillion-0.4.0-Setup.exe | 按当前用户安装，注册 .room 文件关联 |
-| Windows x64 | Roomillion-0.4.0-Portable-Folder.zip | 解压即用，默认把数据放在解压目录 |
-| Windows x64 | Roomillion-0.4.0-Portable.exe | 单文件便携版，默认使用当前用户数据目录 |
-| Linux x64 | Roomillion-0.4.0-linux-x64.tar.xz、Roomillion-0.4.0-x86_64.AppImage | 通用 Linux 技术预览，仍需目标发行版实机验收 |
+| Windows x64 | Roomillion-0.4.1-Setup.exe | 按当前用户安装，注册 .room 文件关联 |
+| Windows x64 | Roomillion-0.4.1-Portable-Folder.zip | 解压即用，默认把数据放在解压目录 |
+| Windows x64 | Roomillion-0.4.1-Portable.exe | 单文件便携版，默认使用当前用户数据目录 |
+| Linux x64 | Roomillion-0.4.1-linux-x64.tar.xz、Roomillion-0.4.1-x86_64.AppImage | 通用 Linux 技术预览，仍需目标发行版实机验收 |
 
 Windows 产物目前未签名。三种 Windows 包均不要求目标电脑预装 Node.js、Git、SQLite 或 npm 包。
 
@@ -67,7 +67,7 @@ Windows x64 是当前主要开发和交付平台。Linux x64 包是 generic 技�
     npm test
     npm run smoke
 
-在 Windows 重建当前版本时使用 npm run build:portable、npm run build:portable-folder 或 npm run build:installer。npm run release:portable 会先递增版本，不适合只重建现有 0.4.0。Linux x64 需在 Linux 构建环境中准备已核验的 Git 工具链，再运行：
+在 Windows 重建当前版本时使用 npm run build:portable、npm run build:portable-folder 或 npm run build:installer。npm run release:portable 会先递增版本，不适合只重建现有 0.4.1。Linux x64 需在 Linux 构建环境中准备已核验的 Git 工具链，再运行：
 
     sh scripts/linux/prepare-git-toolchain.sh --output .linux-build/git-linux-x64
     sh scripts/linux/build-generic-preview.sh --toolchain .linux-build/git-linux-x64 --appimage
