@@ -31,6 +31,8 @@
 
 需要 AI 时用 `capabilities.ai.roles` 申请 `general`、`coding` 或 `vision`，并在 `slots` 中声明模型角色。通过 `room.ai.listModels()`、`getSlotDefinitions()`、`selectSlot()`、`generate()`、`batch()` 或 `embed()` 调用；批处理设置 1–8 的有界并发、0–5 次重试和幂等键，不要对大量输入直接执行无界 `Promise.all`。
 
+专用的 Embedding、Rerank、直觉模型可在工作台各配置多个并分别选择默认项。`room.ai.getCapabilities()` 的每类 `profiles` 给出脱敏的配置 ID、名称、就绪状态和默认标记；不传 `profileId` 时使用该类当前默认项，传 `{ profileId }` 给 `embed()`、`rerank()` 或 `intuition()` 可选指定模型，例如并行调用两个直觉模型比较结果。密钥与地址由工作台保管，不要在房间中硬编码。
+
 `room.ai.generate(prompt, options)` 返回 `{ text, model, profileId, usage }`；传入 `onChunk: (delta, full) => { ... }` 可在模型输出时接收真实增量文本，函数只留在房间进程中，不跨 IPC 传输。`room.ai.batch(requests, { concurrency })` 返回 `{ results, total, passed, failed }`；成功项直接是 `{ ok: true, text, model, profileId, usage }`，失败项是 `{ ok: false, error }`，不要读取 `result.value.text`。视觉输入可传 `{ data: Uint8Array, mimeType }`、`{ blobId }` 或 `{ directory: { grantId, relativePath } }`。
 
 批量文件使用 `room.files.pickMany()`，返回 `{token,name,size,maxChunkBytes}` 数组；用 `room.files.readBinary(token,{offset,length})` 得到 `{data,nextOffset,eof}`，结束时 `closeBinary(token)`。句柄没有 `.read()`、`.text()`，也不存在 `room.files.readFile()`。文件夹使用 `openDirectory()` 获取不含真实路径的授权句柄，再用 `listDirectory()` 分页、`readDirectoryFile()` 分块读取。输出目录授权一次后用 `writeDirectoryFile()` 连续写入。大图片和中间文件保存在 `room.blobs`，最终 Markdown、ZIP、PDF 等保存在 `room.artifacts`。长流程用 `room.jobs` 保存状态、进度、检查点和失败信息，启动时调用 `recover()` 恢复中断任务。

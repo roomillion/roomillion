@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("workbench", Object.freeze({
   getState: () => ipcRenderer.invoke("workbench:getState"),
+  copyText: (value) => ipcRenderer.invoke("workbench:copyText", value),
   chooseRoomStorageLocation: () => ipcRenderer.invoke("workbench:chooseRoomStorageLocation"),
   setTheme: (themeId) => ipcRenderer.invoke("workbench:setTheme", themeId),
   setViewport: (bounds) => ipcRenderer.invoke("workbench:setViewport", bounds),
@@ -50,9 +51,10 @@ contextBridge.exposeInMainWorld("workbench", Object.freeze({
   deleteProviderProfiles: (profileIds) => ipcRenderer.invoke("workbench:deleteProviderProfiles", profileIds),
   clearSessionKey: (profileId) => ipcRenderer.invoke("workbench:clearSessionKey", profileId),
   saveAiCapabilityProfile: (kind, input) => ipcRenderer.invoke("workbench:saveAiCapabilityProfile", kind, input),
-  testAiCapabilityProfile: (kind) => ipcRenderer.invoke("workbench:testAiCapabilityProfile", kind),
-  clearAiCapabilityKey: (kind) => ipcRenderer.invoke("workbench:clearAiCapabilityKey", kind),
-  deleteAiCapabilityProfile: (kind) => ipcRenderer.invoke("workbench:deleteAiCapabilityProfile", kind),
+  setDefaultAiCapabilityProfile: (kind, profileId) => ipcRenderer.invoke("workbench:setDefaultAiCapabilityProfile", kind, profileId),
+  testAiCapabilityProfile: (kind, profileId) => ipcRenderer.invoke("workbench:testAiCapabilityProfile", kind, profileId),
+  clearAiCapabilityKey: (kind, profileId) => ipcRenderer.invoke("workbench:clearAiCapabilityKey", kind, profileId),
+  deleteAiCapabilityProfile: (kind, profileId) => ipcRenderer.invoke("workbench:deleteAiCapabilityProfile", kind, profileId),
   listCredentials: () => ipcRenderer.invoke("workbench:listCredentials"),
   saveCredential: (input) => ipcRenderer.invoke("workbench:saveCredential", input),
   deleteCredential: (alias) => ipcRenderer.invoke("workbench:deleteCredential", alias),

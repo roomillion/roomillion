@@ -114,7 +114,10 @@ test("room AI IPC exposes configured embedding, rerank and intuition through the
     aiService: { getRoomModelSelection: () => ({ profileId: "legacy" }) },
     aiCapabilityService: {
       getPublicProfile: kind => kind === "embedding" ? { kind } : null,
-      getRoomCatalog: () => ({ embedding: { configured: true, ready: true }, rerank: { configured: true, ready: true }, intuition: { configured: true, ready: true } }),
+      getRoomCatalog: () => ({
+        embedding: { configured: true, ready: true, profiles: [{ id: "capability-embedding-11111111-1111-1111-1111-111111111111", model: "e2" }] },
+        rerank: { configured: true, ready: true }, intuition: { configured: true, ready: true }
+      }),
       embed: async (texts, options) => { calls.push(["embed", texts, options]); return { embeddings: [[1, 0]], dimensions: 2 }; },
       rerank: async (query, documents, options) => { calls.push(["rerank", query, documents, options]); return { results: [{ index: 0, relevanceScore: 1 }] }; },
       intuition: async (state, questions, options) => { calls.push(["intuition", state, questions, options]); return { answers: { yes: { type: "noul", noul: 0.9 } } }; }
@@ -125,7 +128,14 @@ test("room AI IPC exposes configured embedding, rerank and intuition through the
   assert.equal((await handlers.get("room:aiRerank")(event, "查找", ["文档"], {})).results[0].index, 0);
   assert.equal((await handlers.get("room:aiIntuition")(event, "状态", { yes: { type: "noul" } }, {})).answers.yes.noul, 0.9);
   assert.deepEqual(calls.map((entry) => entry[0]), ["embed", "rerank", "intuition"]);
+  await handlers.get("room:aiEmbed")(event, ["文本"], { profileId: "capability-embedding-11111111-1111-1111-1111-111111111111" });
+  await handlers.get("room:aiRerank")(event, "查找", ["文档"], { profileId: "chosen-rerank" });
+  await handlers.get("room:aiIntuition")(event, "状态", { yes: { type: "noul" } }, { profileId: "chosen-jev" });
+  assert.equal(calls[3][2].profileId, "capability-embedding-11111111-1111-1111-1111-111111111111");
+  assert.equal(calls[4][3].profileId, "chosen-rerank");
+  assert.equal(calls[5][3].profileId, "chosen-jev");
   allowed = false;
+  await assert.rejects(handlers.get("room:aiEmbed")(event, ["文本"], { profileId: "capability-embedding-11111111-1111-1111-1111-111111111111" }), /权限/);
   await assert.rejects(handlers.get("room:aiRerank")(event, "查找", ["文档"], {}), /权限/);
   await assert.rejects(handlers.get("room:aiIntuition")(event, "状态", { yes: { type: "noul" } }, {}), /权限/);
 });

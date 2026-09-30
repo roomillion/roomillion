@@ -15,6 +15,8 @@ const state = {
   aiProfiles: [],
   aiUtilityProfiles: {},
   editingAiUtilityKind: null,
+  editingAiUtilityProfileId: null,
+  creatingAiUtilityProfile: false,
   aiUtilityReturnTarget: null,
   navigatingAiUtility: false,
   editingProviderId: null,
@@ -155,6 +157,8 @@ const elements = {
   aiUtilityTitle: document.getElementById("aiUtilityTitle"),
   aiUtilityIntro: document.getElementById("aiUtilityIntro"),
   aiUtilityProtocol: document.getElementById("aiUtilityProtocol"),
+  aiUtilityProfileList: document.getElementById("aiUtilityProfileList"),
+  newAiUtilityProfileButton: document.getElementById("newAiUtilityProfileButton"),
   aiUtilityLabel: document.getElementById("aiUtilityLabel"),
   aiUtilityBaseUrl: document.getElementById("aiUtilityBaseUrl"),
   aiUtilityModel: document.getElementById("aiUtilityModel"),
@@ -221,6 +225,7 @@ const elements = {
   providerSummary: document.getElementById("providerSummaryInline"),
   secureStorageSummary: document.getElementById("secureStorageSummary"),
   networkDialog: document.getElementById("networkDialog"),
+  networkAdvancedSettings: document.getElementById("networkAdvancedSettings"),
   networkForm: document.getElementById("networkForm"),
   roomNetworkEnabled: document.getElementById("roomNetworkEnabled"),
   networkPolicySummary: document.getElementById("networkPolicySummary"),
@@ -442,7 +447,7 @@ const AI_UTILITY_META = Object.freeze({
     title: "Embedding 模型",
     help: "把文字变成可比较的向量，用于语义搜索、知识库和查找相似内容。",
     intro: "把文本转换为向量，供语义搜索、知识库、聚类和相似度计算使用。",
-    protocol: "调用 OpenAI 兼容的 POST /embeddings；房间使用 room.ai.embed()，无需接触 API Key。",
+    protocol: "调用 OpenAI 兼容的 POST /embeddings；房间使用 room.ai.embed()，可按配置 ID 选择模型，无需接触 API Key。",
     label: "Embedding 模型",
     baseUrl: "",
     model: ""
@@ -451,7 +456,7 @@ const AI_UTILITY_META = Object.freeze({
     title: "Rerank 模型",
     help: "把初步找到的候选内容重新排序，让最相关的结果排在前面。",
     intro: "根据查询重新排列候选文本，适合在向量检索之后提高最终结果相关性。",
-    protocol: "调用常见的 POST /rerank 协议，兼容 Cohere、Jina 与同结构网关；房间使用 room.ai.rerank()。",
+    protocol: "调用常见的 POST /rerank 协议，兼容 Cohere、Jina 与同结构网关；房间使用 room.ai.rerank()，可按配置 ID 选择模型。",
     label: "Rerank 模型",
     baseUrl: "",
     model: ""
@@ -460,7 +465,7 @@ const AI_UTILITY_META = Object.freeze({
     title: "直觉模型 · Jev",
     help: "快速给出是非、选项或评分的概率判断，适合分类和流程分支。",
     intro: "Jev 是 TypeSafe AI 的 System One 模型：快速返回有类型的选择、评分或是非概率，不生成自由文本。",
-    protocol: "调用 POST /systemone；房间使用 room.ai.intuition() 提交 state 和 noul、score、choice 问题。",
+    protocol: "调用 POST /systemone；房间使用 room.ai.intuition() 提交 state 和 noul、score、choice 问题，可按配置 ID 对比多个模型。",
     label: "TypeSafe AI · Jev",
     baseUrl: "https://api.typesafe.ai/v1",
     model: "jev-latest"
@@ -478,9 +483,77 @@ function renderAiUtilityProfiles() {
     card.classList.toggle("configured", Boolean(profile));
     card.classList.toggle("ready", Boolean(profile?.ready));
     if (status) status.textContent = profile
-      ? `${profile.model} · ${profile.ready ? "可用" : profile.hasStoredKey ? "密钥无法读取" : "需要密钥"}`
+      ? `${profile.profiles?.length || 1} 个模型 · 默认 ${profile.model}${profile.ready ? "" : "（需修复）"}`
       : "未配置 · 点击设置";
   }
+}
+
+function aiUtilityProfileItems(kind = state.editingAiUtilityKind) {
+  const entry = state.aiUtilityProfiles?.[kind];
+  return entry?.profiles || (entry ? [entry] : []);
+}
+
+function renderAiUtilityProfileList() {
+  const profiles = aiUtilityProfileItems();
+  elements.aiUtilityProfileList.replaceChildren();
+  for (const profile of profiles) {
+    const row = document.createElement("div");
+    row.className = "aiUtilityProfileRow";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "aiUtilityProfileChoice";
+    button.classList.toggle("selected", profile.id === state.editingAiUtilityProfileId);
+    button.setAttribute("aria-pressed", String(profile.id === state.editingAiUtilityProfileId));
+    const name = document.createElement("strong");
+    name.textContent = `${profile.label} · ${profile.model}`;
+    const detail = document.createElement("small");
+    detail.textContent = `${profile.isDefault ? "默认 · " : ""}${profile.ready ? "可用" : "需要密钥"} · ID: ${profile.id}`;
+    button.append(name, detail);
+    button.addEventListener("click", () => selectAiUtilityProfile(profile.id));
+    const makeDefault = document.createElement("button");
+    makeDefault.type = "button";
+    makeDefault.className = "aiUtilityDefaultButton";
+    makeDefault.textContent = profile.isDefault ? "当前默认" : "设为默认";
+    makeDefault.disabled = profile.isDefault;
+    makeDefault.setAttribute("aria-label", `将 ${profile.label} · ${profile.model} 设为默认模型`);
+    makeDefault.addEventListener("click", () => setDefaultAiUtilityProfile(profile.id));
+    row.append(button, makeDefault);
+    elements.aiUtilityProfileList.append(row);
+  }
+  if (!profiles.length) elements.aiUtilityProfileList.textContent = "尚未配置；保存第一个模型后，它会成为默认模型。";
+}
+
+async function setDefaultAiUtilityProfile(profileId) {
+  const kind = state.editingAiUtilityKind;
+  if (!AI_UTILITY_META[kind]) return;
+  try {
+    state.aiUtilityProfiles = await window.workbench.setDefaultAiCapabilityProfile(kind, profileId);
+    renderAiUtilityProfiles();
+    renderAiUtilityProfileList();
+    updateSettingsSummary();
+    setInlineStatus(elements.aiUtilityStatus, `默认模型已切换为 ${state.aiUtilityProfiles[kind].model}；未指定模型的房间将使用它。`, false);
+  } catch (error) { setInlineStatus(elements.aiUtilityStatus, formatError(error), true); }
+}
+
+function selectAiUtilityProfile(profileId = null) {
+  const kind = state.editingAiUtilityKind;
+  const meta = AI_UTILITY_META[kind];
+  const profile = aiUtilityProfileItems(kind).find((item) => item.id === profileId) || null;
+  state.creatingAiUtilityProfile = !profile;
+  state.editingAiUtilityProfileId = profile?.id || null;
+  elements.aiUtilityLabel.value = profile?.label || meta.label;
+  elements.aiUtilityBaseUrl.value = profile?.baseUrl || meta.baseUrl;
+  elements.aiUtilityModel.value = profile?.model || meta.model;
+  elements.aiUtilityDimensionsField.hidden = kind !== "embedding";
+  elements.aiUtilityDimensions.value = profile?.dimensions || "";
+  elements.aiUtilityApiKey.value = "";
+  elements.aiUtilityRememberKey.checked = Boolean(profile?.hasStoredKey);
+  elements.deleteAiUtilityButton.disabled = !profile;
+  elements.clearAiUtilityKeyButton.disabled = !profile?.hasSessionKey && !profile?.hasStoredKey;
+  renderAiUtilityProfileList();
+  setInlineStatus(elements.aiUtilityStatus, profile
+    ? `${profile.model} ${profile.ready ? "可供房间调用" : "缺少可用密钥"}；房间可用 ID 单独选择这个模型。`
+    : "正在添加新模型：保存后会新增一条，已有模型保持不变；之后可在列表中选择默认模型。", Boolean(profile && !profile.ready));
 }
 
 async function showAiUtilityDialog(kind) {
@@ -495,24 +568,10 @@ async function showAiUtilityDialog(kind) {
   } finally { state.navigatingAiUtility = false; }
   state.editingAiUtilityKind = kind;
   elements.aiUtilityBackButton.textContent = state.aiUtilityReturnTarget === "provider" ? "← 返回 AI 能力中心" : "← 返回设置";
-  const profile = state.aiUtilityProfiles?.[kind] || null;
   elements.aiUtilityTitle.textContent = meta.title;
   elements.aiUtilityIntro.textContent = meta.intro;
   elements.aiUtilityProtocol.textContent = meta.protocol;
-  elements.aiUtilityLabel.value = profile?.label || meta.label;
-  elements.aiUtilityBaseUrl.value = profile?.baseUrl || meta.baseUrl;
-  elements.aiUtilityModel.value = profile?.model || meta.model;
-  elements.aiUtilityDimensionsField.hidden = kind !== "embedding";
-  elements.aiUtilityDimensions.value = profile?.dimensions || "";
-  elements.aiUtilityApiKey.value = "";
-  elements.aiUtilityRememberKey.checked = Boolean(profile?.hasStoredKey);
-  elements.deleteAiUtilityButton.disabled = !profile;
-  elements.clearAiUtilityKeyButton.disabled = !profile?.hasSessionKey && !profile?.hasStoredKey;
-  setInlineStatus(
-    elements.aiUtilityStatus,
-    profile ? `${profile.model} 已配置${profile.ready ? "并可供房间调用" : "，但当前缺少可用密钥"}。` : "填写连接信息后保存；“保存并测试”会真实调用一次模型 API。",
-    Boolean(profile && !profile.ready)
-  );
+  selectAiUtilityProfile(state.aiUtilityProfiles?.[kind]?.id);
   elements.aiUtilityDialog.showModal();
 }
 
@@ -530,6 +589,7 @@ async function returnFromAiUtilityDialog() {
 
 function aiUtilityPayload() {
   return {
+    ...(state.creatingAiUtilityProfile ? { create: true } : { id: state.editingAiUtilityProfileId }),
     label: elements.aiUtilityLabel.value.trim(),
     baseUrl: elements.aiUtilityBaseUrl.value.trim(),
     model: elements.aiUtilityModel.value.trim(),
@@ -545,12 +605,22 @@ async function saveAiUtilityProfile({ test = false } = {}) {
   elements.saveAiUtilityButton.disabled = true;
   elements.testAiUtilityButton.disabled = true;
   try {
+    const creating = state.creatingAiUtilityProfile;
+    const previousId = state.editingAiUtilityProfileId;
+    const previousIds = new Set(aiUtilityProfileItems(kind).map((profile) => profile.id));
     state.aiUtilityProfiles = await window.workbench.saveAiCapabilityProfile(kind, aiUtilityPayload());
-    elements.aiUtilityApiKey.value = "";
+    const saved = creating
+      ? aiUtilityProfileItems(kind).find((profile) => !previousIds.has(profile.id))?.id
+      : previousId;
+    if (!saved) throw new Error("保存后未找到新模型配置，请重新打开设置核对已配置列表");
+    selectAiUtilityProfile(saved);
+    renderAiUtilityProfiles();
+    updateSettingsSummary();
     if (test) {
       setInlineStatus(elements.aiUtilityStatus, "正在真实调用模型 API……", false);
-      const result = await window.workbench.testAiCapabilityProfile(kind);
+      const result = await window.workbench.testAiCapabilityProfile(kind, saved);
       state.aiUtilityProfiles = result.profiles;
+      selectAiUtilityProfile(saved);
       setInlineStatus(elements.aiUtilityStatus, `连接通过：${result.model} · ${result.latencyMs} ms`, false);
     } else setInlineStatus(elements.aiUtilityStatus, "配置已保存，房间现在可以通过工作台网关调用。", false);
     renderAiUtilityProfiles();
@@ -2056,6 +2126,7 @@ async function saveNamedCredential() {
 
 async function showNetworkDialog() {
   await hideRoomForModal();
+  elements.networkAdvancedSettings.open = false;
   renderNetworkPolicy();
   state.credentials = await window.workbench.listCredentials();
   elements.credentialRemember.disabled = state.aiCapabilities?.secureStorageAvailable !== true;
@@ -3221,13 +3292,33 @@ function createAgentMessageElement(message) {
   const article = document.createElement("article");
   article.className = `agentMessage ${message.role} ${message.status || "complete"}`;
   article.dataset.messageId = message.id;
+  const header = document.createElement("div");
+  header.className = "agentMessageHeader";
   const meta = document.createElement("div");
   meta.className = "agentMessageMeta";
   meta.textContent = `${message.role === "user" ? "你" : "智变 Agent"} · ${formatAgentTime(message.createdAt)}`;
+  header.append(meta);
+  if (typeof message.content === "string" && message.content.trim()) {
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "agentMessageCopy";
+    copy.textContent = "复制";
+    copy.title = "复制这条消息的文字";
+    copy.setAttribute("aria-label", "复制这条消息的文字");
+    copy.addEventListener("click", async () => {
+      const content = state.agentSession?.messages.find((item) => item.id === message.id)?.content || message.content;
+      try {
+        await window.workbench.copyText(content);
+        copy.textContent = "已复制";
+        window.setTimeout(() => { if (copy.isConnected) copy.textContent = "复制"; }, 1500);
+      } catch (error) { showToast(formatError(error)); }
+    });
+    header.append(copy);
+  }
   const body = document.createElement("div");
   body.className = "agentMessageBody";
   renderAgentRichText(body, message.content || (message.status === "streaming" || message.attachments?.length ? "" : "（无文字回复）"));
-  article.append(meta);
+  article.append(header);
   if (message.attachments?.length) {
     const gallery = document.createElement("div");
     gallery.className = "agentMessageGallery";
@@ -4051,26 +4142,29 @@ for (const card of document.querySelectorAll("[data-ai-utility-kind]")) {
   card.addEventListener("click", () => showAiUtilityDialog(card.dataset.aiUtilityKind).catch((error) => showToast(formatError(error))));
 }
 elements.aiUtilityBackButton.addEventListener("click", () => returnFromAiUtilityDialog().catch((error) => showToast(formatError(error))));
+elements.newAiUtilityProfileButton.addEventListener("click", () => selectAiUtilityProfile());
 elements.saveAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile());
 elements.testAiUtilityButton.addEventListener("click", () => saveAiUtilityProfile({ test: true }));
 elements.clearAiUtilityKeyButton.addEventListener("click", async () => {
   const kind = state.editingAiUtilityKind;
-  if (!AI_UTILITY_META[kind]) return;
+  const profileId = state.editingAiUtilityProfileId;
+  if (!AI_UTILITY_META[kind] || !profileId) return;
   try {
-    state.aiUtilityProfiles = await window.workbench.clearAiCapabilityKey(kind);
-    elements.aiUtilityRememberKey.checked = false;
+    state.aiUtilityProfiles = await window.workbench.clearAiCapabilityKey(kind, profileId);
+    selectAiUtilityProfile(profileId);
     renderAiUtilityProfiles();
     setInlineStatus(elements.aiUtilityStatus, "该能力的会话密钥和系统加密密钥已清除。", false);
   } catch (error) { setInlineStatus(elements.aiUtilityStatus, formatError(error), true); }
 });
 elements.deleteAiUtilityButton.addEventListener("click", async () => {
   const kind = state.editingAiUtilityKind;
-  if (!AI_UTILITY_META[kind] || !window.confirm(`删除“${AI_UTILITY_META[kind].title}”配置？使用此能力的房间会收到未配置提示。`)) return;
+  const profileId = state.editingAiUtilityProfileId;
+  if (!AI_UTILITY_META[kind] || !profileId || !window.confirm(`删除当前“${AI_UTILITY_META[kind].title}”模型配置？房间再指定此 ID 将无法调用。`)) return;
   try {
-    state.aiUtilityProfiles = await window.workbench.deleteAiCapabilityProfile(kind);
+    state.aiUtilityProfiles = await window.workbench.deleteAiCapabilityProfile(kind, profileId);
     renderAiUtilityProfiles();
-    elements.aiUtilityDialog.close();
-    showToast(`${AI_UTILITY_META[kind].title}配置已删除`);
+    selectAiUtilityProfile(state.aiUtilityProfiles?.[kind]?.id);
+    showToast("当前模型配置已删除");
   } catch (error) { setInlineStatus(elements.aiUtilityStatus, formatError(error), true); }
 });
 for (const select of [elements.settingsDefaultRoomModelSelect, elements.providerDefaultRoomModelSelect]) {
@@ -4567,6 +4661,8 @@ elements.providerDialog.addEventListener("close", () => {
 });
 elements.aiUtilityDialog.addEventListener("close", () => {
   state.editingAiUtilityKind = null;
+  state.editingAiUtilityProfileId = null;
+  state.creatingAiUtilityProfile = false;
   state.aiUtilityReturnTarget = null;
   restoreActiveRoomAfterDialog();
 });

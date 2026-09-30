@@ -4,7 +4,7 @@ const { validateRoomAiOptions } = require("./room-ai-options.cjs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { dialog, ipcMain } = require("electron");
+const { clipboard, dialog, ipcMain } = require("electron");
 const { generateRoomFromPrompt, updateGeneratedRoomFromPrompt } = require("./generated-room.cjs");
 const { getPublicRoomModuleCatalog } = require("./room-module-catalog.cjs");
 const { applyNativeWorkbenchTheme } = require("./workbench-theme.cjs");
@@ -279,6 +279,12 @@ function registerIpcHandlers({
       agentWindow: agentWindows?.getState() ?? { mode: "attached" },
       environment
     };
+  });
+  handle("workbench:copyText", async (event, value) => {
+    requireWorkbench(event);
+    if (typeof value !== "string" || !value || value.length > 2_000_000) throw new Error("复制内容无效或过长");
+    clipboard.writeText(value);
+    return true;
   });
   handle("workbench:chooseRoomStorageLocation", async (event) => {
     requireWorkbench(event);
@@ -716,30 +722,38 @@ function registerIpcHandlers({
     requireWorkbench(event);
     if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
     const result = await aiCapabilityService.saveProfile(kind, input);
-    await recordEvent("ai.capability.configure", { kind, model: result?.[kind]?.model || null });
+    await recordEvent("ai.capability.configure", { kind, model: input?.model || null });
     notifyAiModelsChanged();
     return result;
   });
-  handle("workbench:testAiCapabilityProfile", async (event, kind) => {
+  handle("workbench:setDefaultAiCapabilityProfile", async (event, kind, profileId) => {
+    requireWorkbench(event);
+    if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
+    const result = await aiCapabilityService.setDefaultProfile(kind, profileId);
+    await recordEvent("ai.capability.default", { kind, model: result?.[kind]?.model || null });
+    notifyAiModelsChanged();
+    return result;
+  });
+  handle("workbench:testAiCapabilityProfile", async (event, kind, profileId) => {
     requireWorkbench(event);
     if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
     try {
-      const result = await aiCapabilityService.testConnection(kind);
+      const result = await aiCapabilityService.testConnection(kind, profileId);
       await recordEvent("ai.capability.test", { kind, model: result.model, latencyMs: result.latencyMs, ok: true });
       return result;
     } finally { notifyAiModelsChanged(); }
   });
-  handle("workbench:clearAiCapabilityKey", async (event, kind) => {
+  handle("workbench:clearAiCapabilityKey", async (event, kind, profileId) => {
     requireWorkbench(event);
     if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
-    const result = await aiCapabilityService.clearKey(kind);
+    const result = await aiCapabilityService.clearKey(kind, profileId);
     notifyAiModelsChanged();
     return result;
   });
-  handle("workbench:deleteAiCapabilityProfile", async (event, kind) => {
+  handle("workbench:deleteAiCapabilityProfile", async (event, kind, profileId) => {
     requireWorkbench(event);
     if (!aiCapabilityService) throw new Error("AI 专用能力服务不可用");
-    const result = await aiCapabilityService.deleteProfile(kind);
+    const result = await aiCapabilityService.deleteProfile(kind, profileId);
     notifyAiModelsChanged();
     return result;
   });
@@ -986,8 +1000,10 @@ function registerIpcHandlers({
     const room = requireRoom(event);
     if (!roomStore.hasPermission(room.id, "ai")) throw new Error("房间没有 AI 权限");
     if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("向量调用选项无效");
-    if (!options.profileId && aiCapabilityService?.getPublicProfile?.("embedding")) {
-      return aiCapabilityService.embed(texts, { model: options.model, dimensions: options.dimensions, timeoutMs: options.timeoutMs });
+    const specializedId = typeof options.profileId === "string" && options.profileId.startsWith("capability-") ? options.profileId : null;
+    if (specializedId || (!options.profileId && aiCapabilityService?.getPublicProfile?.("embedding"))) {
+      if (!aiCapabilityService) throw new Error("Embedding 能力不可用");
+      return aiCapabilityService.embed(texts, { profileId: specializedId || undefined, model: options.model, dimensions: options.dimensions, timeoutMs: options.timeoutMs });
     }
     const profileId = options.profileId || aiService.getRoomModelSelection(room.id).profileId;
     return aiService.embed(texts, { profileId, model: options.model, dimensions: options.dimensions, timeoutMs: options.timeoutMs });

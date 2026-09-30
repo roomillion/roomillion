@@ -255,6 +255,53 @@ async function runSmokeCheck(dataRoot) {
     return { strong: node.querySelectorAll('strong').length, items:node.querySelectorAll('li').length, rows:node.querySelectorAll('tr').length, images:node.querySelectorAll('img').length, literal:node.textContent.includes('<img') };
   })()`);
   if (richText.strong !== 1 || richText.items !== 1 || richText.rows !== 2 || richText.images !== 0 || !richText.literal) throw new Error("Agent 安全文本排版检查失败");
+  const messageCopyUi = await mainWindow.webContents.executeJavaScript(`(() => {
+    const user = createAgentMessageElement({ id: "copy-user", role: "user", status: "complete", createdAt: new Date().toISOString(), content: "原始 **Markdown** 文字" });
+    const assistant = createAgentMessageElement({ id: "copy-assistant", role: "assistant", status: "complete", createdAt: new Date().toISOString(), content: "多行\\n回复" });
+    const empty = createAgentMessageElement({ id: "copy-empty", role: "assistant", status: "streaming", createdAt: new Date().toISOString(), content: "" });
+    const result = {
+      userButton: user.querySelector(".agentMessageCopy")?.textContent,
+      assistantButton: assistant.querySelector(".agentMessageCopy")?.textContent,
+      accessible: assistant.querySelector(".agentMessageCopy")?.getAttribute("aria-label"),
+      emptyHidden: !empty.querySelector(".agentMessageCopy"),
+      renderedMarkdown: Boolean(user.querySelector(".agentMessageBody strong"))
+    };
+    return result;
+  })()`);
+  if (messageCopyUi.userButton !== "复制" || messageCopyUi.assistantButton !== "复制" ||
+    messageCopyUi.accessible !== "复制这条消息的文字" || !messageCopyUi.emptyHidden || !messageCopyUi.renderedMarkdown) {
+    throw new Error(`Agent 消息复制按钮检查失败：${JSON.stringify(messageCopyUi)}`);
+  }
+  const agentTextLayout = await mainWindow.webContents.executeJavaScript(`(() => {
+    const conversation = document.createElement("main");
+    conversation.className = "agentConversation";
+    conversation.style.cssText = "position:fixed;left:-10000px;top:0;width:540px;height:400px";
+    const timeline = document.createElement("div");
+    timeline.className = "agentTimeline";
+    const message = document.createElement("article");
+    message.className = "agentMessage assistant";
+    const body = document.createElement("div");
+    body.className = "agentMessageBody";
+    const newline = String.fromCharCode(10);
+    renderAgentRichText(body, "一段很长的说明" + "没有空格的文字".repeat(100) + newline
+      + "\x60\x60\x60json" + newline + "x".repeat(900) + newline + "\x60\x60\x60");
+    message.append(body);
+    timeline.append(message);
+    conversation.append(timeline);
+    document.body.append(conversation);
+    const result = {
+      conversationOverflow: conversation.scrollWidth > conversation.clientWidth + 1,
+      messageOverflow: message.getBoundingClientRect().right > conversation.getBoundingClientRect().right,
+      wrappedParagraph: body.querySelector("p").getBoundingClientRect().height > parseFloat(getComputedStyle(body).lineHeight) * 2,
+      codeScrollsInside: body.querySelector("pre").scrollWidth > body.querySelector("pre").clientWidth
+    };
+    conversation.remove();
+    return result;
+  })()`);
+  if (agentTextLayout.conversationOverflow || agentTextLayout.messageOverflow ||
+    !agentTextLayout.wrappedParagraph || !agentTextLayout.codeScrollsInside) {
+    throw new Error(`Agent 长文本布局检查失败：${JSON.stringify(agentTextLayout)}`);
+  }
   const renderedAgentPage = await agentWebService.pageRenderer(
     "data:text/html,<main id='app'></main><script>document.getElementById('app').textContent='JavaScript page ready'</script>",
     { maxChars: 5000, validateUrl: async () => true }
@@ -283,6 +330,51 @@ async function runSmokeCheck(dataRoot) {
   if (!aiUtilityNavigation.helpReady || !aiUtilityNavigation.returnedToSettings || !aiUtilityNavigation.returnedToProvider ||
     !aiUtilityNavigation.settingsBackLabel.includes("设置") || !aiUtilityNavigation.providerBackLabel.includes("AI 能力中心")) {
     throw new Error(`专用 AI 能力说明或返回导航检查失败：${JSON.stringify(aiUtilityNavigation)}`);
+  }
+  const originalUtilityTestConnection = aiCapabilityService.testConnection;
+  aiCapabilityService.testConnection = async (kind, id) => ({
+    ok: true, model: aiCapabilityService.getPublicProfile(kind, id).model, latencyMs: 1,
+    profiles: aiCapabilityService.getPublicState()
+  });
+  let multipleUtilityModels;
+  try {
+    multipleUtilityModels = await mainWindow.webContents.executeJavaScript(`(async () => {
+    state.aiUtilityProfiles = await window.workbench.saveAiCapabilityProfile("intuition", { baseUrl: "http://127.0.0.1:8123/v1", model: "smoke-jev-a" });
+    const original = state.aiUtilityProfiles.intuition.profiles[0];
+    await showAiUtilityDialog("intuition");
+    document.getElementById("newAiUtilityProfileButton").click();
+    const newEntry = state.editingAiUtilityProfileId === null && state.creatingAiUtilityProfile === true;
+    document.getElementById("aiUtilityBaseUrl").value = "http://127.0.0.1:8123/v1";
+    document.getElementById("aiUtilityModel").value = "smoke-jev-b";
+    document.getElementById("testAiUtilityButton").click();
+    const saveDeadline = Date.now() + 3000;
+    while (document.getElementById("testAiUtilityButton").disabled && Date.now() < saveDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const profiles = state.aiUtilityProfiles.intuition.profiles;
+    const listCount = document.querySelectorAll("#aiUtilityProfileList .aiUtilityProfileChoice").length;
+    const originalPreserved = profiles[0].id === original.id && profiles[0].model === "smoke-jev-a";
+    const testStatus = document.getElementById("aiUtilityStatus").textContent;
+    const editingAfterSave = state.editingAiUtilityProfileId;
+    const testedNew = profiles[1]?.model === "smoke-jev-b" && editingAfterSave === profiles[1]?.id && testStatus.includes("连接通过");
+    const initialDefault = state.aiUtilityProfiles.intuition.id;
+    const defaultAction = document.querySelectorAll("#aiUtilityProfileList .aiUtilityDefaultButton")[1]?.textContent;
+    await setDefaultAiUtilityProfile(profiles[1].id);
+    const selectedDefault = state.aiUtilityProfiles.intuition.id;
+    const defaultBadge = document.querySelectorAll("#aiUtilityProfileList .aiUtilityDefaultButton")[1]?.textContent;
+    document.querySelectorAll("#aiUtilityProfileList .aiUtilityProfileChoice")[1].click();
+    const selectedSecond = document.getElementById("aiUtilityModel").value === "smoke-jev-b";
+    document.getElementById("aiUtilityDialog").close();
+    await window.workbench.deleteAiCapabilityProfile("intuition", profiles[0].id);
+    state.aiUtilityProfiles = await window.workbench.deleteAiCapabilityProfile("intuition", profiles[1].id);
+    return { listCount, selectedSecond, newEntry, originalPreserved, testedNew, testStatus, editingAfterSave, initialDefault, selectedDefault, defaultAction, defaultBadge, removed: !state.aiUtilityProfiles.intuition };
+  })()`);
+  } finally { aiCapabilityService.testConnection = originalUtilityTestConnection; }
+  if (multipleUtilityModels.listCount !== 2 || !multipleUtilityModels.selectedSecond ||
+    !multipleUtilityModels.newEntry || !multipleUtilityModels.originalPreserved || !multipleUtilityModels.testedNew ||
+    multipleUtilityModels.initialDefault === multipleUtilityModels.selectedDefault ||
+    multipleUtilityModels.defaultAction !== "设为默认" || multipleUtilityModels.defaultBadge !== "当前默认" || !multipleUtilityModels.removed) {
+    throw new Error(`专用 AI 多模型界面检查失败：${JSON.stringify(multipleUtilityModels)}`);
   }
   const providerUiResult = await mainWindow.webContents.executeJavaScript(`(async () => {
     await showProviderDialog();
@@ -1771,6 +1863,12 @@ async function runSmokeCheck(dataRoot) {
   const networkUiResult = await mainWindow.webContents.executeJavaScript(`(async () => {
     await showNetworkDialog();
     const aiIndependent = document.querySelector("#networkDialog .modalIntro").textContent.includes("AI 模型 API 始终可用");
+    const advanced = document.getElementById("networkAdvancedSettings");
+    const advancedCollapsed = !advanced.open && getComputedStyle(document.getElementById("credentialAlias").closest(".credentialFields")).display === "none";
+    const advancedHelp = advanced.querySelector("summary").title.includes("普通联网和工作台 AI 模型无需设置") &&
+      advanced.querySelector(".networkAdvancedTooltip").textContent.includes("需要密钥的外部服务");
+    advanced.open = true;
+    const advancedExpanded = getComputedStyle(document.getElementById("credentialAlias").closest(".credentialFields")).display !== "none";
     document.getElementById("roomNetworkEnabled").checked = true;
     document.getElementById("networkForm").requestSubmit();
     const deadline = Date.now() + 3000;
@@ -1780,7 +1878,10 @@ async function runSmokeCheck(dataRoot) {
       enabled: state.networkPolicy?.roomNetworkEnabled === true,
       summary: document.getElementById("networkSummaryInline").textContent,
       dotOnline: document.getElementById("networkDot").classList.contains("online"),
-      aiIndependent
+      aiIndependent,
+      advancedCollapsed,
+      advancedHelp,
+      advancedExpanded
     };
   })()`);
   const enabledNetworkStatus = await customView.webContents.executeJavaScript(`window.room.network.getStatus()`);
@@ -1815,6 +1916,9 @@ async function runSmokeCheck(dataRoot) {
     !networkUiResult.enabled ||
     !networkUiResult.dotOnline ||
     !networkUiResult.aiIndependent ||
+    !networkUiResult.advancedCollapsed ||
+    !networkUiResult.advancedHelp ||
+    !networkUiResult.advancedExpanded ||
     networkUiResult.summary !== "房间与开发 Agent 可联网" ||
     !enabledNetworkStatus.available ||
     enabledNetworkStatus.origins[0] !== "https://api.example.com" ||

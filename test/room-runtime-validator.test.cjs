@@ -63,10 +63,11 @@ test("isolated room runtime exposes embedding, rerank and Jev-shaped intuition c
         const e=await room.ai.embed(['甲']);
         const r=await room.ai.rerank('目标',['其他','目标文本'],{topN:1});
         const i=await room.ai.intuition('状态',{pick:{type:'choice',criteria:{approve:'通过',reject:'拒绝'}},risk:{type:'noul'},level:{type:'score',criteria:['低','高']}});
-        document.getElementById('out').textContent=[Object.values(c).filter(x=>x.ready).length,e.dimensions,r.results[0].index,i.answers.pick.choice,i.answers.risk.noul,i.answers.level.score].join('|');
+        const alternate=await room.ai.intuition('状态',{risk:{type:'noul'}},{profileId:c.intuition.profiles[1].id});
+        document.getElementById('out').textContent=[Object.values(c).filter(x=>x.ready).length,e.dimensions,r.results[0].index,i.answers.pick.choice,i.answers.risk.noul,i.answers.level.score,alternate.model,alternate.answers.risk.noul].join('|');
       }catch(e){document.getElementById('out').textContent=e.message;}};`,
       "room-tests.json": JSON.stringify({ version: 1, scenarios: [{ name: "三类专用模型合同", actions: [
-        { type: "click", selector: "#run" }, { type: "wait", ms: 300 }, { type: "assertText", selector: "#out", value: "3|2|1|approve|0.5|0.5" }
+        { type: "click", selector: "#run" }, { type: "wait", ms: 300 }, { type: "assertText", selector: "#out", value: "3|2|1|approve|0.5|0.5|mock-jev-alternative|0.7" }
       ] }] })
     }
   };

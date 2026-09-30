@@ -53,6 +53,8 @@ A Room can be exported as a .room package containing only the application or bot
 
 AI can choose among 39 pinned official modules. The workbench supplies these modules offline as shared resources; Rooms cannot install npm packages at runtime. A Room that needs Web dependencies outside the catalog must package the actual assets with exact versions and licenses. Rooms call configured generative, Embedding, Rerank, and “Intuition” models through the workbench gateway; Room code never receives their API keys. Batch AI, persistent directory grants, artifacts, and recoverable jobs are available to Rooms.
 
+Each of Embedding, Rerank, and Intuition can hold multiple model connections, with a user-selected default for each category. Rooms can inspect sanitized model IDs and select another connection for a call, including comparing two Intuition models side by side.
+
 Ordinary Rooms have no arbitrary network access. Roomillion Browser can visit websites only after the user enables workbench networking and grants its permissions. Web content remains isolated from the Room SDK, private data, and AI keys.
 
 ## Platforms and builds

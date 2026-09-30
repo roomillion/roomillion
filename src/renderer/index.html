@@ -378,6 +378,8 @@
       <div class="modalHeader"><div class="aiUtilityHeading"><button type="button" id="aiUtilityBackButton" class="aiUtilityBackButton">← 返回设置</button><div><p class="eyebrow">Room AI Gateway</p><h2 id="aiUtilityTitle">配置专用 AI 能力</h2></div></div><button type="button" class="closeButton" data-close="aiUtilityDialog">×</button></div>
       <p id="aiUtilityIntro" class="modalIntro"></p>
       <div id="aiUtilityProtocol" class="noticeBox"></div>
+      <div class="aiUtilityProfilesHeader"><strong>已配置模型</strong><button type="button" id="newAiUtilityProfileButton" class="secondaryButton compact">＋ 添加模型</button></div>
+      <div id="aiUtilityProfileList" class="aiUtilityProfileList"></div>
       <label>配置显示名称<input id="aiUtilityLabel" maxlength="100"></label>
       <label>API 基础地址<input id="aiUtilityBaseUrl" type="url" maxlength="2048" placeholder="https://api.example.com/v1"></label>
       <label>模型名称<input id="aiUtilityModel" maxlength="200"></label>
@@ -385,7 +387,7 @@
       <label>API Key<input id="aiUtilityApiKey" type="password" autocomplete="off" placeholder="已有密钥不会显示；留空可继续沿用"><small>密钥只进入主进程内存或系统加密存储，不会写入房间。</small></label>
       <label class="checkboxLabel"><input id="aiUtilityRememberKey" type="checkbox"><span><strong>使用系统安全存储记住密钥</strong><small>下次启动仍可供房间调用</small></span></label>
       <div id="aiUtilityStatus" class="inlineStatus"></div>
-      <div class="modalActions"><button type="button" id="deleteAiUtilityButton" class="secondaryButton dangerText">删除配置</button><button type="button" id="clearAiUtilityKeyButton" class="secondaryButton">清除密钥</button><span class="spacer"></span><button type="button" id="saveAiUtilityButton" class="secondaryButton">保存</button><button type="button" id="testAiUtilityButton" class="primaryButton compact">保存并测试</button></div>
+      <div class="modalActions"><button type="button" id="deleteAiUtilityButton" class="secondaryButton dangerText">删除当前模型</button><button type="button" id="clearAiUtilityKeyButton" class="secondaryButton">清除当前密钥</button><span class="spacer"></span><button type="button" id="saveAiUtilityButton" class="secondaryButton">保存</button><button type="button" id="testAiUtilityButton" class="primaryButton compact">保存并测试</button></div>
     </form>
   </dialog>
 
@@ -396,8 +398,12 @@
       <div id="networkPolicySummary" class="networkPolicySummary"><span class="networkPolicyIcon" aria-hidden="true">网</span><div><strong>联网已关闭</strong><small>房间网络与 AI 创建房间的网页研究均不可用</small></div></div>
       <label class="checkboxLabel"><input id="roomNetworkEnabled" name="roomNetworkEnabled" type="checkbox" value="true"><span><strong>允许房间与开发 Agent 联网</strong><small>开发 Agent 可访问互联网和内网；房间按自身声明的网络或浏览器能力运行。</small></span></label>
       <div class="noticeBox">仅保留必要边界：网页不能读取工作台本机服务或密钥，也不能把网页指令当作开发指令；房间访问系统能力仍通过 Room SDK。</div>
-      <section class="credentialManager" aria-labelledby="credentialManagerTitle">
-        <div class="providerProfilesHeader"><div><strong id="credentialManagerTitle">命名凭据</strong><small>房间只能引用别名；密钥只会注入绑定服务源的受控请求</small></div></div>
+      <details id="networkAdvancedSettings" class="credentialManager">
+        <summary class="networkAdvancedToggle" title="只有房间调用需要密钥的外部服务时才需要；普通联网和工作台 AI 模型无需设置。">
+          <span>高级设置 · 命名凭据</span><span class="networkAdvancedInfo" aria-hidden="true">ⓘ</span>
+          <span class="networkAdvancedTooltip" role="tooltip">只有房间调用需要密钥的外部服务时才需要。普通网页访问和工作台 AI 模型无需设置；密钥仅用于绑定的网站。</span>
+        </summary>
+        <div class="providerProfilesHeader"><div><strong>命名凭据</strong><small>房间只能引用别名；密钥只会注入绑定服务源的受控请求</small></div></div>
         <div class="credentialFields">
           <label>别名<input id="credentialAlias" maxlength="32" pattern="[a-z][a-z0-9-]{0,31}" placeholder="例如 book-api"></label>
           <label>显示名称<input id="credentialLabel" maxlength="100" placeholder="例如 书籍服务"></label>
@@ -408,7 +414,7 @@
         </div>
         <div class="credentialActions"><label class="checkboxLabel"><input id="credentialRemember" type="checkbox" checked><span><strong>使用系统安全存储</strong><small>取消后仅本次会话可用</small></span></label><button type="button" id="saveCredentialButton" class="secondaryButton">保存凭据</button></div>
         <div id="credentialList" class="credentialList"></div>
-      </section>
+      </details>
       <div id="networkStatus" class="inlineStatus"></div>
       <div class="modalActions"><button type="button" class="secondaryButton" data-close="networkDialog">取消</button><span class="spacer"></span><button type="submit" id="saveNetworkButton" class="primaryButton compact">保存设置</button></div>
     </form>
