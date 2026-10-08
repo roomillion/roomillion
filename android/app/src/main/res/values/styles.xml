@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="RoomillionTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#1F5644</item>
+        <item name="android:colorControlActivated">#1F5644</item>
+        <item name="android:windowBackground">#F5F8F5</item>
+        <item name="android:statusBarColor">#F5F8F5</item>
+        <item name="android:navigationBarColor">#F5F8F5</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:textColorPrimary">#1C2924</item>
+        <item name="android:textColorSecondary">#617169</item>
+        <item name="android:alertDialogTheme">@style/RoomillionDialog</item>
+    </style>
+    <style name="RoomillionDialog" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#1F5644</item>
+        <item name="android:textColorPrimary">#1C2924</item>
+        <item name="android:textColorSecondary">#617169</item>
+        <item name="android:windowBackground">@drawable/dialog_surface</item>
+    </style>
+</resources>

@@ -53,7 +53,9 @@ test("example catalog exposes eight unique portable rooms", async () => {
     assert.doesNotMatch(program, /https?:\/\//i, `${example.id} must not reference remote resources`);
     if (program.includes("room.db.")) assert.equal(manifest.permissions.database, "private");
     if (program.includes("room.files.pickText")) assert.ok(manifest.permissions.files?.includes("pick"));
-    if (program.includes("room.files.pickBinary")) assert.ok(manifest.permissions.files?.includes("pick"));
+    if (program.includes("room.files.pickBinary") || program.includes("room.files.openBinary")) {
+      assert.ok(manifest.permissions.files?.includes("pick"));
+    }
     if (program.includes("room.files.exportText")) assert.ok(manifest.permissions.files?.includes("export"));
     if (program.includes("room.largeText.")) assert.ok(manifest.permissions.files?.includes("largeText"));
     if (program.includes("room.ai.generate")) assert.ok(manifest.permissions.ai?.roles?.length);
@@ -110,7 +112,9 @@ test("example catalog exposes eight unique portable rooms", async () => {
       assert.match(program, /room\.ai\.listModels/);
       assert.match(program, /audio: \[\{ data: new Uint8Array\(state\.file\.data\) \}\]/);
       assert.match(program, /supportsAudio/);
-      assert.match(program, /room\.files\.pickBinary\(\{ extensions: AUDIO_EXTENSIONS \}\)/);
+      assert.match(program, /room\.files\.openBinary\(\{ extensions: AUDIO_EXTENSIONS, maxBytes: state\.maxAudioBytes \}\)/);
+      assert.match(program, /room\.files\.readBinary\(/);
+      assert.match(program, /room\.files\.closeBinary\(/);
       assert.match(program, /room\.files\.exportText\("会议记录\.md"/);
       assert.doesNotMatch(program, /apiKey|baseUrl|fetch\(|EventSource/);
     }

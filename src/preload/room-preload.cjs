@@ -155,6 +155,14 @@ contextBridge.exposeInMainWorld("room", Object.freeze({
   credentials: Object.freeze({
     list: () => ipcRenderer.invoke("room:credentialList")
   }),
+  multiplayer: Object.freeze({
+    getStatus: () => ipcRenderer.invoke("room:multiplayerGetStatus"),
+    create: (options = {}) => ipcRenderer.invoke("room:multiplayerCreate", options),
+    join: (options) => ipcRenderer.invoke("room:multiplayerJoin", options),
+    send: (data, options = {}) => ipcRenderer.invoke("room:multiplayerSend", data, options),
+    read: (options = {}) => ipcRenderer.invoke("room:multiplayerRead", options),
+    leave: () => ipcRenderer.invoke("room:multiplayerLeave")
+  }),
   network: Object.freeze({
     getStatus: () => ipcRenderer.invoke("room:networkGetStatus"),
     request: (options) => ipcRenderer.invoke("room:networkRequest", options),

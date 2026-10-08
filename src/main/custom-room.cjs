@@ -174,6 +174,8 @@ function normalizeCapabilities(input) {
   const aiRoles = uniqueStrings(requestedRoles, 3, "capabilities.ai.roles");
   for (const role of aiRoles) if (!CUSTOM_AI_ROLES.has(role)) throw new Error(`不支持的 AI 角色：${role}`);
   const modelSlots = normalizeModelSlots(aiInput?.slots ?? source.modelSlots);
+  const multiplayer = uniqueStrings(source.multiplayer ?? [], 2, "capabilities.multiplayer");
+  for (const value of multiplayer) if (!["host", "join"].includes(value)) throw new Error("联机能力只支持 host、join");
   for (const slot of Object.values(modelSlots)) if (!aiRoles.includes(slot.role)) aiRoles.push(slot.role);
   return {
     database: source.database === true,
@@ -181,6 +183,7 @@ function normalizeCapabilities(input) {
     ai: aiRoles.length > 0,
     aiRoles,
     modelSlots,
+    multiplayer,
     network,
     browser,
     compute,
@@ -249,6 +252,8 @@ function inspectCustomRoomSpec(input) {
   }
   const allSource = Object.values(spec.files).join("\n");
   const usesNetworkSdk = /\b(?:window\.)?room\.network\.(?:getStatus|request|open|read|close)\s*\(/.test(allSource);
+  const usesMultiplayer = /\b(?:window\.)?room\.multiplayer\./.test(allSource);
+  if (usesMultiplayer && spec.capabilities.multiplayer.length === 0) findings.push(issue("js.multiplayer-undeclared", "代码调用了 room.multiplayer，但 capabilities.multiplayer 未声明 host 或 join", "app.js"));
   if (/\b(?:window\.)?room\.(?:db|storage|vector)\./.test(allSource) && !spec.capabilities.database) findings.push(issue("js.database-undeclared", "调用 room.db/storage/vector 必须声明 capabilities.database:true", "app.js"));
   if (usesNetworkSdk && spec.capabilities.network.length === 0) {
     findings.push(issue("js.network-undeclared", "代码调用了 room.network，但 capabilities.network 没有声明服务源", "app.js"));
@@ -305,6 +310,7 @@ function validateCustomRoomSpec(input) {
 
 function customRoomPermissions(spec) {
   const permissions = { network: [...spec.capabilities.network] };
+  if (spec.capabilities.multiplayer.length) permissions.multiplayer = [...spec.capabilities.multiplayer];
   if (spec.capabilities.database) permissions.database = "private";
   if (spec.capabilities.files.length) permissions.files = [...spec.capabilities.files];
   if (spec.capabilities.ai) permissions.ai = { roles: [...spec.capabilities.aiRoles], ...(Object.keys(spec.capabilities.modelSlots).length ? { slots: structuredClone(spec.capabilities.modelSlots) } : {}) };

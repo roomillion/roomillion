@@ -27,6 +27,7 @@ const state = {
   mode: "music",
   models: [],
   file: null,
+  maxAudioBytes: MAX_AUDIO_BYTES,
   running: false,
   resultMarkdown: "",
   detachModelListener: null
@@ -130,21 +131,37 @@ async function refreshModels() {
 }
 
 async function pickAudio() {
-  const picked = await window.room.files.pickBinary({ extensions: AUDIO_EXTENSIONS });
-  if (!picked) return;
-  if (picked.size > MAX_AUDIO_BYTES) {
-    showToast("音频文件超过 64 MiB，请截取较短的片段", true);
-    return;
+  const handle = await window.room.files.openBinary({ extensions: AUDIO_EXTENSIONS, maxBytes: state.maxAudioBytes });
+  if (!handle) return;
+  try {
+    if (handle.size > state.maxAudioBytes) {
+      showToast(`音频文件超过 ${Math.round(state.maxAudioBytes / 1024 / 1024)} MiB，请截取较短的片段`, true);
+      return;
+    }
+    if (handle.size < 12) {
+      showToast("音频文件内容无效", true);
+      return;
+    }
+    const data = new Uint8Array(handle.size);
+    const maxChunk = Math.min(handle.maxChunkBytes || 256 * 1024, 256 * 1024);
+    let offset = 0;
+    while (offset < handle.size) {
+      const part = await window.room.files.readBinary(handle.token, { offset, length: Math.min(maxChunk, handle.size - offset) });
+      const chunk = part.data instanceof Uint8Array ? part.data : new Uint8Array(part.data);
+      if (part.nextOffset <= offset || part.nextOffset > handle.size || chunk.length !== part.nextOffset - offset) {
+        throw new Error("音频文件读取未完成，请重新选择");
+      }
+      data.set(chunk, offset);
+      offset = part.nextOffset;
+    }
+    state.file = { name: handle.name, size: handle.size, type: handle.type, data };
+    elements.fileName.textContent = handle.name;
+    elements.fileMeta.textContent = `${formatSize(handle.size)} · 将交给所选模型直接听取`;
+    updateRunState();
+    setStatus(`已选择 ${handle.name}，${MODES[state.mode].runLabel.includes("转写") ? "可以开始转写" : "可以开始分析"}。`);
+  } finally {
+    await window.room.files.closeBinary(handle.token).catch(() => {});
   }
-  if (picked.size < 12) {
-    showToast("音频文件内容无效", true);
-    return;
-  }
-  state.file = picked;
-  elements.fileName.textContent = picked.name;
-  elements.fileMeta.textContent = `${formatSize(picked.size)} · 将交给所选模型直接听取`;
-  updateRunState();
-  setStatus(`已选择 ${picked.name}，${MODES[state.mode].runLabel.includes("转写") ? "可以开始转写" : "可以开始分析"}。`);
 }
 
 async function runAnalysis() {
@@ -197,6 +214,9 @@ async function savePreferences() {
 }
 
 async function initialize() {
+  const info = await window.room.getInfo();
+  const hostLimit = Number(info?.limits?.aiMediaBytes);
+  if (Number.isSafeInteger(hostLimit) && hostLimit > 0) state.maxAudioBytes = Math.min(MAX_AUDIO_BYTES, hostLimit);
   const preferences = await window.room.storage.get(PREFERENCE_KEY).catch(() => null);
   applyMode(preferences?.mode === "meeting" ? "meeting" : "music");
   await refreshModels();

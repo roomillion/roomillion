@@ -18,6 +18,7 @@ const { RoomToolService } = require("./room-tool-service.cjs");
 const { RoomImportLocation } = require("./room-import-location.cjs");
 const { buildRoomAgentExport } = require("./room-agent-export.cjs");
 const { RoomAiRequests } = require("./room-ai-requests.cjs");
+const { RoomMultiplayerService } = require("./room-multiplayer-service.cjs");
 
 const DEFAULT_BINARY_EXTENSIONS = Object.freeze([
   "pdf", "docx", "xlsx", "xls", "pptx", "zip", "png", "jpg", "jpeg", "webp"
@@ -90,6 +91,7 @@ function normalizeRoomAiImages(images) {
 
 function hasPermission(room, domain, value) {
   const permission = room.grantedPermissions?.[domain];
+  if (domain === "multiplayer") return Array.isArray(permission) && (!value || permission.includes(value));
   if (domain === "database") return permission === "private";
   if (domain === "files") return Array.isArray(permission) && permission.includes(value);
   if (domain === "ai") return Boolean(permission && Array.isArray(permission.roles) && (!value || permission.roles.includes(value)));
@@ -126,10 +128,28 @@ function registerIpcHandlers({
   blobService,
   jobService,
   documentService,
-  toolService
+  toolService,
+  multiplayerService
 }) {
   const importLocation = new RoomImportLocation(roomStore.dataRoot || process.cwd());
   const roomAiRequests = new RoomAiRequests();
+  const multiplayer = multiplayerService || new RoomMultiplayerService();
+  const multiplayerOwners = new Map();
+  const multiplayerOwner = event => `${requireRoom(event).id}:${event.sender.id}`;
+  const requireMultiplayer = (event, permission) => {
+    const room = requireRoom(event);
+    const owner = `${room.id}:${event.sender.id}`;
+    const role = multiplayer.getStatus(owner).role;
+    if (role && !hasPermission(room, "multiplayer", role === "host" ? "host" : "join")) {
+      multiplayer.leave(owner);
+      throw new Error("联机权限已撤销，请在房间设置重新授权");
+    }
+    if (!hasPermission(room, "multiplayer", permission)) {
+      if (!hasPermission(room, "multiplayer")) multiplayer.leave(`${room.id}:${event.sender.id}`);
+      throw new Error("房间没有相应的局域网联机权限，请在房间设置授权");
+    }
+    return room;
+  };
   const vectors = new RoomVectorService(database);
   const binaryFiles = new BinaryFileService();
   const directoryFiles = fileAccess || new RoomFileAccessService(roomStore.dataRoot || process.cwd());
@@ -356,6 +376,7 @@ function registerIpcHandlers({
     await largeText.closeRoom(roomId);
     binaryFiles.closeRoom(roomId);
     networkService.closeRoom(roomId);
+    multiplayer.closeRoom(roomId);
     await closeExportStreams(roomId);
     roomViews.close(roomId);
     return true;
@@ -530,6 +551,7 @@ function registerIpcHandlers({
   handle("workbench:setRoomPermissions", async (event, roomId, selectedKeys) => {
     requireWorkbench(event);
     const result = await roomStore.setRoomPermissions(roomId, selectedKeys);
+    multiplayer.closeUnauthorized(roomId, roomStore.getRoom(roomId)?.grantedPermissions?.multiplayer || []);
     await recordEvent("room.permissions", { roomId, selectedKeys });
     notifyRoomsChanged();
     notifyNetworkStatusChanged(roomId);
@@ -666,6 +688,7 @@ function registerIpcHandlers({
     await database.closeRoom(roomId);
     binaryFiles.closeRoom(roomId);
     networkService.closeRoom(roomId);
+    multiplayer.closeRoom(roomId);
     await closeExportStreams(roomId);
     await roomStore.deleteRoom(roomId, { deleteData });
     let historyWarning = "";
@@ -1159,6 +1182,37 @@ function registerIpcHandlers({
     const room = requireRoom(event);
     return credentialService?.listForRoom?.(room) || [];
   });
+  handle("room:multiplayerGetStatus", async event => { requireMultiplayer(event); return multiplayer.getStatus(multiplayerOwner(event)); });
+  const enterMultiplayer = async (event, options, mode) => {
+    const room = requireMultiplayer(event, mode === "create" ? "host" : "join");
+    const owner = multiplayerOwner(event);
+    if (!multiplayerOwners.has(owner)) {
+      const onDestroyed = () => { multiplayer.leave(owner); multiplayerOwners.delete(owner); };
+      event.sender.once("destroyed", onDestroyed);
+      multiplayerOwners.set(owner, { sender: event.sender, onDestroyed });
+    }
+    try { return await multiplayer[mode](owner, room, options); }
+    catch (error) {
+      if (!multiplayer.getStatus(owner).role) {
+        const registered = multiplayerOwners.get(owner);
+        if (registered) registered.sender.removeListener("destroyed", registered.onDestroyed);
+        multiplayerOwners.delete(owner);
+      }
+      throw error;
+    }
+  };
+  handle("room:multiplayerCreate", (event, options = {}) => enterMultiplayer(event, options, "create"));
+  handle("room:multiplayerJoin", (event, options = {}) => enterMultiplayer(event, options, "join"));
+  handle("room:multiplayerSend", async (event, data, options = {}) => { requireMultiplayer(event); return multiplayer.send(multiplayerOwner(event), data, options); });
+  handle("room:multiplayerRead", async (event, options = {}) => { requireMultiplayer(event); return multiplayer.read(multiplayerOwner(event), options); });
+  handle("room:multiplayerLeave", async event => {
+    const owner = multiplayerOwner(event);
+    const registered = multiplayerOwners.get(owner);
+    if (registered) registered.sender.removeListener("destroyed", registered.onDestroyed);
+    multiplayerOwners.delete(owner);
+    return multiplayer.leave(owner);
+  });
+
   handle("room:networkGetStatus", async (event) => {
     const room = requireRoom(event);
     return networkService.getRoomStatus(room);
@@ -1484,6 +1538,9 @@ function registerIpcHandlers({
   });
 
   return () => {
+    multiplayer.dispose();
+    for (const registered of multiplayerOwners.values()) registered.sender.removeListener("destroyed", registered.onDestroyed);
+    multiplayerOwners.clear();
     for (const channel of registeredChannels) ipcMain.removeHandler(channel);
     for (const stream of exportStreams.values()) stream.handle.close().catch(() => {});
     exportStreams.clear();

@@ -138,6 +138,15 @@ function start(input, schemeRegistered = false) {
     handle("room:aiBatch", (requests, options) => aiMock.batch(requests, options), runtimeAiPermission);
     handle("room:credentialList", () => []);
     handle("room:networkGetStatus", () => ({ enabled: false, allowed: false, reason: "隔离检查禁止外网" }));
+    // Capability queries work offline; isolated checks never open real LAN sockets.
+    handle("room:multiplayerGetStatus", () => ({ supported: true, canHost: true, transport: "lan", role: null, connected: false, peerId: null, isolated: true }), ["multiplayer"]);
+    const rejectIsolatedMultiplayer = () => { throw new Error("隔离运行检查不创建或连接真实联机游戏；请用手机和电脑另行验证"); };
+    handle("room:multiplayerCreate", rejectIsolatedMultiplayer, ["multiplayer", "host"]);
+    handle("room:multiplayerJoin", rejectIsolatedMultiplayer, ["multiplayer", "join"]);
+    handle("room:multiplayerSend", rejectIsolatedMultiplayer, ["multiplayer"]);
+    handle("room:multiplayerRead", rejectIsolatedMultiplayer, ["multiplayer"]);
+    handle("room:multiplayerLeave", () => true);
+    if (room.requestedPermissions?.multiplayer?.length) report.limitations.push("联机仅检查接口与离线界面；跨设备通信、手机热点和掉线恢复须另行验收");
     // Only declared synthetic bytes are materialized under this disposable worker's root.
     // Reuse production file services so handles, paging and room isolation stay identical.
     const fixtureRoot = path.join(jobRoot, "fixtures");

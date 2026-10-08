@@ -52,6 +52,7 @@ class RoomViewManager {
     this.senderRooms = new Map();
     this.windowBounds = new Map();
     this.activeRoomId = null;
+    this.openEpoch = 0;
     this.viewport = { x: 296, y: 80, width: 900, height: 700 };
     this.persistTimer = null;
     this.persistQueue = Promise.resolve();
@@ -179,7 +180,11 @@ class RoomViewManager {
       return { ...room, windowMode: "detached" };
     }
     this.hide();
+    const openEpoch = this.openEpoch;
     const view = await this.ensureViewLoaded(roomId, room);
+    if (openEpoch !== this.openEpoch || !webContentsUsable(view)) {
+      return { ...room, windowMode: "superseded" };
+    }
     this.mainWindow.contentView.addChildView(view);
     view.setBounds(this.viewport);
     this.activeRoomId = roomId;
@@ -189,12 +194,13 @@ class RoomViewManager {
   }
 
   hide() {
-    if (!this.activeRoomId) return;
-    const roomId = this.activeRoomId;
-    this.browserService?.hideRoom(roomId);
-    const current = this.views.get(roomId);
-    if (webContentsUsable(current) && !this.detachedWindows.has(roomId)) {
-      try { this.mainWindow.contentView.removeChildView(current); } catch {}
+    this.openEpoch += 1;
+    // A previous asynchronous open may have left a view attached after another
+    // room became active. Remove every attached room before showing a modal.
+    for (const [roomId, view] of this.views) {
+      if (this.detachedWindows.has(roomId)) continue;
+      this.browserService?.hideRoom(roomId);
+      try { this.mainWindow.contentView.removeChildView(view); } catch {}
     }
     this.activeRoomId = null;
   }

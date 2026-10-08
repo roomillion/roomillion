@@ -1716,6 +1716,36 @@ async function runSmokeCheck(dataRoot) {
       throw new Error(`示例房间运行检查失败：${JSON.stringify(result)}`);
     }
   }
+  const oldRoomId = getExamplePackages().at(-1).roomId;
+  const newRoomId = "cn.zhibian.smoke.embedded";
+  const settingsAfterInstall = await mainWindow.webContents.executeJavaScript(`(async () => {
+    await openRoom(${JSON.stringify(oldRoomId)});
+    await showExamplesDialog();
+    elements.examplesDialog.close();
+    await beginImport(${JSON.stringify(embeddedPackagePath)});
+    await confirmImport(new Event("submit", { cancelable: true }));
+    await showSettingsHub();
+    return { open: elements.settingsHubDialog.open, roomId: state.activeRoomId };
+  })()`);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const attachedDuringSettings = [...roomViews.views.entries()]
+    .filter(([, view]) => mainWindow.contentView.children.includes(view))
+    .map(([roomId]) => roomId);
+  if (!settingsAfterInstall.open || settingsAfterInstall.roomId !== newRoomId ||
+      roomViews.activeRoomId !== null || attachedDuringSettings.length !== 0) {
+    throw new Error(`安装新房间后设置被旧房间遮挡：${JSON.stringify({ settingsAfterInstall, activeRoomId: roomViews.activeRoomId, attachedDuringSettings })}`);
+  }
+  await mainWindow.webContents.executeJavaScript("elements.settingsHubDialog.close()");
+  const restoreDeadline = Date.now() + 3000;
+  while (roomViews.activeRoomId !== newRoomId && Date.now() < restoreDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  const attachedAfterSettings = [...roomViews.views.entries()]
+    .filter(([, view]) => mainWindow.contentView.children.includes(view))
+    .map(([roomId]) => roomId);
+  if (roomViews.activeRoomId !== newRoomId || attachedAfterSettings.join(",") !== newRoomId) {
+    throw new Error(`关闭设置后没有恢复新房间：${JSON.stringify({ activeRoomId: roomViews.activeRoomId, attachedAfterSettings })}`);
+  }
   const composedRoom = await createComposedRoom({
     spec: {
       specVersion: "room-spec@1",

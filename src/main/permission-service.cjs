@@ -5,6 +5,8 @@ const path = require("node:path");
 const { ROOM_ID_PATTERN, normalizeNetworkOrigin } = require("./manifest.cjs");
 
 const PERMISSION_DEFINITIONS = Object.freeze({
+  "multiplayer.host": Object.freeze({ key: "multiplayer.host", domain: "multiplayer", value: "host", title: "在局域网创建联机游戏", description: "通过工作台监听玩家连接并交换房间消息；电脑和安卓均可开房，不需要互联网。", risk: "medium", required: false }),
+  "multiplayer.join": Object.freeze({ key: "multiplayer.join", domain: "multiplayer", value: "join", title: "加入局域网游戏", description: "使用你提供的加入信息连接同版本房间的主机，交换游戏消息。", risk: "medium", required: false }),
   "database.private": Object.freeze({
     key: "database.private",
     domain: "database",
@@ -184,6 +186,7 @@ function clone(value) {
 
 function keysForPermissions(permissions = {}) {
   const keys = [];
+  if (Array.isArray(permissions.multiplayer)) for (const value of permissions.multiplayer) if (PERMISSION_DEFINITIONS[`multiplayer.${value}`]) keys.push(`multiplayer.${value}`);
   if (permissions.database === "private") keys.push("database.private");
   if (Array.isArray(permissions.files)) {
     for (const value of permissions.files) {
@@ -230,6 +233,8 @@ function permissionsForKeys(requestedPermissions, selectedKeys) {
   }
 
   const granted = {};
+  const multiplayer = [...selected].filter(key => key.startsWith("multiplayer.")).map(key => key.slice("multiplayer.".length));
+  if (multiplayer.length) granted.multiplayer = multiplayer;
   if (selected.has("database.private")) granted.database = "private";
   const files = [...selected]
     .filter((key) => key.startsWith("files."))
@@ -364,6 +369,7 @@ class PermissionService {
 
   has(roomId, domain, value) {
     const permissions = this.getGrantedPermissions(roomId);
+    if (domain === "multiplayer") return Array.isArray(permissions.multiplayer) && (!value || permissions.multiplayer.includes(value));
     if (domain === "database") return permissions.database === "private";
     if (domain === "files") return Array.isArray(permissions.files) && permissions.files.includes(value);
     if (domain === "ai") return Boolean(permissions.ai?.roles?.includes(value) || (!value && permissions.ai?.roles?.length));

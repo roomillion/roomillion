@@ -21,6 +21,17 @@ function stalledWorker() {
   return child;
 }
 
+test("LAN rooms expose offline capabilities and reject real connections in isolated checks", async () => {
+  const spec = structuredClone(require("./fixtures/lan-room.cjs").spec);
+  spec.files["room-tests.json"] = JSON.stringify({ version: 1, scenarios: [{ name: "隔离联机接口", actions: [
+    { type: "click", selector: "#join" }, { type: "wait", ms: 300 },
+    { type: "assertText", selector: "#status", value: "隔离运行检查不创建或连接真实联机游戏" }
+  ] }] });
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+  assert.ok(result.limitations.some(value => value.includes("跨设备通信")));
+});
+
 test("runtime check timeout finishes even when the Electron child never emits exit or close", async () => {
   const child = stalledWorker();
   await assert.rejects(runWorker("input.json", null, 20, () => child), /运行检查超时/);

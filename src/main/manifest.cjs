@@ -66,7 +66,7 @@ function normalizeNetworkOrigin(value) {
 
 function validatePermissions(value) {
   assertPlainObject(value, "permissions");
-  const allowedKeys = new Set(["database", "files", "ai", "network", "browser", "compute", "tools", "credentials"]);
+  const allowedKeys = new Set(["database", "files", "ai", "network", "browser", "compute", "tools", "credentials", "multiplayer"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new ManifestError(`不支持的权限字段：${key}`);
@@ -91,6 +91,10 @@ function validatePermissions(value) {
     if (!Array.isArray(value.network)) throw new ManifestError("permissions.network 必须是数组");
     const origins = value.network.map(normalizeNetworkOrigin);
     if (new Set(origins).size !== origins.length) throw new ManifestError("permissions.network 不能包含重复服务源");
+  }
+
+  if (value.multiplayer !== undefined) {
+    if (!Array.isArray(value.multiplayer) || value.multiplayer.some(item => !["host", "join"].includes(item)) || new Set(value.multiplayer).size !== value.multiplayer.length) throw new ManifestError("联机权限只能声明 host、join，且不能重复");
   }
 
   if (value.browser !== undefined) {
@@ -146,6 +150,7 @@ function validatePermissions(value) {
   }
   return {
     ...value,
+    ...(value.multiplayer === undefined ? {} : { multiplayer: [...value.multiplayer] }),
     ...(value.files === undefined ? {} : { files: [...new Set(value.files)] }),
     ...(value.browser === undefined ? {} : { browser: [...new Set(value.browser)] }),
     ...(value.network === undefined ? {} : { network: value.network.map(normalizeNetworkOrigin) }),

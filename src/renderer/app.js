@@ -1,6 +1,10 @@
 "use strict";
 
 const IS_AGENT_WINDOW = new URLSearchParams(window.location.search).get("surface") === "agent";
+let roomVisibilityRevision = 0;
+let pendingRoomRestore = Promise.resolve();
+let roomNavigationInProgress = 0;
+let settingsDialogOpening = false;
 
 const state = {
   rooms: [],
@@ -388,17 +392,23 @@ function applyWorkbenchTheme(themeId, { persist = true, broadcast = persist, ann
 }
 
 async function showWorkbenchSettings() {
-  await hideRoomForModal();
-  renderThemeSelection();
-  const theme = WORKBENCH_THEME_MAP.get(state.themeId);
-  setInlineStatus(elements.themeStatus, "当前使用“" + theme.name + "”" + theme.modeLabel + "主题。点击其他主题即可实时切换。", false);
-  elements.workbenchSettingsDialog.showModal();
+  settingsDialogOpening = true;
+  try {
+    await hideRoomForModal();
+    renderThemeSelection();
+    const theme = WORKBENCH_THEME_MAP.get(state.themeId);
+    setInlineStatus(elements.themeStatus, "当前使用“" + theme.name + "”" + theme.modeLabel + "主题。点击其他主题即可实时切换。", false);
+    elements.workbenchSettingsDialog.showModal();
+  } finally { settingsDialogOpening = false; }
 }
 
 async function showSettingsHub(section = "appearance") {
-  await hideRoomForModal();
-  switchSettingsSection(section);
-  elements.settingsHubDialog.showModal();
+  settingsDialogOpening = true;
+  try {
+    await hideRoomForModal();
+    switchSettingsSection(section);
+    elements.settingsHubDialog.showModal();
+  } finally { settingsDialogOpening = false; }
 }
 
 function switchSettingsSection(section) {
@@ -2157,7 +2167,9 @@ function selectedPermissionKeys(root) {
 
 async function openHome() {
   if (state.isAgentWindow) return;
+  const revision = ++roomVisibilityRevision;
   await window.workbench.hideRoom();
+  if (revision !== roomVisibilityRevision) return;
   if (elements.generateDialog.open) elements.generateDialog.close();
   state.activeRoomId = null;
   state.activeSurface = "home";
@@ -2172,14 +2184,19 @@ async function syncViewport() {
 }
 
 async function openRoom(roomId) {
+  const revision = ++roomVisibilityRevision;
+  roomNavigationInProgress += 1;
   try {
     if (state.isAgentWindow) {
       await window.workbench.requestOpenRoom(roomId);
       return;
     }
+    await pendingRoomRestore.catch(() => {});
+    if (revision !== roomVisibilityRevision) return;
     if (!state.tabs.includes(roomId)) state.tabs.push(roomId);
     if (state.detachedRoomIds.has(roomId)) {
       await window.workbench.openRoom(roomId);
+      if (revision !== roomVisibilityRevision) return;
       renderRooms();
       renderTabs();
       return;
@@ -2187,7 +2204,9 @@ async function openRoom(roomId) {
     if (elements.generateDialog.open) elements.generateDialog.close();
     const rect = elements.viewport.getBoundingClientRect();
     await window.workbench.setViewport({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+    if (revision !== roomVisibilityRevision) return;
     const result = await window.workbench.openRoom(roomId);
+    if (revision !== roomVisibilityRevision || result.windowMode === "superseded") return;
     if (result.windowMode === "detached") {
       state.detachedRoomIds.add(roomId);
       renderRooms();
@@ -2201,6 +2220,8 @@ async function openRoom(roomId) {
     renderTabs();
   } catch (error) {
     showToast(formatError(error));
+  } finally {
+    roomNavigationInProgress -= 1;
   }
 }
 
@@ -2518,8 +2539,10 @@ async function confirmImport(event) {
   }
 }
 
-function hideRoomForModal() {
-  if (state.isAgentWindow) return Promise.resolve(true);
+async function hideRoomForModal() {
+  if (state.isAgentWindow) return true;
+  roomVisibilityRevision += 1;
+  await pendingRoomRestore.catch(() => {});
   return window.workbench.hideRoom();
 }
 
@@ -4043,13 +4066,18 @@ async function modifyRoom(event) {
   }
 }
 
-async function restoreActiveRoomAfterDialog() {
-  if (state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
-  if (state.activeRoomId) {
+function restoreActiveRoomAfterDialog() {
+  const revision = roomVisibilityRevision;
+  const restore = async () => {
+    if (roomNavigationInProgress || settingsDialogOpening || state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
+    const roomId = state.activeRoomId;
+    if (!roomId || state.activeSurface !== "room") return;
     await syncViewport();
-    if (state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
-    await window.workbench.openRoom(state.activeRoomId);
-  }
+    if (revision !== roomVisibilityRevision || roomNavigationInProgress || settingsDialogOpening || state.navigatingAiUtility || document.querySelector("dialog[open]:not(#generateDialog)")) return;
+    await window.workbench.openRoom(roomId);
+  };
+  pendingRoomRestore = pendingRoomRestore.then(restore, restore);
+  return pendingRoomRestore;
 }
 
 async function initialize() {
@@ -4667,6 +4695,7 @@ elements.aiUtilityDialog.addEventListener("close", () => {
   restoreActiveRoomAfterDialog();
 });
 elements.workbenchSettingsDialog.addEventListener("close", restoreActiveRoomAfterDialog);
+elements.settingsHubDialog.addEventListener("close", restoreActiveRoomAfterDialog);
 elements.networkDialog.addEventListener("close", restoreActiveRoomAfterDialog);
 elements.agentImagePreviewDialog.addEventListener("close", () => {
   elements.agentImagePreview.removeAttribute("src");

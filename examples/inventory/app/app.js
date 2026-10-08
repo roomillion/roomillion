@@ -12,7 +12,7 @@ function setStatus(message, isError = false) {
 
 async function initialize() {
   const info = await window.room.getInfo();
-  document.getElementById("roomIdentity").textContent = info.id.split(".").at(-1);
+  document.getElementById("roomIdentity").textContent = info.id.split(".").pop();
   await window.room.db.run("CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, quantity INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)");
   await refresh();
 }

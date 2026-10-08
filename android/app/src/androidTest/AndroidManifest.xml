@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Test-only source that the production APK has no permission to read. -->
+        <provider android:name="io.roomillion.android.DeniedRoomProvider" android:authorities="io.roomillion.android.test.denied"
+            android:exported="true" android:readPermission="android.permission.READ_CONTACTS" />
+    </application>
+</manifest>

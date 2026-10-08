@@ -111,6 +111,11 @@ function fixture({ cursor = { x: 1600, y: 300 }, windowStatePath } = {}) {
     name: "测试房间",
     version: "1.0.0",
     entry: "app/index.html"
+  }], ["cn.zhibian.test.second", {
+    id: "cn.zhibian.test.second",
+    name: "新安装的房间",
+    version: "1.0.0",
+    entry: "app/index.html"
   }]]);
   const events = [];
   const manager = new RoomViewManager(
@@ -167,6 +172,42 @@ test("room renderers remain unthrottled while the workbench is in the background
   const view = manager.createView("cn.zhibian.test.room");
   assert.equal(view.options.webPreferences.backgroundThrottling, false);
   manager.close("cn.zhibian.test.room");
+});
+
+test("a stale room open cannot cover a newer room or a workbench modal", async () => {
+  const { manager, mainWindow } = fixture();
+  const oldId = "cn.zhibian.test.room";
+  const newId = "cn.zhibian.test.second";
+  const oldView = manager.createView(oldId);
+  let releaseOldLoad;
+  let oldLoadStarted;
+  const started = new Promise((resolve) => { oldLoadStarted = resolve; });
+  const blocked = new Promise((resolve) => { releaseOldLoad = resolve; });
+  oldView.webContents.loadURL = async (url) => {
+    oldLoadStarted();
+    await blocked;
+    oldView.webContents.url = url;
+  };
+
+  const staleOpen = manager.open(oldId);
+  await started;
+  const current = await manager.open(newId);
+  releaseOldLoad();
+  assert.equal((await staleOpen).windowMode, "superseded");
+  assert.equal(current.windowMode, "attached");
+  assert.equal(manager.activeRoomId, newId);
+  assert.deepEqual([...mainWindow.contentView.children], [manager.views.get(newId)]);
+
+  // Also clean up a view left attached by an older app version.
+  mainWindow.contentView.addChildView(oldView);
+  manager.hide();
+  assert.equal(manager.activeRoomId, null);
+  assert.equal(mainWindow.contentView.children.size, 0);
+
+  const opening = manager.open(oldId);
+  manager.hide();
+  assert.equal((await opening).windowMode, "superseded");
+  assert.equal(mainWindow.contentView.children.size, 0);
 });
 
 test("detaching and docking reparents the same live WebContentsView without reloading", async () => {

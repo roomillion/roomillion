@@ -1871,6 +1871,16 @@ ${currentContext}`;
                 authorization: "精确服务源声明 + 房间逐源授权 + 主工作台总开关",
                 runtimeDownloads: false
               },
+              multiplayer: {
+                sdk: "window.room.multiplayer", permission: "capabilities.multiplayer / permissions.multiplayer: ['host','join']；用户逐房间授权，与互联网开关独立",
+                transport: "同一局域网内桌面和安卓均可开房或加入；安卓还可用手机热点形成局域网；暂无自动发现、附近直连、跨互联网联机或自动分发房间包",
+                create: "await room.multiplayer.create({name:'游戏',maxPlayers:16}) → status；桌面和安卓 getStatus().canHost 均为 true。先连接同一可互通的局域网；安卓也可以先在工作台开启手机热点。主机显示 invitations 供玩家复制或扫描",
+                join: "await room.multiplayer.join({invitation:完整加入信息,name:'玩家'})；必须安装相同 ID 与版本的房间；邀请含加入凭证，显示二维码/复制按钮供用户分享，不能发送到外网",
+                send: "await room.multiplayer.send(JSON数据,{to:'all'或玩家peerId})；主机默认广播，玩家只能 to:'host'。私密角色必须分别发给指定玩家，不能广播后靠界面隐藏",
+                receive: "单一异步循环 await room.multiplayer.read({timeoutMs:15000}) → {events,role,connected,peerId,...}；事件 type 为 created/joined/reconnected/disconnected/left/connected/message；message:{id,from,data}；主机验证规则，重连后主动发送状态快照",
+                lifecycle: "leave()结束；关闭主机房间、撤销权限或退出工作台会结束游戏；切换安卓房间也会结束游戏。安卓后台通知维持连接服务，不保证页面计时器锁屏时精确运行。每条 JSON ≤64KiB，未处理消息队列≤1MiB；先读取再发大批消息。不要直接调用 WebSocket/fetch",
+                testing: "普通隔离运行测试不连接真实玩家；需额外验证手机开房、电脑/手机加入、私密消息、重连和版本不一致。不要声称单页面模拟即跨设备验收"
+              },
               browser: {
                 roomSdk: "window.room.browser",
                 capabilities: ["navigate", "download"],
@@ -1891,6 +1901,7 @@ ${currentContext}`;
                 tools: ["list", "call"], documents: ["markdownToPdf"], jobs: ["create", "list", "get", "transition", "recover"],
                 ai: ["embed", "rerank", "intuition", "getCapabilities", "listModels", "getSelection", "getSlotDefinitions", "getSlots", "selectSlot", "clearSlot", "selectModel", "generate", "cancel", "batch", "onModelsChanged"],
                 credentials: ["list"], network: ["getStatus", "request", "open", "read", "close", "onStatusChanged"],
+                multiplayer: ["getStatus", "create", "join", "send", "read", "leave"],
                 browser: ["getState", "createTab", "closeTab", "activateTab", "navigate", "goBack", "goForward", "reload", "stop", "setViewport", "clearData", "respondToPermission", "onStateChanged", "onDownload", "onPermissionRequest"]
               },
               customRoomCode: true,
@@ -1917,7 +1928,7 @@ ${currentContext}`;
           icon: Type.Optional(Type.Object({ glyph: Type.String({ minLength: 1, maxLength: 2 }), background: Type.String({ pattern: "^#[0-9A-Fa-f]{6}$" }), foreground: Type.String({ pattern: "^#[0-9A-Fa-f]{6}$" }) }, { additionalProperties: false })),
           useLatestImageAsIcon: Type.Optional(Type.Boolean({ description: "仅当用户明确要求时，把最近上传的 PNG/JPEG/WebP 图片随房间打包为图标" })),
           hostModules: Type.Array(Type.String({ maxLength: 100, description: "仅填写 inspect_room_capabilities 返回的官方离线模块 ID；AI 不是模块，使用 capabilities.ai 申请" })),
-          capabilities: Type.Object({ database: Type.Boolean(), ai: Type.Union([Type.Boolean(), Type.Object({ roles: Type.Array(Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")])), slots: Type.Optional(Type.Record(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }), Type.Object({ role: Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")]), requiresImages: Type.Optional(Type.Boolean()), minimumContextWindow: Type.Optional(Type.Integer({ minimum: 0 })) }, { additionalProperties: false }))) }, { additionalProperties: false })]), files: Type.Array(Type.Union([Type.Literal("pick"), Type.Literal("pickMany"), Type.Literal("directoryRead"), Type.Literal("directoryWrite"), Type.Literal("export"), Type.Literal("largeText")])), compute: Type.Optional(Type.Array(Type.Literal("worker"))), tools: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9.-]{1,79}@\\d+$" }))), credentials: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }))), network: Type.Array(Type.String()), browser: Type.Optional(Type.Array(Type.String())) }, { additionalProperties: false })
+          capabilities: Type.Object({ database: Type.Boolean(), ai: Type.Union([Type.Boolean(), Type.Object({ roles: Type.Array(Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")])), slots: Type.Optional(Type.Record(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }), Type.Object({ role: Type.Union([Type.Literal("general"), Type.Literal("coding"), Type.Literal("vision")]), requiresImages: Type.Optional(Type.Boolean()), minimumContextWindow: Type.Optional(Type.Integer({ minimum: 0 })) }, { additionalProperties: false }))) }, { additionalProperties: false })]), files: Type.Array(Type.Union([Type.Literal("pick"), Type.Literal("pickMany"), Type.Literal("directoryRead"), Type.Literal("directoryWrite"), Type.Literal("export"), Type.Literal("largeText")])), compute: Type.Optional(Type.Array(Type.Literal("worker"))), tools: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9.-]{1,79}@\\d+$" }))), credentials: Type.Optional(Type.Array(Type.String({ pattern: "^[a-z][a-z0-9-]{0,31}$" }))), network: Type.Array(Type.String()), multiplayer: Type.Optional(Type.Array(Type.Union([Type.Literal("host"), Type.Literal("join")]))), browser: Type.Optional(Type.Array(Type.String())) }, { additionalProperties: false })
         }, { additionalProperties: false }),
         executionMode: "sequential",
         execute: async (_id, params, signal) => {
