@@ -36,7 +36,7 @@ import java.io.File
 import java.util.concurrent.Executors
 
 /** Minimal trusted workbench surface. Room content is always displayed in a separate WebView. */
-class MainActivity : Activity() {
+open class MainActivity : Activity() {
     private val store by lazy { RoomPackageStore(File(filesDir, "rooms")) }
     private val transfers by lazy { RoomTransferStore(File(filesDir, "rooms")) }
     private val permissions by lazy { RoomPermissionStore(this) }
@@ -50,6 +50,9 @@ class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
     private val aiWorker = Executors.newFixedThreadPool(3)
     private var runtime: RoomRuntime? = null
+    private var agentView: RoomAgentView? = null
+    private var agentValidation: ((Intent?) -> Unit)? = null
+    @Volatile private var agentValidationGeneration = 0
     internal var activeRoomModelPicker: AlertDialog? = null
         private set
     private var roomPermissionDialog: AlertDialog? = null
@@ -71,6 +74,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The isolated test host must not bootstrap or enumerate the user's workbench.
+        if (this is RoomValidationActivity) return
         CookieManager.getInstance().apply {
             setAcceptCookie(false)
             removeAllCookies { flush() }
@@ -185,6 +190,8 @@ class MainActivity : Activity() {
     }
 
     private fun showHome() {
+        agentView?.close()
+        agentView = null
         roomPermissionDialog?.dismiss()
         activeRoomModelPicker?.dismiss()
         setRoomBackEnabled(false)
@@ -226,6 +233,7 @@ class MainActivity : Activity() {
             }
             actions.addView(button("卸载", WorkbenchStyle.Tone.DANGER) { confirmUninstall(room) }, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(actions)
+            row.addView(button("AI 修改房间") { openRoomAgent(room.id) })
             list.addView(row)
         }
         if (rooms.isEmpty()) list.addView(style.card().apply {
@@ -292,6 +300,9 @@ class MainActivity : Activity() {
                     val outcome = runCatching {
                         permissions.revoke(room)
                         require(store.uninstall(room.id)) { "房间已不存在" }
+                        val draft=File(filesDir,"room-agent/${room.id}")
+                        require(draft.canonicalPath.startsWith(File(filesDir,"room-agent").canonicalPath+File.separator))
+                        draft.deleteRecursively()
                     }
                     runOnUiThread {
                         if (isDestroyed) return@runOnUiThread
@@ -307,6 +318,7 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this).setTitle("隐私与数据")
             .setMessage("房间程序、数据库和附件保存在本机；应用没有账号同步或自动云备份。\n\n" +
                 "授权房间使用 AI 后，请求中的提示词及房间提交的图片、音频等内容会发送到你配置的模型服务。模型密钥由 Android Keystore 加密，不交给房间。\n\n" +
+                "AI 修改房间时，修改要求和读取的程序源码会发送给选中的编程模型；对话与草稿保存在本机。\n\n" +
                 "诊断记录留在本机，只有你主动选择导出时才生成报告。导出“应用＋数据”包会包含数据库和附件，可选择密码保护。\n\n" +
                 "在房间列表卸载房间会删除本机该房间的数据和授权；已导出的文件需自行保管或删除。")
             .setPositiveButton("知道了", null).show()
@@ -521,6 +533,47 @@ class MainActivity : Activity() {
         }
     }
 
+    internal fun openRoomAgent(id: String) {
+        try {
+            if (aiStore.listPublic().length() == 0) { alert("请先配置工作台 AI 模型"); showAiSettings(); return }
+            runtime?.close(); runtime = null
+            agentView?.close(); agentView = null
+            content.removeAllViews(); title.text = "AI 修改房间"
+            content.addView(button("返回房间列表（草稿自动保存）") { showHome() }, columnParams())
+            val editor = RoomAgentView(this, store, aiStore, permissions, id)
+            agentView = editor
+            content.addView(editor.webView, LinearLayout.LayoutParams(-1,0,1f))
+            setRoomBackEnabled(true)
+        } catch (error: Exception) { showHome(); alert(error.message ?: "无法打开 AI 修改") }
+    }
+
+    internal fun validateAgentDraft(workspace: RoomAgentWorkspace, scenario: JSONObject, canRun: ()->Boolean = {true}): JSONObject {
+        var generation = agentValidationGeneration
+        require(scenario.toString().length <= 100_000) { "测试场景过大" }
+        val directory = File(filesDir,"agent-validation").apply { mkdirs() }
+        val snapshot = File(directory,"${java.util.UUID.randomUUID()}.room")
+        RoomAgentWorkspace.pack(workspace.program,snapshot)
+        val done = java.util.concurrent.CountDownLatch(1)
+        var report = JSONObject().put("passed",false).put("error","测试中断或超时")
+        runOnUiThread {
+            if (isDestroyed || !canRun() || generation!=agentValidationGeneration) { done.countDown(); return@runOnUiThread }
+            generation = ++agentValidationGeneration
+            agentValidation = { result ->
+                runCatching { result?.getStringExtra("report")?.let { report=JSONObject(it) } }
+                done.countDown()
+            }
+            runCatching {
+                @Suppress("DEPRECATION")
+                startActivityForResult(Intent(this,RoomValidationActivity::class.java)
+                    .putExtra("package",snapshot.absolutePath).putExtra("scenario",scenario.toString()),7002)
+            }.onFailure {report=JSONObject().put("passed",false).put("error","无法启动隔离测试");done.countDown()}
+        }
+        try { done.await(90,java.util.concurrent.TimeUnit.SECONDS);return report }
+        finally { snapshot.delete();runOnUiThread { if(generation==agentValidationGeneration){agentValidation=null;@Suppress("DEPRECATION") finishActivity(7002)} } }
+    }
+
+    internal fun cancelAgentValidation() { ++agentValidationGeneration;agentValidation?.invoke(null);agentValidation=null;@Suppress("DEPRECATION") finishActivity(7002) }
+
     private fun editRoomPermissions(room: InstalledRoom, openAfter: Boolean) {
         roomPermissionDialog?.dismiss()
         val requested = permissions.requested(room)
@@ -573,6 +626,7 @@ class MainActivity : Activity() {
             content.gravity = Gravity.CENTER_HORIZONTAL
             title.text = room.name
             content.addView(button("返回房间列表") { showHome() }, columnParams())
+            content.addView(button("AI 修改") { openRoomAgent(room.id) }, columnParams())
             if (grants.ai && aiStore.listPublic().length() > 1) {
                 content.addView(button("切换默认 AI") { showRoomModelPicker() }, columnParams())
             }
@@ -891,6 +945,7 @@ class MainActivity : Activity() {
     @Deprecated("Legacy Activity result keeps the prototype free of an additional AndroidX activity dependency")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 7002) { val callback=agentValidation; agentValidation=null; callback?.invoke(if(resultCode==RESULT_OK)data else null);return }
         if (requestCode != FILE_REQUEST) return
         val callback = pendingFile
         pendingFile = null
@@ -985,10 +1040,13 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     @Deprecated("Android 12 fallback; newer systems use OnBackInvokedCallback")
     override fun onBackPressed() {
-        if (runtime != null) showHome() else super.onBackPressed()
+        if (runtime != null || agentView != null) showHome() else super.onBackPressed()
     }
 
     override fun onDestroy() {
+        if(this is RoomValidationActivity){worker.shutdownNow();aiWorker.shutdownNow();super.onDestroy();return}
+        agentView?.close()
+        agentView = null
         hotspotDialog?.dismiss()
         hotspot.close()
         cancelRoomImport()

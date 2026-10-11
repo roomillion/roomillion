@@ -89,8 +89,13 @@ val aiProviderAssets = tasks.register<Exec>("stageAndroidAiProviders") {
     workingDir = rootProject.projectDir.parentFile
     commandLine("node", "scripts/android-stage-ai-providers.cjs")
 }
+val agentAssets = tasks.register<Exec>("stageAndroidAgent") {
+    dependsOn(androidModuleAssets)
+    workingDir = rootProject.projectDir.parentFile
+    commandLine("node", "scripts/android-stage-agent.cjs")
+}
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") && !it.name.contains("AndroidTest") }
-    .configureEach { dependsOn(androidModuleAssets, bundledExampleAssets, aiProviderAssets) }
+    .configureEach { dependsOn(androidModuleAssets, bundledExampleAssets, aiProviderAssets, agentAssets) }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.16.0")

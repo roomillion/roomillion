@@ -18,6 +18,7 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/RoomillionTheme">
         <service android:name=".LanForegroundService" android:exported="false" android:foregroundServiceType="connectedDevice" />
+        <activity android:name=".RoomValidationActivity" android:exported="false" android:process=":room_validation" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

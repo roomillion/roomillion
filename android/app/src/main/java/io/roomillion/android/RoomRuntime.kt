@@ -24,7 +24,11 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 import java.util.UUID
 
-class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, private val grants: RoomGrants) {
+data class RoomRuntimeTestOptions(val aiResponses: List<String>, val pickText: JSONObject?,
+    val errors: MutableList<String>, val ready: () -> Unit) { var aiIndex=0 }
+
+class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, private val grants: RoomGrants,
+    private val test: RoomRuntimeTestOptions? = null) {
     val webView: WebView
     private val host = "r-${sha256(room.id).take(24)}.roomillion.invalid"
     private val origin = "https://$host"
@@ -53,6 +57,16 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
         require(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) { "系统 WebView 缺少安全消息桥能力" }
         webView = WebView(activity)
         configureWebView()
+        if(test!=null)webView.webChromeClient=object:android.webkit.WebChromeClient(){
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                val text=message.message()
+                // Old Android 12 Chromium ignores this newer CSP token and emits
+                // an ERROR-level compatibility notice. It is not a room exception.
+                val oldWasmNotice=text.startsWith("The source list for the Content Security Policy directive 'script-src' contains an invalid source:") && text.contains("'wasm-unsafe-eval'") && text.endsWith("It will be ignored.")
+                if(message.messageLevel()==android.webkit.ConsoleMessage.MessageLevel.ERROR && !oldWasmNotice)test.errors.add(text.take(500))
+                return true
+            }
+        }
         val loader = WebViewAssetLoader.Builder().setDomain(host)
             .addPathHandler("/room/", WebViewAssetLoader.PathHandler { relative -> loadResource(relative) })
             .build()
@@ -61,7 +75,8 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
                 val uri = request.url
                 if (uri.scheme != "https" || uri.host != host || uri.port != -1) return denied()
                 if (uri.path == "/_roomillion/bridge.js" && !documentStartSupported) {
-                    return serve("bridge.js", activity.assets.open("room-bridge.js"))
+                    val bridge=activity.assets.open("room-bridge.js")
+                    return serve("bridge.js",if(test==null)bridge else java.io.SequenceInputStream(java.io.ByteArrayInputStream("window.addEventListener('error',e=>console.error(e.message));window.addEventListener('unhandledrejection',e=>console.error(String(e.reason)));".toByteArray()),bridge))
                 }
                 if (uri.path.orEmpty().startsWith("/_modules/")) return loadModule(uri.path.orEmpty())
                 if (!uri.path.orEmpty().startsWith("/room/")) return denied()
@@ -73,6 +88,11 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
             }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 if (!url.startsWith("$origin/room/")) view.stopLoading()
+            }
+            override fun onPageFinished(view: WebView,url: String) { test?.ready?.invoke() }
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                if(test==null)return false
+                test.errors.add("测试页面渲染进程终止");test.ready();return true
             }
         }
         val origins = setOf(origin)
@@ -93,6 +113,7 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
         if (documentStartSupported) {
             val bridge = activity.assets.open("room-bridge.js").bufferedReader().use { it.readText() }
             WebViewCompat.addDocumentStartJavaScript(webView, bridge, origins)
+            if(test!=null)WebViewCompat.addDocumentStartJavaScript(webView,"window.addEventListener('error',e=>console.error(e.message));window.addEventListener('unhandledrejection',e=>console.error(String(e.reason)));",origins)
         }
         webView.loadUrl(roomUrl)
     }
@@ -258,6 +279,27 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
                          chunk: (String, String) -> Unit) {
         try {
             val args = request.optJSONArray("args") ?: JSONArray()
+            if(test!=null) {
+                val method=request.getString("method")
+                when {
+                    method=="ai.listModels"->{require(permitted("ai")){"房间没有 AI 权限"};succeed(JSONArray().put(JSONObject().put("id","test-model").put("model","isolated-mock").put("label","隔离模拟模型").put("ready",true).put("isDefault",true).put("supportsImages",true).put("supportsAudio",true).put("input",JSONArray(listOf("text","image","audio")))));return}
+                    method=="ai.generate"->{
+                        require(permitted("ai")){"房间没有 AI 权限"};args.getString(0)
+                        val options=args.optJSONObject(1)?:JSONObject()
+                        if((options.optJSONArray("images")?.length()?:0)>0)require(permittedAiRole("vision")){"房间没有视觉 AI 权限"}
+                        if((options.optJSONArray("audio")?.length()?:0)>0)require(permittedAiRole("audio")){"房间没有音频 AI 权限"}
+                        require(test.aiIndex<test.aiResponses.size){"隔离测试不调用真实 AI，请按调用顺序提供 aiResponses"}
+                        val text=test.aiResponses[test.aiIndex++];if(options.optBoolean("stream"))chunk(text,text)
+                        succeed(JSONObject().put("text",text).put("model","isolated-mock"));return}
+                    method=="files.pickText"->{require(permitted("files","pick")){"房间没有读取文件权限"};succeed(test.pickText?:JSONObject.NULL);return}
+                    method=="files.exportText"->{require(permitted("files","export")){"房间没有导出文件权限"};args.getString(1);succeed(JSONObject().put("path","测试导出").put("name",args.getString(0)));return}
+                    method.startsWith("files.") || method.startsWith("ai.") && method !in setOf("ai.mediaBegin","ai.mediaWrite","ai.mediaAbort") || method.startsWith("multiplayer.")->{
+                        if(method=="multiplayer.getStatus"){require(permitted("multiplayer")){"房间没有局域网联机权限"};succeed(JSONObject().put("supported",true).put("canHost",grants.host).put("connected",false).put("isolated",true))}
+                        else if(method=="multiplayer.leave"){require(permitted("multiplayer")){"房间没有局域网联机权限"};succeed(true)}
+                        else fail(IllegalStateException("隔离测试不调用真实文件、模型或联机服务"));return
+                    }
+                }
+            }
             when (request.getString("method")) {
                 "getInfo" -> succeed(JSONObject().put("id", room.id).put("name", room.name).put("version", room.version)
                     .put("limits", JSONObject().put("aiMediaBytes", AiMediaCodec.MAX_REQUEST_BYTES)

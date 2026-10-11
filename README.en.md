@@ -6,7 +6,7 @@ Roomillion is an offline-first desktop workbench. Its AI can create, revise, ins
 
 The current source version is 0.4.1. Windows x64 has an installer and two portable formats; generic Linux x64 is a technical preview. Each platform needs its own workbench build, but compatible .room packages can move between them. There is no publishable macOS build yet. This is still a technical preview, and the Linux build is not certification for any particular UOS release.
 
-An independent [experimental Android Room host](android/README.md) is under development. It can import a subset of compatible Rooms, but has not been released and does not create Rooms with AI on the phone.
+An independent [experimental Android Room host](android/README.md) is under development. It can import a subset of compatible Rooms and use AI to modify installed Rooms. It has not been officially released; creating new Rooms with AI is not yet supported on Android.
 
 ## Get started
 
