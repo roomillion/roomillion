@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
 const { normalizeRoomTestDefinition, runDeclaredScenarios } = require("../src/main/room-test-definition.cjs");
 
 test("room test definitions normalize bounded scenarios and AI mocks", () => {
@@ -32,6 +33,39 @@ test("declared scenarios return renderer failures as structured test results", a
   }));
   assert.equal(result.passed, false);
   assert.match(result.error, /文本断言失败/);
+});
+
+function asynchronousPage(update) {
+  let clock = 0;
+  const document = { documentElement: { dataset: {} }, body: { innerText: "页面加载中" }, querySelector: () => ({ textContent: clock < 600 ? "加载中" : update }) };
+  const webContents = { executeJavaScript: source => vm.runInNewContext(source, {
+    document, Date: { now: () => clock }, setTimeout: callback => { clock += 50; callback(); }
+  }) };
+  return { webContents, document, elapsed: () => clock };
+}
+
+test("text assertions wait for asynchronous results and re-query replaced elements", async () => {
+  const page = asynchronousPage("完成");
+  const result = await runDeclaredScenarios(page.webContents, normalizeRoomTestDefinition({
+    version: 1, scenarios: [{ name: "异步渲染", actions: [{ type: "assertText", selector: "#output", value: "完成" }] }]
+  }));
+  assert.equal(result.passed, true, result.error);
+  assert.equal(page.elapsed(), 600);
+});
+
+test("text assertion retries remain bounded and stop on room initialization errors", async () => {
+  const definition = normalizeRoomTestDefinition({ version: 1, scenarios: [{ actions: [{ type: "assertText", selector: "#output", value: "完成" }] }] });
+  const page = asynchronousPage("仍在加载");
+  const failure = await runDeclaredScenarios(page.webContents, definition);
+  assert.equal(failure.passed, false);
+  assert.match(failure.error, /文本断言失败.*仍在加载/);
+  assert.equal(page.elapsed(), 5000);
+  const broken = asynchronousPage("完成");
+  broken.document.documentElement.dataset.roomError = "初始化失败";
+  const fatal = await runDeclaredScenarios(broken.webContents, definition);
+  assert.equal(fatal.passed, false);
+  assert.equal(fatal.error, "初始化失败");
+  assert.equal(broken.elapsed(), 0);
 });
 
 test("multi-round regression suites retain more than twenty scenarios", async () => {

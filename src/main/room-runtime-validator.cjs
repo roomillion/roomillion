@@ -8,7 +8,7 @@ const { normalizeRoomTestDefinition } = require("./room-test-definition.cjs");
 
 function declaredRuntimeTimeout(input) {
   const definition = normalizeRoomTestDefinition(input);
-  const duration = (definition?.scenarios || []).flatMap(item => item.actions).reduce((total, action) => total + (action.type === "wait" ? action.ms : action.type === "reload" ? 12000 : action.type === "click" ? 100 : 0), 0);
+  const duration = (definition?.scenarios || []).flatMap(item => item.actions).reduce((total, action) => total + (action.type === "wait" ? action.ms : action.type === "reload" ? 12000 : action.type === "assertText" ? 5000 : action.type === "click" ? 100 : 0), 0);
   return Math.min(300000, 45000 + duration);
 }
 

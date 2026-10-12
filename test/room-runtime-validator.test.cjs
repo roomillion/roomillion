@@ -9,6 +9,8 @@ test("runtime timeout includes declared waits and reloads with a bounded ceiling
   assert.equal(declaredRuntimeTimeout(undefined), 45000);
   const definition = { version: 1, scenarios: [{ actions: [{ type: "wait", ms: 5000 }, { type: "reload" }, { type: "click", selector: "button" }] }] };
   assert.equal(declaredRuntimeTimeout(definition), 62100);
+  definition.scenarios[0].actions.push({ type: "assertText", selector: "#out", value: "完成" });
+  assert.equal(declaredRuntimeTimeout(definition), 67100);
   definition.scenarios[0].actions = Array.from({ length: 100 }, () => ({ type: "wait", ms: 5000 }));
   assert.equal(declaredRuntimeTimeout(definition), 300000);
 });

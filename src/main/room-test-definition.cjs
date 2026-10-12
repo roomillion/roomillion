@@ -95,7 +95,17 @@ async function runDeclaredScenarios(webContents, definition) {
             element.dispatchEvent(new Event('change', { bubbles: true }));
           }
           if (action.type === 'assertText') {
-            const actual = String(element.textContent || element.value || '');
+            const deadline = Date.now() + 5000;
+            let actual;
+            // IPC-backed handlers are asynchronous; re-query because rendering may replace the node.
+            while (true) {
+              const roomError = document.documentElement.dataset.roomError;
+              if (roomError) throw new Error(roomError);
+              const current = document.querySelector(action.selector);
+              actual = String(current?.textContent || current?.value || '');
+              if (actual.includes(action.value) || Date.now() >= deadline) break;
+              await sleep(50);
+            }
             if (!actual.includes(action.value)) throw new Error('测试场景“' + scenarioName + '”文本断言失败：' + action.selector + '；期望包含 ' + JSON.stringify(action.value.slice(0, 120)) + '，实际为 ' + JSON.stringify(actual.slice(0, 300)) + '；当前页面：' + String(document.body.innerText || '').slice(-1000));
           }
           const roomError = document.documentElement.dataset.roomError;

@@ -37,7 +37,7 @@ async function smoke() {
   actions = await new RoomActionService({ roomStore: store, roomViews: views, blobService: blobs, onEvent: emit }).init();
   const ai = await new AiService(store.dataRoot).init();
   const { AssistantMessageEventStream } = await import("@earendil-works/pi-ai/utils/event-stream");
-  let broken = false;
+  let broken = false, polls = 0;
   if (realMode) {
     if (!process.env.MIMO_API_KEY) throw new Error("需要 MIMO_API_KEY 环境变量");
     await ai.saveProfile({ providerId: "xiaomi-token-plan-cn", model: "mimo-v2.5", apiKey: process.env.MIMO_API_KEY, rememberKey: false });
@@ -53,7 +53,9 @@ async function smoke() {
       else if (turn === 3) result = call("call_room_action", { roomId: inventory, actionId: "export", input: { format: "markdown" } });
       else if (turn === 4) result = call("call_room_action", { roomId: inventory, actionId: "remove", input: { id: 1 } });
       else result = call("get_room_task", { taskId: actions.list(assistant.list()[0].id).find(task => task.actionId === "remove").id });
-    } else if (turn === 3 && last.toolName === "call_room_action" && payload.actionId === "export") {
+    } else if (["queued", "running"].includes(payload?.status)) {
+      result = call("get_room_task", { taskId: payload.id, waitMs: 1000 }, `wait-${++polls}`);
+    } else if (turn === 3 && ["call_room_action", "get_room_task"].includes(last.toolName) && payload.actionId === "export") {
       if (!broken) { broken = true; result = answer([], "Stream ended without finish_reason"); }
       else result = call("transfer_room_file", { targetRoomId: documents, taskId: payload.id, artifactId: payload.artifacts[0].id }, "1");
     } else if (turn === 3 && last.toolName === "transfer_room_file") result = call("call_room_action", { roomId: documents, actionId: "convert-markdown", input: { artifactId: payload.artifactId, format: "pdf", name: "物资清单" } }, "2");
