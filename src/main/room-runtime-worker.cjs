@@ -59,6 +59,11 @@ function start(input, schemeRegistered = false) {
       return withEvent ? fn(event, ...args) : fn(...args);
     });
     handle("room:getInfo", () => room);
+    handle("room:actionRegister", ids => {
+      const declared = new Set((room.actions || []).map(action => action.id));
+      if (!Array.isArray(ids) || ids.some(id => !declared.has(id))) throw new Error("操作未在 manifest.actions 中声明");
+      return true;
+    });
     handle("room:dbQuery", (sql, params) => database.query(room.id, sql, params), ["database", "read"]);
     handle("room:dbRun", (sql, params) => database.run(room.id, sql, params), ["database", "write"]);
     handle("room:storageGet", key => database.storageGet(room.id, key), ["database"]);

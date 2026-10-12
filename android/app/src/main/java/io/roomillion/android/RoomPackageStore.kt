@@ -275,6 +275,7 @@ class RoomPackageStore(private val root: File) {
         require(manifest.getString("name").length in 1..80) { "房间名称无效" }
         require(manifest.getString("version").matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?"))) { "房间版本无效" }
         val entry = manifest.getString("entry")
+        RoomActionSchema.definitions(manifest)
         val permissions = manifest.optJSONObject("permissions")
         if (permissions?.has("multiplayer") == true) {
             val values = permissions.getJSONArray("multiplayer")

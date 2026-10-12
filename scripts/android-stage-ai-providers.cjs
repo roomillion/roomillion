@@ -20,7 +20,7 @@ async function buildCatalog() {
     // Copilot also needs its own login/header exchange; Android has not implemented it.
     if (!provider.configurable || provider.source !== "pi-builtin" || provider.id === "github-copilot") continue;
     const models = provider.models.filter((model) => model.api === "openai-completions")
-      .map((model) => ({ id: model.id, name: model.name, endpoint: chatEndpoint(model.baseUrl || provider.baseUrl), input: model.input }))
+      .map((model) => ({ id: model.id, name: model.name, endpoint: chatEndpoint(model.baseUrl || provider.baseUrl), input: model.input, reasoning: Boolean(model.reasoning) }))
       .filter((model) => model.endpoint);
     if (!models.length) continue;
     const defaultModel = models.find((model) => model.id === provider.defaultModel) || models[0];

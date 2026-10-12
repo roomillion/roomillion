@@ -6,6 +6,24 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+test("Android action bridge rolls back invalid registrations and preserves task cancellation and result signatures", async () => {
+  const calls = [], page = { addEventListener() {} }; page.top = page;
+  page.RoomillionNative = { postMessage(serialized) {
+    const { id, method, args } = JSON.parse(serialized); calls.push({ method, args });
+    const invalid = method === "actions.register" && args[0].includes("undeclared");
+    page.RoomillionNative.onmessage({ data: JSON.stringify({ id, ok: !invalid, result: true, error: "只能注册声明的操作" }) });
+  } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../android/app/src/main/assets/room-bridge.js"), "utf8"), { window: page, AbortController });
+  await page.room.actions.register("sum", async ({ quantity }, context) => { await context.report("正在执行"); context.throwIfCancelled(); return { quantity }; });
+  await assert.rejects(page.room.actions.register("undeclared", () => null), /声明/);
+  await page.room.actions.register("stop", async (_input, context) => { page.__roomillionActionCancel(context.taskId); context.throwIfCancelled(); });
+  assert.deepEqual(calls.filter(call => call.method === "actions.register").at(-1).args[0], ["sum", "stop"]);
+  await page.__roomillionActionInvoke({ taskId: "one", actionId: "sum", input: { quantity: 7 } });
+  assert.deepEqual(calls.filter(call => call.method === "actions.reply").at(-1).args[0], { taskId: "one", ok: true, result: { quantity: 7 } });
+  await page.__roomillionActionInvoke({ taskId: "two", actionId: "stop", input: {} });
+  assert.equal(calls.filter(call => call.method === "actions.reply").at(-1).args[0].ok, false);
+});
+
 test("Android multiplayer bridge uses the same room-scoped method signatures as desktop", async () => {
   const calls = [], page = { addEventListener() {} }; page.top = page;
   page.RoomillionNative = { postMessage(serialized) {

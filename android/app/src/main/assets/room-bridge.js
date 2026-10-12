@@ -237,7 +237,26 @@
       return saved?.path ?? null;
     } finally { await abortExport(handle.token); }
   }
+  const actionHandlers = new Map(), actionRuns = new Map(); let actionRegistration = Promise.resolve();
+  window.__roomillionActionInvoke = async request => {
+    if (!request || actionRuns.has(request.taskId)) return;
+    const controller = new AbortController(); actionRuns.set(request.taskId, controller);
+    const reply = payload => call("actions.reply", { taskId: request.taskId, ...payload });
+    try {
+      const handler = actionHandlers.get(request.actionId); if (!handler) throw Error("房间没有注册此操作");
+      const result = await handler(request.input, Object.freeze({ taskId: request.taskId, isCancelled: () => controller.signal.aborted, throwIfCancelled: () => { if (controller.signal.aborted) throw Error("操作已停止"); }, report: progress => reply({progress:String(progress)}) }));
+      const payload = {ok:true,result:result ?? null}; if (JSON.stringify(payload).length > 900000) throw Error("操作结果过大，大文件请发布为制品");
+      await reply(payload);
+    } catch(error) { await reply({ok:false,error:String(error.message||error)}).catch(()=>{}); }
+    finally { actionRuns.delete(request.taskId); }
+  };
+  window.__roomillionActionCancel = id => actionRuns.get(id)?.abort();
   window.room = Object.freeze({
+    actions: Object.freeze({register: (id, handler) => {
+      if (typeof id !== "string" || typeof handler !== "function") throw TypeError("操作需要 ID 和处理函数");
+      const previous = actionHandlers.get(id); actionHandlers.set(id, handler);
+      actionRegistration = actionRegistration.catch(()=>{}).then(()=>call("actions.register", [...actionHandlers.keys()])).catch(error=>{ if(actionHandlers.get(id)===handler) { if(previous)actionHandlers.set(id,previous);else actionHandlers.delete(id); } throw error; }); return actionRegistration;
+    }}),
     multiplayer: Object.freeze({
       getStatus: () => call("multiplayer.getStatus"),
       create: (options = {}) => call("multiplayer.create", options),

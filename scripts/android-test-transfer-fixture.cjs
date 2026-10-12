@@ -10,6 +10,7 @@ const yazl = require("yazl");
 const { RoomDatabaseService } = require("../src/main/database.cjs");
 const { DataBackupService } = require("../src/main/data-backup-service.cjs");
 const { RoomBlobService } = require("../src/main/room-blob-service.cjs");
+const { extractAndValidate } = require("../src/main/room-package.cjs");
 const { PDFDocument, StandardFonts } = require("pdf-lib");
 const docx = require("docx");
 const XLSX = require("xlsx");
@@ -18,8 +19,9 @@ const PptxGenJS = require("pptxgenjs");
 async function main() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "roomillion-android-transfer-"));
   const output = path.join(__dirname, "..", "android", "app", "build", "generated", "androidTestAssets");
-  const id = "cn.zhibian.example.inventory";
-  const room = { id, name: "物资台账", version: "1.0.0" };
+  const { manifest } = await extractAndValidate(path.join(__dirname, "..", "resources", "examples", "inventory.room"), root);
+  const { id, name, version } = manifest;
+  const room = { id, name, version };
   const store = {
     dataRoot: root,
     tempRoot: root,

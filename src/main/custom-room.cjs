@@ -227,6 +227,7 @@ function normalizeCustomRoomSpec(input) {
     icon: normalizeRoomIconSpec(input.icon, { name, theme }),
     hostModules,
     capabilities: normalizeCapabilities(input.capabilities),
+    actions: require("./room-action-schema.cjs").validateActions(input.actions),
     files
   };
 }
@@ -414,6 +415,7 @@ function customRoomMetadata(spec) {
     icon: spec.icon,
     hostModules: spec.hostModules,
     capabilities: spec.capabilities,
+    actions: spec.actions,
     sourceFiles: Object.keys(spec.files).filter((item) => !["html", "css", "javascript"].includes(item))
   };
 }
@@ -436,6 +438,7 @@ async function createCustomRoom({ spec: input, roomStore, roomId: requestedRoomI
       entry: "app/index.html",
       icon: "assets/icon.svg",
       permissions: customRoomPermissions(spec),
+      actions: spec.actions,
       hostModules: spec.hostModules,
       embeddedDependencies: []
     };

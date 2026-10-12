@@ -1416,3 +1416,38 @@ html[data-font-size] .sidebar :is(.roomItem small, .settingsButton small, .sideb
 .credentialItem small { margin-top:3px; color:var(--ui-text-secondary, #75857e); overflow-wrap:anywhere; }
 @media(max-width:650px){.credentialFields{grid-template-columns:1fr}.credentialFields .wide{grid-column:auto}.credentialActions{align-items:stretch;flex-direction:column}}
 .storageLocationValue { overflow-wrap: anywhere; user-select: text; }
+
+/* 工作台助手：聊天与执行记录分别滚动，长内容保持在各自区域内。 */
+.assistantEntry { background: var(--ui-accent-soft, #e5efea); color: var(--ui-text-strong, #173d32); }
+.assistantModal { width: min(1200px, 95vw); max-width: 95vw; height: min(850px, 92vh); max-height: 92vh; padding: 24px; overflow: hidden; }
+.assistantModal[open] { display: flex; flex-direction: column; gap: 12px; }
+.assistantModal .modalHeader { flex: none; margin: 0; }
+.assistantToolbar { display: flex; flex-wrap: wrap; gap: 8px; flex: none; }
+.assistantToolbar select { max-width: 280px; min-width: 100px; padding: 8px; border: 1px solid #cddbd4; border-radius: 8px; }
+.assistantBody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 32%); gap: 20px; }
+.assistantConversation { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.assistantMessages { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 10px 4px; }
+.assistantMessage { position: relative; padding: 16px; margin-bottom: 12px; border-radius: 12px; background: var(--ui-surface-soft, #eff5f1); overflow-wrap: anywhere; min-width: 0; }
+.assistantMessage.user { background: var(--ui-surface-muted, #e1ece6); margin-left: 20px; }
+.assistantMessage > button { position: absolute; right: 8px; top: 8px; opacity: 0; padding: 4px 8px; }
+.assistantMessage:hover > button, .assistantMessage:focus-within > button { opacity: 1; }
+.assistantMessageText { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.assistantMessage strong { font-size: 13px; display: block; margin-bottom: 8px; }
+.assistantConversation form { flex: none; }
+.assistantConversation textarea { width: 100%; resize: vertical; min-height: 70px; max-height: 180px; padding: 12px; border: 1px solid #cadbd1; border-radius: 10px; }
+.assistantComposeActions, .assistantTaskActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+#assistantFiles { font-size: 12px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.assistantTasks { min-width: 0; overflow: auto; overscroll-behavior: contain; border-left: 1px solid #dce6df; padding-left: 18px; }
+.assistantTasks h3 { margin-top: 4px; }
+.assistantTasks p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.assistantTask { border: 1px solid #d3dfd8; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.assistantTask.confirmation { border-color: #c39a4b; }
+.assistantTask pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; font-size: 12px; }
+#assistantCatalog label { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 13px; }
+#assistantStatus { max-height: 60px; overflow: auto; overflow-wrap: anywhere; }
+html[data-theme-mode="dark"] .assistantMessage { background: var(--ui-surface-soft, #252a2f); }
+html[data-theme-mode="dark"] .assistantMessage.user { background: var(--ui-surface-muted, #2b3339); }
+html[data-theme-mode="dark"] :is(.assistantToolbar select, .assistantConversation textarea) { background: var(--ui-surface-soft, #252a2f); color: var(--ui-text, #e5e7e9); border-color: var(--ui-border, #465049); }
+html[data-theme-mode="dark"] :is(.assistantTasks, .assistantTask) { border-color: var(--ui-border, #465049); }
+@media (max-width: 800px) { .assistantBody { grid-template-columns: minmax(0, 1fr) 230px; gap: 10px; } .assistantModal { padding: 14px; } }
+@media (max-width: 580px) { .assistantBody { display: flex; flex-direction: column; } .assistantConversation { flex: 1; } .assistantTasks { max-height: 25vh; flex: none; border-left: 0; padding: 0; } }

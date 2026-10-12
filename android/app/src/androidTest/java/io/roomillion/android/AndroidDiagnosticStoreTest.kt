@@ -46,7 +46,7 @@ class AndroidDiagnosticStoreTest {
             Intent(target, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ) as MainActivity
         try {
-            onView(withText("导出诊断报告")).perform(click())
+            onView(withText("导出诊断报告")).perform(androidx.test.espresso.action.ViewActions.scrollTo(), click())
             onView(withText("选择保存位置")).check(matches(isDisplayed()))
             onView(withSubstring("不会包含房间名称、密钥、AI 对话")).check(matches(isDisplayed()))
             onView(withText("取消")).perform(click())

@@ -51,6 +51,14 @@ open class MainActivity : Activity() {
     private val aiWorker = Executors.newFixedThreadPool(3)
     private var runtime: RoomRuntime? = null
     private var agentView: RoomAgentView? = null
+    private var assistantView: WorkbenchAssistantView? = null
+    private val assistantRooms = mutableMapOf<String, RoomRuntime>()
+    private val assistantLeases = mutableMapOf<String, Int>()
+    private lateinit var retainedViews: android.widget.FrameLayout
+    private val assistantActions by lazy { AndroidRoomActions(File(filesDir, "assistant-tasks"), store,
+        ::acquireAssistantRuntime, ::releaseAssistantRuntime, { assistantView?.tasksChanged() }) }
+    private val assistantSessions by lazy { WorkbenchAssistantStore(File(filesDir, "workbench-assistant"), assistantActions,
+        { id -> runOnUiThread { openRoom(id) } }) }
     private var agentValidation: ((Intent?) -> Unit)? = null
     @Volatile private var agentValidationGeneration = 0
     internal var activeRoomModelPicker: AlertDialog? = null
@@ -110,6 +118,8 @@ open class MainActivity : Activity() {
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(title)
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+        retainedViews = android.widget.FrameLayout(this).apply { alpha = 0f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+        root.addView(retainedViews, LinearLayout.LayoutParams(1, 1))
         setContentView(root)
         showHome()
         handleRoomOpenIntent(intent)
@@ -195,8 +205,8 @@ open class MainActivity : Activity() {
         roomPermissionDialog?.dismiss()
         activeRoomModelPicker?.dismiss()
         setRoomBackEnabled(false)
-        runtime?.close()
-        runtime = null
+        parkAssistant()
+        detachCurrentRoom()
         title.text = "千万间 · 安卓房间"
         content.removeAllViews()
         content.gravity = Gravity.CENTER_HORIZONTAL
@@ -214,6 +224,7 @@ open class MainActivity : Activity() {
         ai.addView(style.text(defaultModel?.let { "默认模型：${it.getString("label")}\n已配置 ${models.length()} 个模型，授权后的房间可直接使用。" }
             ?: "配置一次，授权后的房间就能直接使用你的 AI 模型。"))
         ai.addView(button("设置 AI 模型") { showAiSettings() })
+        ai.addView(button("工作台助手 · 让房间为你工作", WorkbenchStyle.Tone.PRIMARY) { openWorkbenchAssistant() })
         list.addView(ai)
         val rooms = store.list()
         list.addView(style.text("我的房间 · ${rooms.size}", true))
@@ -276,11 +287,14 @@ open class MainActivity : Activity() {
     }
 
     private fun installBundledExample(example: BundledExample) {
+        if (installingRoom) { alert("正在安装房间，请稍候"); return }
+        installingRoom = true; closeAssistantRooms(); detachCurrentRoom()
         worker.execute {
             val result = runCatching {
                 assets.open("examples/${example.fileName}").use { store.install(it) }
             }
             runOnUiThread {
+                installingRoom = false
                 if (isDestroyed) return@runOnUiThread
                 showHome()
                 result.onSuccess { recordDiagnostic("room.install", "success"); alert("已安装：${it.name}") }
@@ -294,6 +308,7 @@ open class MainActivity : Activity() {
             .setMessage("将删除这个房间的程序和本机数据，包括数据库与附件。此操作无法撤销；如需保留，请先导出“应用＋数据”包。")
             .setNegativeButton("取消", null)
             .setPositiveButton("卸载并删除数据") { _, _ ->
+                closeAssistantRoom(room.id)
                 val progress = AlertDialog.Builder(this).setMessage("正在卸载房间…")
                     .setCancelable(false).show()
                 worker.execute {
@@ -319,6 +334,7 @@ open class MainActivity : Activity() {
             .setMessage("房间程序、数据库和附件保存在本机；应用没有账号同步或自动云备份。\n\n" +
                 "授权房间使用 AI 后，请求中的提示词及房间提交的图片、音频等内容会发送到你配置的模型服务。模型密钥由 Android Keystore 加密，不交给房间。\n\n" +
                 "AI 修改房间时，修改要求和读取的程序源码会发送给选中的编程模型；对话与草稿保存在本机。\n\n" +
+                "使用工作台助手时，对话、房间功能目录、调用结果及任务状态会发送给选中的模型。附件和执行记录保存在本机，跨房间仅复制明确选择或发布的文件。\n\n" +
                 "诊断记录留在本机，只有你主动选择导出时才生成报告。导出“应用＋数据”包会包含数据库和附件，可选择密码保护。\n\n" +
                 "在房间列表卸载房间会删除本机该房间的数据和授权；已导出的文件需自行保管或删除。")
             .setPositiveButton("知道了", null).show()
@@ -327,8 +343,7 @@ open class MainActivity : Activity() {
     private fun showAiSettings(editId: String? = null) {
         activeRoomModelPicker?.dismiss()
         setRoomBackEnabled(false)
-        runtime?.close()
-        runtime = null
+        detachCurrentRoom(); parkAssistant()
         title.text = "AI 模型"
         content.removeAllViews()
         content.gravity = Gravity.CENTER_HORIZONTAL
@@ -513,8 +528,57 @@ open class MainActivity : Activity() {
         }
     }
 
+    private fun park(view: android.webkit.WebView) {
+        (view.parent as? android.view.ViewGroup)?.removeView(view)
+        retainedViews.addView(view, android.widget.FrameLayout.LayoutParams(1, 1))
+    }
+    private fun parkAssistant() { assistantView?.webView?.let { park(it) } }
+    private fun detachCurrentRoom() {
+        runtime?.let { current -> if ((assistantLeases[current.room.id] ?: 0) > 0) park(current.webView) else { assistantRooms.remove(current.room.id); current.close() } }
+        runtime = null
+    }
+    private fun <T> onAssistantUi(operation: () -> T): T {
+        if (android.os.Looper.myLooper() === android.os.Looper.getMainLooper()) return operation()
+        val result = java.util.concurrent.CompletableFuture<T>()
+        runOnUiThread { try { check(!isDestroyed && !isFinishing); result.complete(operation()) } catch (e: Exception) { result.completeExceptionally(e) } }
+        return result.get(15, java.util.concurrent.TimeUnit.SECONDS)
+    }
+    private fun acquireAssistantRuntime(room: InstalledRoom): RoomRuntime = onAssistantUi {
+        check(!installingRoom) { "正在安装房间，请稍候再执行助手任务" }
+        check(agentView?.roomId != room.id) { "这个房间正在修改程序，请返回房间列表后再执行任务" }
+        val grants = permissions.read(room) ?: RoomGrants()
+        val existing = assistantRooms[room.id] ?: runtime?.takeIf { it.room.id == room.id }
+        if (existing != null && !existing.matches(room, grants)) { assistantActions.invalidate(existing); assistantRooms.remove(room.id); existing.close(); if (runtime === existing) runtime = null }
+        val selected = existing?.takeIf { it.matches(room, grants) } ?: RoomRuntime(this, room, grants, actionHost = assistantActions).also { park(it.webView) }
+        assistantRooms[room.id] = selected; assistantLeases[room.id] = (assistantLeases[room.id] ?: 0) + 1; selected
+    }
+    private fun releaseAssistantRuntime(current: RoomRuntime) { runOnUiThread {
+        val id = current.room.id; val leases = (assistantLeases[id] ?: 1) - 1
+        if (assistantRooms[id] !== current) return@runOnUiThread
+        if (leases <= 0) { assistantLeases.remove(id); if (assistantRooms[id] === current) assistantRooms.remove(id); if (runtime !== current) current.close() }
+        else assistantLeases[id] = leases
+    } }
+    private fun closeAssistantRoom(id: String) {
+        assistantActions.stopRoom(id)
+        assistantRooms.remove(id)?.let { it.close(); if (runtime === it) runtime = null }; assistantLeases.remove(id)
+    }
+    private fun closeAssistantRooms() { (store.list().map { it.id } + assistantRooms.keys).distinct().forEach(::closeAssistantRoom) }
+    internal fun openWorkbenchAssistant() {
+        try {
+            if (aiStore.listPublic().length() == 0) { alert("请先配置工作台 AI 模型"); showAiSettings(); return }
+            agentView?.close(); agentView = null; detachCurrentRoom()
+            content.removeAllViews(); title.text = "工作台助手"
+            content.addView(button("返回房间列表（任务继续执行）") { showHome() }, columnParams())
+            val assistant = assistantView ?: WorkbenchAssistantView(this, aiStore, assistantSessions, assistantActions).also { assistantView = it }
+            (assistant.webView.parent as? android.view.ViewGroup)?.removeView(assistant.webView)
+            content.addView(assistant.webView, LinearLayout.LayoutParams(-1, 0, 1f)); setRoomBackEnabled(true)
+            assistant.webView.evaluateJavascript("window.assistantVisible && window.assistantVisible();", null)
+        } catch (e: Exception) { showHome(); alert(e.message ?: "无法打开工作台助手") }
+    }
+
     private fun openRoom(id: String) {
         if (installingRoom) { alert("正在安装房间，请稍候"); return }
+        if (agentView?.roomId == id) { alert("这个房间正在修改程序，请先返回房间列表"); return }
         try {
             val room = store.readInstalled(id)
             val granted = permissions.read(room)
@@ -536,7 +600,8 @@ open class MainActivity : Activity() {
     internal fun openRoomAgent(id: String) {
         try {
             if (aiStore.listPublic().length() == 0) { alert("请先配置工作台 AI 模型"); showAiSettings(); return }
-            runtime?.close(); runtime = null
+            closeAssistantRoom(id)
+            detachCurrentRoom(); parkAssistant()
             agentView?.close(); agentView = null
             content.removeAllViews(); title.text = "AI 修改房间"
             content.addView(button("返回房间列表（草稿自动保存）") { showHome() }, columnParams())
@@ -600,6 +665,7 @@ open class MainActivity : Activity() {
             .setNegativeButton(if (openAfter) "暂不授权" else "取消") { _, _ ->
                 if (openAfter) {
                     try {
+                        closeAssistantRoom(room.id)
                         permissions.save(room, RoomGrants())
                         displayRoom(room, RoomGrants())
                     } catch (error: Exception) { alert(error.message ?: "授权保存失败") }
@@ -608,6 +674,7 @@ open class MainActivity : Activity() {
             .setPositiveButton("保存") { _, _ ->
                 val grants = RoomGrants(selected[0], selected[1], selected[2], selected[3], selected[4])
                 try {
+                    closeAssistantRoom(room.id)
                     permissions.save(room, grants)
                     if (openAfter) displayRoom(room, grants) else alert("房间授权已更新，下次打开生效")
                 } catch (error: Exception) { alert(error.message ?: "授权保存失败") }
@@ -621,17 +688,19 @@ open class MainActivity : Activity() {
     private fun displayRoom(room: InstalledRoom, grants: RoomGrants) {
         try {
             activeRoomModelPicker?.dismiss()
-            runtime?.close()
+            detachCurrentRoom(); parkAssistant()
             content.removeAllViews()
             content.gravity = Gravity.CENTER_HORIZONTAL
             title.text = room.name
             content.addView(button("返回房间列表") { showHome() }, columnParams())
+            content.addView(button("工作台助手") { openWorkbenchAssistant() }, columnParams())
             content.addView(button("AI 修改") { openRoomAgent(room.id) }, columnParams())
             if (grants.ai && aiStore.listPublic().length() > 1) {
                 content.addView(button("切换默认 AI") { showRoomModelPicker() }, columnParams())
             }
             if (grants.host || grants.join) content.addView(button("联机与手机热点") { showLanControls() }, columnParams())
-            runtime = RoomRuntime(this, room, grants)
+            runtime = assistantRooms[room.id]?.takeIf { it.matches(room, grants) } ?: RoomRuntime(this, room, grants, actionHost = assistantActions)
+            (runtime!!.webView.parent as? android.view.ViewGroup)?.removeView(runtime!!.webView)
             content.addView(runtime!!.webView, LinearLayout.LayoutParams(-1, 0, 1f))
             setRoomBackEnabled(true)
             recordDiagnostic("room.open", "success")
@@ -715,7 +784,7 @@ open class MainActivity : Activity() {
     private fun showRoomModelPicker() {
         val active = runtime ?: return
         val profiles = aiStore.listPublic()
-        if (profiles.length() < 2) return
+        if (profiles.length() < 2) { return }
         val ids = (0 until profiles.length()).map { profiles.getJSONObject(it).getString("id") }
         val labels = (0 until profiles.length()).map { index ->
             profiles.getJSONObject(index).let { "${it.getString("label")} · ${it.getString("model")}" }
@@ -829,8 +898,9 @@ open class MainActivity : Activity() {
         if (request.generation != importGeneration) return
         pendingImport = null // Worker owns the snapshot until installation has finished.
         pendingFile = null
-        showHome() // Close the old room and its database before updating its files.
         installingRoom = true
+        closeAssistantRooms()
+        showHome() // Close the old room and its database before updating its files.
         val progress = AlertDialog.Builder(this).setMessage("正在安装房间…").setCancelable(false).show()
         importDialog = progress
         worker.execute {
@@ -1040,13 +1110,16 @@ open class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     @Deprecated("Android 12 fallback; newer systems use OnBackInvokedCallback")
     override fun onBackPressed() {
-        if (runtime != null || agentView != null) showHome() else super.onBackPressed()
+        if (runtime != null || agentView != null || assistantView?.webView?.parent === content) showHome() else super.onBackPressed()
     }
 
     override fun onDestroy() {
         if(this is RoomValidationActivity){worker.shutdownNow();aiWorker.shutdownNow();super.onDestroy();return}
         agentView?.close()
         agentView = null
+        assistantView?.close(); assistantView = null
+        assistantActions.close()
+        assistantRooms.values.toList().forEach { it.close() }; assistantRooms.clear(); assistantLeases.clear()
         hotspotDialog?.dismiss()
         hotspot.close()
         cancelRoomImport()

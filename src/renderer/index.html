@@ -23,6 +23,7 @@
       </div>
 
       <div class="primaryActions">
+        <button id="assistantButton" class="primaryButton assistantEntry" title="告诉助手你的需求，使用已安装房间完成"><span class="actionGlyph" aria-hidden="true">助</span><span class="actionLabel">工作台助手</span></button>
         <button id="generateButton" class="primaryButton" title="AI 创建房间"><span class="actionGlyph" aria-hidden="true">✦</span><span class="actionLabel">AI 创建房间</span></button>
         <div class="splitActions">
           <button id="importButton" title="导入房间"><span class="actionGlyph" aria-hidden="true">入</span><span class="actionLabel">导入房间</span></button>
@@ -512,6 +513,22 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
+  <dialog id="assistantDialog" class="modal assistantModal" aria-labelledby="assistantTitle">
+    <div class="modalHeader"><div><p class="eyebrow">让房间为你工作</p><h2 id="assistantTitle">工作台助手</h2></div><button id="assistantClose" type="button" class="closeButton" title="关闭窗口；已启动任务继续运行">×</button></div>
+    <div class="assistantToolbar">
+      <select id="assistantSession" aria-label="助手对话"></select><button id="assistantNew" class="secondaryButton" type="button">新对话</button>
+      <select id="assistantModel" aria-label="助手模型" title="助手模型；房间自身 AI 调用仍使用该房间的模型配置"></select>
+      <select id="assistantThink" aria-label="思考强度" title="支持思考的模型才会使用此设置"><option value="off">关闭思考</option><option value="low">简短思考</option><option value="medium">适中思考</option><option value="high">深入思考</option></select>
+      <select id="assistantRetry" aria-label="连接重试次数" title="模型连接失败自动重试；不会因此重复已完成的房间操作"><option value="0">不重试</option><option value="2">重试 2 次</option><option value="4">重试 4 次</option></select>
+      <button id="assistantAiSettings" type="button" class="secondaryButton" title="配置工作台的 AI 提供商和模型">AI 设置</button>
+    </div>
+    <div class="assistantBody">
+      <section class="assistantConversation"><div id="assistantMessages" class="assistantMessages" aria-live="polite"></div><p id="assistantStatus" class="inlineStatus" role="status"></p>
+        <form id="assistantForm"><textarea id="assistantPrompt" rows="3" placeholder="例如：帮我登记 5 支铅笔，然后把物资清单整理成 PDF。" aria-label="告诉助手你的需求"></textarea><div class="assistantComposeActions"><button id="assistantAttach" type="button" class="secondaryButton">添加文件</button><span id="assistantFiles"></span><button id="assistantStop" type="button" class="secondaryButton" title="停止当前对话；已启动的房间任务可在右侧单独停止">停止对话</button><button id="assistantSend" type="submit" class="primaryButton compact">发送</button></div></form>
+      </section>
+      <aside class="assistantTasks"><h3>执行记录与文件</h3><div id="assistantTasks"></div><details><summary>已安装房间 · 助手访问</summary><p>关闭后，助手无法再调用该房间。没有开放功能接口的房间仍可手动打开。</p><div id="assistantCatalog"></div></details></aside>
+    </div>
+  </dialog>
   <div id="roomContextMenu" class="contextMenu" role="menu" aria-label="房间操作" hidden>
     <button type="button" data-room-context-action="export" role="menuitem">导出房间</button>
     <button type="button" class="danger" data-room-context-action="uninstall" role="menuitem">卸载房间</button>
@@ -520,5 +537,6 @@
   <script src="./agent-rich-text.js"></script>
   <script src="./workbench-presentation.js"></script>
   <script src="./app.js"></script>
+  <script src="./workbench-assistant.js"></script>
 </body>
 </html>

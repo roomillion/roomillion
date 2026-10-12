@@ -2,24 +2,142 @@
   "formatVersion": "0.1",
   "id": "cn.zhibian.example.inventory",
   "name": "物资台账",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": {
     "id": "cn.zhibian",
     "name": "千万间 Roomillion"
   },
   "runtime": {
     "roomSdk": "1",
-    "minimumWorkbench": "0.1.0"
+    "minimumWorkbench": "0.4.1"
   },
   "entry": "app/index.html",
   "permissions": {
     "database": "private",
-    "files": ["pick", "export"],
+    "files": [
+      "pick",
+      "export"
+    ],
     "ai": {
-      "roles": ["general"],
-      "capabilities": ["text"]
+      "roles": [
+        "general"
+      ],
+      "capabilities": [
+        "text"
+      ]
     },
     "network": []
   },
-  "hostModules": []
+  "hostModules": [],
+  "actions": [
+    {
+      "id": "list",
+      "name": "查询物资",
+      "description": "查询当前物资清单，可按名称搜索。",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "名称关键词"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "add",
+      "name": "登记物资",
+      "description": "新增一条物资记录；同名物资也会新增，不会修改原记录。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "set-quantity",
+      "name": "调整数量",
+      "description": "按记录 ID 修改物资数量。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "remove",
+      "name": "删除物资",
+      "description": "删除指定 ID 的物资记录。",
+      "effect": "destructive",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "export",
+      "name": "生成物资清单文件",
+      "description": "生成 CSV 或 Markdown 制品，可交给文档房间转换 PDF。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "markdown"
+            ]
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
 }

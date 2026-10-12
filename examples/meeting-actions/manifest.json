@@ -2,15 +2,166 @@
   "formatVersion": "0.1",
   "id": "cn.zhibian.example.meeting-actions",
   "name": "会议行动项",
-  "version": "1.0.0",
-  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
-  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.1.0" },
+  "version": "1.0.1",
+  "publisher": {
+    "id": "cn.zhibian",
+    "name": "千万间 Roomillion"
+  },
+  "runtime": {
+    "roomSdk": "1",
+    "minimumWorkbench": "0.4.1"
+  },
   "entry": "app/index.html",
   "permissions": {
     "database": "private",
-    "files": ["export"],
-    "ai": { "roles": ["general"], "capabilities": ["text"] },
+    "files": [
+      "export"
+    ],
+    "ai": {
+      "roles": [
+        "general"
+      ],
+      "capabilities": [
+        "text"
+      ]
+    },
     "network": []
   },
-  "hostModules": []
+  "hostModules": [],
+  "actions": [
+    {
+      "id": "list",
+      "name": "查询行动项",
+      "description": "查询会议行动项，可按标题搜索。",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "add",
+      "name": "添加行动项",
+      "description": "新增事项，指定负责人、截止日期和优先级。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "高",
+              "中",
+              "低"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "owner",
+          "dueDate",
+          "priority"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "set-status",
+      "name": "调整事项进度",
+      "description": "按 ID 标为完成或重新打开。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "done"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "remove",
+      "name": "删除行动项",
+      "description": "删除指定 ID 的行动项。",
+      "effect": "destructive",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "export",
+      "name": "生成会议行动清单",
+      "description": "生成 CSV 或 Markdown 制品，可交给文档房间转换。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "markdown"
+            ]
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "brief",
+      "name": "生成 AI 推进简报",
+      "description": "使用本房间配置的 AI 生成中文简报，需要 AI 权限和已配置模型。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
 }

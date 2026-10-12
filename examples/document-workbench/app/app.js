@@ -344,11 +344,17 @@
     removed.pdf?.loadingTask?.destroy().catch(() => {});
   }
 
-  async function exportPdfArtifact(markdown, name) {
-    const artifact = await room.documents.markdownToPdf(markdown, { title: name, name: `${name}.pdf` });
+  async function createConvertedArtifact(markdown, name, format) {
+    if (!String(markdown || "").trim()) throw new Error("文档没有可转换的文字");
+    if (format === "pdf") return room.documents.markdownToPdf(markdown, { title: name, name: `${name}.pdf` });
+    const content = format === "docx" ? await Core.markdownToDocx(markdown, name) : markdown;
+    return room.artifacts.put(`${name}.${format}`, content, { mimeType: format === "docx" ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "text/markdown" });
+  }
+  async function exportConvertedArtifact(markdown, name, format) {
+    const artifact = await createConvertedArtifact(markdown, name, format);
     let stream;
     try {
-      stream = await room.files.beginExport(`${name}.pdf`);
+      stream = await room.files.beginExport(`${name}.${format}`);
       if (!stream) return null;
       let offset = 0;
       while (true) {
@@ -379,15 +385,8 @@
       if (!markdown?.trim()) throw new Error("文档没有可转换的文字");
       const name = Core.cleanName(item.name);
       let result;
-      if (target === "md") result = await room.files.exportText(`${name}.md`, markdown);
-      else if (target === "docx") {
-        setStatus("正在排版 Word 文档…");
-        const content = await Core.markdownToDocx(markdown, name);
-        result = await room.files.exportBinary(`${name}.docx`, content);
-      } else {
-        setStatus("正在排版中文 PDF 文档…");
-        result = await exportPdfArtifact(markdown, name);
-      }
+      setStatus("正在转换文档…");
+      result = await exportConvertedArtifact(markdown, name, target);
       const missingPages = result && item.missingPdfPages ? `；${item.missingPdfPages} 页无文字层，请先 OCR 再补齐` : "";
       setStatus(result ? `已保存 ${name}.${target}${missingPages}` : `已取消保存 ${TARGETS[target]}，原文档未改变`);
     } catch (error) { setStatus(`转换失败：${error.message || error}`, true); }
@@ -409,5 +408,31 @@
   ui.preview.addEventListener("click", (event) => { if (event.target.closest("a")) event.preventDefault(); });
   window.addEventListener("beforeunload", () => { clearPreviewResources(); for (const item of state.documents) item.pdf?.loadingTask?.destroy().catch(() => {}); });
   updateHeader();
+  if (room.actions) {
+    room.actions.register("list-artifacts", () => room.artifacts.list()).catch(error => setStatus(error.message, true));
+    room.actions.register("convert-markdown", async (input, context) => {
+      if ((typeof input.text === "string") === (typeof input.artifactId === "string")) throw new Error("请提供 text 或 artifactId 中的一个");
+      if (state.busy) throw new Error("文档房间正在处理其他操作，请稍后再试");
+      updateBusy(true);
+      try {
+        let markdown = input.text;
+        if (input.artifactId) {
+          let offset = 0; const parts = []; const decoder = new TextDecoder("utf-8", { fatal: true });
+          for (;;) {
+            context.throwIfCancelled();
+            const chunk = await room.artifacts.read(input.artifactId, { offset, length: 4 * 1024 * 1024 });
+            if (!/\.(md|markdown|txt)$/i.test(chunk.item.name) || !["text/markdown", "text/plain"].includes(chunk.item.mimeType)) throw new Error("此功能只接收 Markdown 或纯文本；请先将其他格式转换为文本");
+            parts.push(decoder.decode(chunk.data, { stream: true })); offset = chunk.nextOffset;
+            if (chunk.eof) { parts.push(decoder.decode()); break; }
+          }
+          markdown = parts.join("");
+        }
+        context.throwIfCancelled(); await context.report("正在排版和生成文档");
+        const artifact = await createConvertedArtifact(markdown, Core.cleanName(input.name || "文档"), input.format);
+        setStatus(`助手已生成 ${artifact.name}`);
+        return { name: artifact.name, mimeType: artifact.mimeType, size: artifact.size, artifacts: [artifact.id] };
+      } finally { updateBusy(false); }
+    }).catch(error => setStatus(error.message, true));
+  }
   document.documentElement.dataset.roomReady = "true";
 })();

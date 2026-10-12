@@ -10,6 +10,9 @@ const { RoomDatabaseService } = require("./database.cjs");
 const { AiService } = require("./ai-service.cjs");
 const { AiCapabilityService } = require("./ai-capability-service.cjs");
 const { RoomAgentService } = require("./room-agent-service.cjs");
+const { RoomBlobService } = require("./room-blob-service.cjs");
+const { RoomActionService } = require("./room-action-service.cjs");
+const { WorkbenchAssistantService } = require("./workbench-assistant-service.cjs");
 const { DataBackupService } = require("./data-backup-service.cjs");
 const { LargeTextService } = require("./large-text-service.cjs");
 const { NetworkService } = require("./network-service.cjs");
@@ -73,6 +76,8 @@ let database;
 let aiService;
 let aiCapabilityService;
 let roomAgent;
+let roomActions;
+let workbenchAssistant;
 let dataBackups;
 let largeText;
 let networkService;
@@ -2625,6 +2630,12 @@ async function bootstrap() {
   }).init();
   roomBrowser = new RoomBrowserService({ mainWindow, roomStore, roomViews, networkService });
   roomViews.setBrowserService(roomBrowser);
+  const assistantBlobs = new RoomBlobService(roomStore);
+  roomActions = await new RoomActionService({ roomStore, roomViews, blobService: assistantBlobs, onEvent: payload => broadcastWorkbench("workbench:assistantEvent", payload) }).init();
+  workbenchAssistant = await new WorkbenchAssistantService({ roomStore, aiService, actions: roomActions, onEvent: payload => {
+    broadcastWorkbench("workbench:assistantEvent", payload);
+    if (payload.openRoomId) broadcastWorkbench("workbench:openRoomRequested", payload.openRoomId);
+  } }).init();
   roomAgent = await new RoomAgentService({
     roomStore,
     aiService,
@@ -2659,6 +2670,9 @@ async function bootstrap() {
     aiService,
     aiCapabilityService,
     roomAgent,
+    roomActions,
+    workbenchAssistant,
+    blobService: assistantBlobs,
     largeText,
     networkService,
     credentialService,
@@ -2699,6 +2713,8 @@ if (runtimeCheckInput) {
 
 app.on("window-all-closed", () => app.quit());
 app.on("before-quit", () => {
+  workbenchAssistant?.dispose().catch(error => console.error("关闭工作台助手失败", error));
+  roomActions?.dispose().catch(error => console.error("关闭房间操作失败", error));
   backgroundResidency?.beginQuit();
   unregisterIpc?.();
   roomViews?.dispose().catch((error) => console.error("关闭房间窗口失败", error));

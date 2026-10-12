@@ -113,6 +113,8 @@ function registerIpcHandlers({
   aiService,
   aiCapabilityService = null,
   roomAgent,
+  roomActions,
+  workbenchAssistant,
   largeText,
   networkService,
   credentialService,
@@ -254,6 +256,39 @@ function registerIpcHandlers({
       if (!window.isDestroyed()) window.webContents.send("workbench:roomsChanged", rooms);
     }
   };
+  const requireAssistant = event => {
+    requireWorkbench(event);
+    if (event.senderFrame && event.sender.mainFrame && event.senderFrame !== event.sender.mainFrame) throw new Error("助手操作只能由工作台主页面发起");
+    if (!workbenchAssistant || !roomActions) throw new Error("工作台助手尚未初始化");
+    return workbenchAssistant;
+  };
+  handle("room:actionRegister", (event, ids) => { const room = requireRoom(event); if (!roomActions) throw new Error("房间操作服务不可用"); return roomActions.register(room.id, event.sender, ids); });
+  handle("room:actionReply", (event, payload) => { const room = requireRoom(event); if (!roomActions) throw new Error("房间操作服务不可用"); return roomActions.receive(room.id, event.sender, payload); });
+  handle("workbench:assistantList", event => requireAssistant(event).list());
+  handle("workbench:assistantCreate", event => requireAssistant(event).create());
+  handle("workbench:assistantGet", (event, id) => requireAssistant(event).get(id));
+  handle("workbench:assistantConfigure", (event, id, options) => requireAssistant(event).configure(id, options));
+  handle("workbench:assistantSend", (event, id, prompt) => requireAssistant(event).send(id, prompt));
+  handle("workbench:assistantStop", (event, id) => requireAssistant(event).stop(id));
+  handle("workbench:assistantCatalog", (event, query) => { requireAssistant(event); return roomActions.catalog(query); });
+  handle("workbench:assistantAccess", (event, roomId, enabled) => { requireAssistant(event); return roomActions.setAccess(roomId, enabled); });
+  handle("workbench:assistantConfirm", async (event, id, taskId, allowed) => { requireAssistant(event).require(id); return roomActions.confirm(id, taskId, allowed); });
+  handle("workbench:assistantCancelTask", (event, id, taskId) => { requireAssistant(event).require(id); return roomActions.cancel(id, taskId); });
+  handle("workbench:assistantAttach", async (event, id) => {
+    const assistant = requireAssistant(event); assistant.require(id);
+    const picked = await dialogApi.showOpenDialog(mainWindow, { title: "选择交给助手处理的文件", properties: ["openFile", "multiSelections"] });
+    if (picked.canceled) return assistant.get(id);
+    for (const file of picked.filePaths) await assistant.attachFile(id, file);
+    return assistant.get(id);
+  });
+  handle("workbench:assistantSaveArtifact", async (event, id, taskId, artifactId) => {
+    requireAssistant(event).require(id);
+    const file = await roomActions.publishedFile(id, taskId, artifactId);
+    const result = await dialogApi.showSaveDialog(mainWindow, { title: "保存助手生成的文件", defaultPath: file.item.name });
+    if (result.canceled || !result.filePath) return null;
+    await fsp.copyFile(file.path, result.filePath);
+    return { name: path.basename(result.filePath) };
+  });
   const notifyAiModelsChanged = () => {
     for (const view of roomViews.views.values()) {
       if (!view.webContents.isDestroyed()) view.webContents.send("room:aiModelsChanged");

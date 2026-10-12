@@ -3,6 +3,28 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 let aiRequestCounter = 0;
+const actionHandlers = new Map();
+const actionRuns = new Map();
+let actionRegistration = Promise.resolve();
+ipcRenderer.on("room:actionInvoke", async (_event, request) => {
+  if (!request || actionRuns.has(request.taskId)) return;
+  const handler = actionHandlers.get(request.actionId);
+  const controller = new AbortController();
+  actionRuns.set(request.taskId, controller);
+  const reply = payload => ipcRenderer.invoke("room:actionReply", { taskId: request.taskId, ...payload });
+  try {
+    if (!handler) throw new Error("房间没有注册此操作");
+    const result = await handler(request.input, Object.freeze({
+      taskId: request.taskId,
+      isCancelled: () => controller.signal.aborted,
+      throwIfCancelled: () => controller.signal.throwIfAborted(),
+      report: progress => reply({ progress: String(progress) })
+    }));
+    await reply({ ok: true, result: result ?? null });
+  } catch (error) { await reply({ ok: false, error: String(error.message || error) }).catch(() => {}); }
+  finally { actionRuns.delete(request.taskId); }
+});
+ipcRenderer.on("room:actionCancel", (_event, taskId) => actionRuns.get(taskId)?.abort());
 async function generateAi(prompt, options = {}) {
   if (!options || typeof options !== "object" || Array.isArray(options)) {
     return ipcRenderer.invoke("room:aiGenerate", prompt, options);
@@ -50,6 +72,18 @@ async function generateAi(prompt, options = {}) {
 }
 
 contextBridge.exposeInMainWorld("room", Object.freeze({
+  actions: Object.freeze({
+    register: (id, handler) => {
+      if (typeof id !== "string" || typeof handler !== "function") throw new TypeError("房间操作需要 ID 和处理函数");
+      const previous = actionHandlers.get(id);
+      actionHandlers.set(id, handler);
+      actionRegistration = actionRegistration.catch(() => {}).then(() => ipcRenderer.invoke("room:actionRegister", [...actionHandlers.keys()])).catch(error => {
+        if (actionHandlers.get(id) === handler) { if (previous) actionHandlers.set(id, previous); else actionHandlers.delete(id); }
+        throw error;
+      });
+      return actionRegistration;
+    }
+  }),
   getInfo: () => ipcRenderer.invoke("room:getInfo"),
   vector: Object.freeze(Object.fromEntries(["create", "list", "upsert", "search", "remove", "drop"].map((method) => [method, (...args) => ipcRenderer.invoke(`room:vector:${method}`, ...args)]))),
   db: Object.freeze({

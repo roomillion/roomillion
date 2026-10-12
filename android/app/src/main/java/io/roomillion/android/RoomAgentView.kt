@@ -20,7 +20,7 @@ import java.util.concurrent.Executors
 
 /** Separate, trusted Pi application surface. Its native bridge is absent from room pages. */
 class RoomAgentView(private val activity: MainActivity, private val store: RoomPackageStore,
-    private val models: AiModelStore, private val permissions: RoomPermissionStore, roomId: String,
+    private val models: AiModelStore, private val permissions: RoomPermissionStore, val roomId: String,
     private val modelRequest: ((JSONObject,AiRequestCancellation)->JSONObject)? = null) {
     val webView = WebView(activity)
     private val workspace by lazy { RoomAgentWorkspace(File(activity.filesDir,"room-agent/$roomId"),store,roomId) }

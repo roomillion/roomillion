@@ -4,7 +4,7 @@ import android.content.Context
 import org.json.JSONObject
 
 data class AiCatalogModel(val id: String, val name: String, val endpoint: String, val supportsImages: Boolean,
-                          val supportsAudio: Boolean)
+                          val supportsAudio: Boolean, val reasoning: Boolean = false)
 data class AiCatalogProvider(val id: String, val name: String, val description: String, val category: String,
                              val defaultModel: String, val endpoint: String, val models: List<AiCatalogModel>)
 
@@ -24,7 +24,7 @@ class AiProviderCatalog(context: Context) {
                 val input = model.getJSONArray("input")
                 val types = (0 until input.length()).map(input::getString).toSet()
                 AiCatalogModel(model.getString("id"), model.getString("name"),
-                    AiModelStore.validateEndpoint(model.getString("endpoint")), "image" in types, "audio" in types)
+                    AiModelStore.validateEndpoint(model.getString("endpoint")), "image" in types, "audio" in types, model.optBoolean("reasoning"))
             }
             AiCatalogProvider(item.getString("id"), item.getString("name"), item.getString("description"),
                 item.getString("category"), item.getString("defaultModel"),

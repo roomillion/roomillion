@@ -5,12 +5,18 @@ async function main() {
   await fs.mkdir(output,{recursive:true});
   await esbuild.build({entryPoints:[path.join(source,"agent.js")],outfile:path.join(output,"agent.js"),bundle:true,platform:"browser",format:"iife",target:"chrome89",legalComments:"eof",minify:true});
   for(const name of ["index.html","agent.css"])await fs.copyFile(path.join(source,name),path.join(output,name));
+  const assistant=path.join(output,"../assistant");await fs.mkdir(assistant,{recursive:true});
+  await esbuild.build({entryPoints:[path.join(source,"assistant.js")],outfile:path.join(assistant,"assistant.js"),bundle:true,platform:"browser",format:"iife",target:"chrome89",legalComments:"eof",minify:true});
+  await fs.copyFile(path.join(source,"assistant.html"),path.join(assistant,"index.html"));await fs.copyFile(path.join(source,"assistant.css"),path.join(assistant,"assistant.css"));
+  const {WorkbenchAssistantService}=require("../src/main/workbench-assistant-service.cjs");
+  const tools=new WorkbenchAssistantService({roomStore:{dataRoot:""},actions:{}}).tools({}).map(({name,description,parameters})=>({name,description,parameters}));
+  await fs.writeFile(path.join(assistant,"tools.json"),JSON.stringify(tools));
   const {ROOM_MODULE_CATALOG}=require("../src/main/room-module-catalog.cjs");
   const moduleDirectories=await fs.readdir(path.join(root,"android/app/build/generated/androidAssets/android-modules"));
   const modules=ROOM_MODULE_CATALOG.filter(m=>moduleDirectories.includes(m.id)).map(m=>({id:m.id,name:m.name,description:m.description,version:m.packageVersion,requires:m.requires,assets:m.assets.map(a=>({url:`/_modules/${m.id}/${a.publicName}`,type:a.type,global:a.global||null}))}));
   await fs.writeFile(path.join(output,"module-api.json"),JSON.stringify(modules));
   // The runtime is now shipped in the APK; register every bundled package license.
-  const result=await esbuild.build({entryPoints:[path.join(source,"agent.js")],bundle:true,platform:"browser",format:"iife",target:"chrome89",write:false,metafile:true,logLevel:"silent"});
+  const result=await esbuild.build({entryPoints:[path.join(source,"agent.js"),path.join(source,"assistant.js")],outdir:"unused",bundle:true,platform:"browser",format:"iife",target:"chrome89",write:false,metafile:true,logLevel:"silent"});
   const packages=new Set();for(const file of Object.keys(result.metafile.inputs)){const match=file.replaceAll("\\","/").match(/node_modules\/((?:@[^/]+\/)?[^/]+)\//);if(match)packages.add(match[1]);}
   const compliance=path.join(output,"../compliance/agent");await fs.mkdir(compliance,{recursive:true});
   const index=[];

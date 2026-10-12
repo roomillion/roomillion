@@ -28,7 +28,7 @@ data class RoomRuntimeTestOptions(val aiResponses: List<String>, val pickText: J
     val errors: MutableList<String>, val ready: () -> Unit) { var aiIndex=0 }
 
 class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, private val grants: RoomGrants,
-    private val test: RoomRuntimeTestOptions? = null) {
+    private val test: RoomRuntimeTestOptions? = null, private val actionHost: AndroidRoomActions? = null) {
     val webView: WebView
     private val host = "r-${sha256(room.id).take(24)}.roomillion.invalid"
     private val origin = "https://$host"
@@ -87,6 +87,7 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
                 return uri.scheme != "https" || uri.host != host || !uri.path.orEmpty().startsWith("/room/")
             }
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                actionHost?.invalidate(this@RoomRuntime)
                 if (!url.startsWith("$origin/room/")) view.stopLoading()
             }
             override fun onPageFinished(view: WebView,url: String) { test?.ready?.invoke() }
@@ -301,6 +302,14 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
                 }
             }
             when (request.getString("method")) {
+                "actions.register" -> {
+                    // Validation hosts can register declarations but cannot reach assistant tasks.
+                    val ids = args.getJSONArray(0)
+                    val allowed = RoomActionSchema.definitions(room.manifest)
+                    require((0 until ids.length()).all { i -> (0 until allowed.length()).any { allowed.getJSONObject(it).getString("id") == ids.getString(i) } }) { "只能注册 manifest.actions 中声明的操作" }
+                    succeed(actionHost?.register(this, ids) ?: true)
+                }
+                "actions.reply" -> succeed(requireNotNull(actionHost) { "此环境不接受助手任务响应" }.receive(this, args.getJSONObject(0)))
                 "getInfo" -> succeed(JSONObject().put("id", room.id).put("name", room.name).put("version", room.version)
                     .put("limits", JSONObject().put("aiMediaBytes", AiMediaCodec.MAX_REQUEST_BYTES)
                         .put("directBinaryBytes", 32 * 1024 * 1024)))
@@ -643,10 +652,36 @@ class RoomRuntime(private val activity: MainActivity, val room: InstalledRoom, p
     fun multiplayerStatus(): JSONObject = lan?.status() ?: JSONObject().put("supported", true).put("canHost", true)
         .put("transport", "lan").put("role", JSONObject.NULL).put("connected", false).put("peerId", JSONObject.NULL)
     fun stopMultiplayer() { lan?.close(); lan = null }
+    fun matches(current: InstalledRoom, currentGrants: RoomGrants): Boolean = !closed && room.id == current.id && room.version == current.version && room.manifest.toString() == current.manifest.toString() && grants == currentGrants
+
+    fun invokeAction(taskId: String, actionId: String, input: JSONObject) {
+        val request = JSONObject().put("taskId", taskId).put("actionId", actionId).put("input", input)
+        activity.runOnUiThread { if (!closed) webView.evaluateJavascript("window.__roomillionActionInvoke(JSON.parse(${JSONObject.quote(request.toString())}));", null) else actionHost?.invalidate(this) }
+    }
+    fun cancelAction(taskId: String) { activity.runOnUiThread { if (!closed) webView.evaluateJavascript("window.__roomillionActionCancel(${JSONObject.quote(taskId)});", null) } }
+    fun assistantArtifact(id: String): java.util.concurrent.CompletableFuture<Pair<JSONObject, File>> {
+        val future = java.util.concurrent.CompletableFuture<Pair<JSONObject, File>>()
+        fileWorker.execute { try { check(!closed); require(permitted("database")) { "房间缺少私有数据权限" }; future.complete(blobStore.getFile(id)) } catch (e: Exception) { future.completeExceptionally(e) } }
+        return future
+    }
+    fun copyAssistantFile(file: File, item: JSONObject, checkAccess: () -> Unit): java.util.concurrent.CompletableFuture<JSONObject> {
+        val future = java.util.concurrent.CompletableFuture<JSONObject>()
+        fileWorker.execute {
+            var token: String? = null
+            try {
+                check(!closed); checkAccess(); require(permitted("database")) { "房间缺少私有数据权限" }
+                val opened = blobStore.begin(JSONObject().put("name", item.getString("name")).put("mimeType", item.optString("mimeType", "application/octet-stream")).put("kind", "artifact")); token = opened.getString("token")
+                file.inputStream().use { input -> val bytes = ByteArray(RoomBlobStore.CHUNK_BYTES); while (true) { check(!closed); checkAccess(); val count = input.read(bytes); if (count < 0) break; blobStore.write(token!!, bytes.copyOf(count)) } }
+                future.complete(blobStore.finish(token)); token = null
+            } catch (e: Exception) { token?.let { blobStore.abort(it) }; future.completeExceptionally(e) }
+        }
+        return future
+    }
 
     fun close() {
         if (closed) return
         closed = true
+        actionHost?.invalidate(this)
         stopMultiplayer()
         lanWorker.shutdownNow()
         activeAiRequests.forEach { it.cancel() }

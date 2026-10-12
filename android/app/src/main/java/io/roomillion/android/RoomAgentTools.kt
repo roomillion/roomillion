@@ -27,6 +27,7 @@ object RoomAgentTools {
         ))
     }
     fun capabilities(): JSONObject = JSONObject().put("platform","android").put("modules",JSONArray(AndroidModuleCatalog.supported.toList()))
+        .put("roomActions", "可在 manifest.actions 声明 id/name/description/effect/inputSchema/outputSchema，并调用 room.actions.register(id, async(input,context)=>result)。effect 为 read/write/destructive/external；删除和对外发送由工作台助手确认。context 提供 report/isCancelled/throwIfCancelled。result.artifacts 可发布本房间制品 ID，助手负责受控传递文件；不共享数据库、路径或密钥。复用按钮业务逻辑，测试按钮行为及操作结果；大数据通过制品发布。")
         .put("sdk",JSONArray(listOf("getInfo","db.query/run","storage.get/set","ai.listModels/generate/onModelsChanged","blobs/artifacts","files.pickText/pickBinary/openBinary/readBinary/closeBinary/exportText/exportBinary/beginExport/writeExport/finishExport/abortExport","documents.markdownToPdf","multiplayer.getStatus/create/join/send/read/leave")))
         .put("limits",JSONObject().put("aiMediaBytes",AiMediaCodec.MAX_REQUEST_BYTES).put("directBinaryBytes",32*1024*1024))
         .put("test", "独立进程、空白业务数据；只使用提供的 AI/文本文件模拟，禁止真实模型、文件选择器和联机。声明 actions 检查修改后的实际行为。")

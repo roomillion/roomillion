@@ -388,6 +388,7 @@ class RoomStore {
         version: manifest.version,
         icon: manifest.icon ?? null,
         entry: manifest.entry,
+        actions: clone(manifest.actions || []),
         runtime: clone(manifest.runtime),
         permissions: clone(manifest.permissions),
         hostModules: clone(manifest.hostModules),

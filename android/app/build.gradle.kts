@@ -12,9 +12,9 @@ val signingVariablesPresent = !releaseStore.isNullOrBlank() && !releaseStorePass
 val releaseStoreExists = !releaseStore.isNullOrBlank() && file(releaseStore).isFile
 val releaseSigningReady = signingVariablesPresent && releaseStoreExists
 val androidVersionCodeText = providers.gradleProperty("roomillionAndroidVersionCode").orNull
-val androidVersionCode = androidVersionCodeText?.toIntOrNull() ?: if (androidVersionCodeText == null) 1 else error("Android versionCode 必须是正整数")
+val androidVersionCode = androidVersionCodeText?.toIntOrNull() ?: if (androidVersionCodeText == null) 2 else error("Android versionCode 必须是正整数")
 require(androidVersionCode > 0) { "Android versionCode 必须是正整数" }
-val androidVersionName = providers.gradleProperty("roomillionAndroidVersionName").orNull ?: "0.1.0"
+val androidVersionName = providers.gradleProperty("roomillionAndroidVersionName").orNull ?: "0.1.1"
 require(androidVersionName.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?"))) {
     "Android versionName 必须是语义版本号"
 }

@@ -3,6 +3,21 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("workbench", Object.freeze({
+  assistant: Object.freeze({
+    list: () => ipcRenderer.invoke("workbench:assistantList"),
+    create: () => ipcRenderer.invoke("workbench:assistantCreate"),
+    get: id => ipcRenderer.invoke("workbench:assistantGet", id),
+    configure: (id, options) => ipcRenderer.invoke("workbench:assistantConfigure", id, options),
+    send: (id, prompt) => ipcRenderer.invoke("workbench:assistantSend", id, prompt),
+    stop: id => ipcRenderer.invoke("workbench:assistantStop", id),
+    catalog: query => ipcRenderer.invoke("workbench:assistantCatalog", query),
+    setAccess: (roomId, enabled) => ipcRenderer.invoke("workbench:assistantAccess", roomId, enabled),
+    confirm: (id, taskId, allowed) => ipcRenderer.invoke("workbench:assistantConfirm", id, taskId, allowed),
+    cancelTask: (id, taskId) => ipcRenderer.invoke("workbench:assistantCancelTask", id, taskId),
+    attach: id => ipcRenderer.invoke("workbench:assistantAttach", id),
+    saveArtifact: (id, taskId, artifactId) => ipcRenderer.invoke("workbench:assistantSaveArtifact", id, taskId, artifactId),
+    onEvent: callback => { const listener = (_event, payload) => callback(payload); ipcRenderer.on("workbench:assistantEvent", listener); return () => ipcRenderer.removeListener("workbench:assistantEvent", listener); }
+  }),
   getState: () => ipcRenderer.invoke("workbench:getState"),
   copyText: (value) => ipcRenderer.invoke("workbench:copyText", value),
   chooseRoomStorageLocation: () => ipcRenderer.invoke("workbench:chooseRoomStorageLocation"),

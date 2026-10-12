@@ -2,14 +2,23 @@
   "formatVersion": "0.1",
   "id": "cn.zhibian.example.document-workbench",
   "name": "文档浏览与转换",
-  "version": "1.0.0",
-  "publisher": { "id": "cn.zhibian", "name": "千万间 Roomillion" },
-  "runtime": { "roomSdk": "1", "minimumWorkbench": "0.3.0-alpha.51" },
+  "version": "1.0.1",
+  "publisher": {
+    "id": "cn.zhibian",
+    "name": "千万间 Roomillion"
+  },
+  "runtime": {
+    "roomSdk": "1",
+    "minimumWorkbench": "0.4.1"
+  },
   "entry": "app/index.html",
   "icon": "assets/icon.svg",
   "permissions": {
     "database": "private",
-    "files": ["pick", "export"],
+    "files": [
+      "pick",
+      "export"
+    ],
     "network": []
   },
   "hostModules": [
@@ -22,5 +31,54 @@
     "document.word.read@1",
     "document.word.preview@1"
   ],
-  "embeddedDependencies": []
+  "embeddedDependencies": [],
+  "actions": [
+    {
+      "id": "convert-markdown",
+      "name": "转换 Markdown 文档",
+      "description": "把文本或本房间收到的 Markdown 制品转换为 Markdown、Word 或 PDF。提供 text 或 artifactId 之一；返回文件制品。",
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Markdown 原文，与 artifactId 二选一"
+          },
+          "artifactId": {
+            "type": "string",
+            "description": "本房间制品 ID"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "md",
+              "docx",
+              "pdf"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "文件名，可不带扩展名"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "list-artifacts",
+      "name": "查询文档制品",
+      "description": "列出本房间生成或接收的文件，不返回文件内容。",
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
 }

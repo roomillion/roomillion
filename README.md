@@ -4,7 +4,7 @@
 
 千万间是一个离线优先的桌面工作台。它让 AI 创建可安装、可修改、可分享的“房间”（小应用），用于办公、文档处理、数据整理和交互工具。房间通过工作台提供的受控接口使用文件、数据和 AI 能力；它们不能直接读取系统密钥或任意文件。
 
-当前源码版本为 0.4.1。Windows x64 提供安装版、目录便携版和单文件便携版；generic Linux x64 提供技术预览。两种系统使用各自的工作台程序，但可以交换兼容的 .room 房间包。macOS 尚无可发布版本。项目仍处于技术预览阶段，Linux 预览不等于已通过指定 UOS 版本认证。
+当前源码版本为 0.4.2。Windows x64 提供安装版、目录便携版和单文件便携版；generic Linux x64 提供技术预览。两种系统使用各自的工作台程序，但可以交换兼容的 .room 房间包。macOS 尚无可发布版本。项目仍处于技术预览阶段，Linux 预览不等于已通过指定 UOS 版本认证。
 
 `android/` 中正在开发独立的[安卓房间宿主实验工程](android/README.md)，可导入部分兼容房间并用 AI 修改已有房间；它尚未正式发布，从零 AI 建房仍未接入。
 
@@ -14,10 +14,10 @@
 
 | 平台 | 产物 | 适用场景 |
 | --- | --- | --- |
-| Windows x64 | Roomillion-0.4.1-Setup.exe | 按当前用户安装，注册 .room 文件关联 |
-| Windows x64 | Roomillion-0.4.1-Portable-Folder.zip | 解压即用，默认把数据放在解压目录 |
-| Windows x64 | Roomillion-0.4.1-Portable.exe | 单文件便携版，默认使用当前用户数据目录 |
-| Linux x64 | Roomillion-0.4.1-linux-x64.tar.xz、Roomillion-0.4.1-x86_64.AppImage | 通用 Linux 技术预览，仍需目标发行版实机验收 |
+| Windows x64 | Roomillion-0.4.2-Setup.exe | 按当前用户安装，注册 .room 文件关联 |
+| Windows x64 | Roomillion-0.4.2-Portable-Folder.zip | 解压即用，默认把数据放在解压目录 |
+| Windows x64 | Roomillion-0.4.2-Portable.exe | 单文件便携版，默认使用当前用户数据目录 |
+| Linux x64 | Roomillion-0.4.2-linux-x64.tar.xz、Roomillion-0.4.2-x86_64.AppImage | 通用 Linux 技术预览，仍需目标发行版实机验收 |
 
 Windows 产物目前未签名。三种 Windows 包均不要求目标电脑预装 Node.js、Git、SQLite 或 npm 包。
 
@@ -49,6 +49,10 @@ flowchart LR
 
 ## 房间与 AI 能力
 
+桌面源码版新增“工作台助手”：说出需求，它会查找已安装房间并调用已开放的功能。例如登记物资后，生成清单，交给文档房间转换成 PDF。助手复用工作台配置的 AI 模型，可切换模型和思考强度；对话与执行记录保存在本地，支持添加文件、查看进度、停止任务和保存结果。普通操作直接执行，删除和对外发送需要确认。
+
+物资台账、会议行动项、文档浏览与转换已开放助手接口。已安装旧示例需在“示例房间”中更新；其他房间只有在接入功能接口后才能直接操控，未接入时仍可手动打开。接口定义随 `.room` 分享，AI 创建房间也可生成这些接口。安卓实验工程也已接入工作台助手，共用房间接口，首版面向前台使用。
+
 工作台内置八个公开示例：物资台账、会议行动项、离线 3D 晶体挑战、AI 辩论场、AI 模型能力测试、千万间浏览器、文档浏览与转换、音频分析室。它们展示了数据库、文件导入导出、3D 交互、多模型协作、文档转换、音频分析和受控网页浏览。未公开示例不属于本仓库或发行包。
 
 房间可以导出为 .room 文件，选择只包含应用，或同时包含应用和数据，并可设置密码。旧版 .zroom 仍可导入，新导出统一使用 .room。安装房间前，工作台会显示完整性、权限等预检结果。
@@ -69,7 +73,7 @@ Windows x64 是当前主要开发和交付平台。Linux x64 包是 generic 技�
     npm test
     npm run smoke
 
-在 Windows 重建当前版本时使用 npm run build:portable、npm run build:portable-folder 或 npm run build:installer。npm run release:portable 会先递增版本，不适合只重建现有 0.4.1。Linux x64 需在 Linux 构建环境中准备已核验的 Git 工具链，再运行：
+在 Windows 重建当前版本时使用 npm run build:portable、npm run build:portable-folder 或 npm run build:installer。npm run release:portable 会先递增版本，不适合只重建现有 0.4.2。Linux x64 需在 Linux 构建环境中准备已核验的 Git 工具链，再运行：
 
     sh scripts/linux/prepare-git-toolchain.sh --output .linux-build/git-linux-x64
     sh scripts/linux/build-generic-preview.sh --toolchain .linux-build/git-linux-x64 --appimage

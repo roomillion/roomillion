@@ -9,7 +9,7 @@ import java.util.UUID
 /** Host-only chat/tool transport for Pi. Room SDK callers cannot invoke this gateway. */
 class RoomAgentGateway(private val models: AiModelStore,
     private val connect: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
-    private val deadlineMillis: Long = 180_000) {
+    private val deadlineMillis: Long = 180_000, private val supportsThinking: (TextModel) -> Boolean = { false }) {
     fun complete(args: JSONObject, cancellation: AiRequestCancellation): JSONObject {
         cancellation.check()
         val profile = args.optString("profileId").ifBlank { models.defaultProfileId() ?: error("请配置编程模型") }
@@ -19,6 +19,8 @@ class RoomAgentGateway(private val models: AiModelStore,
         for (i in 0 until messages.length()) require(messages.getJSONObject(i).optString("role") in setOf("system","user","assistant","tool")) { "消息角色无效" }
         val body = JSONObject().put("model", configured.model).put("messages", messages)
             .put("tools", args.getJSONArray("tools")).put("tool_choice", "auto").put("max_tokens", 16384)
+        val thinking = args.optString("thinking", "off"); require(thinking in setOf("off", "low", "medium", "high")) { "思考强度无效" }
+        if (thinking != "off" && supportsThinking(configured)) body.put("reasoning_effort", thinking)
         val connection = connect(URL(configured.endpoint))
         cancellation.attach(connection)
         val expired=java.util.concurrent.atomic.AtomicBoolean(false)

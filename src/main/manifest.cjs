@@ -308,6 +308,7 @@ function validateManifest(manifest) {
   const embeddedDependencies = validateEmbeddedDependencies(manifest.embeddedDependencies);
 
   const sharing = validateSharing(manifest.sharing);
+  const actions = require("./room-action-schema.cjs").validateActions(manifest.actions);
 
   return Object.freeze({
     ...manifest,
@@ -315,6 +316,7 @@ function validateManifest(manifest) {
     publisher,
     permissions,
     sharing,
+    actions: Object.freeze(actions),
     hostModules: Object.freeze([...(manifest.hostModules ?? [])]),
     embeddedDependencies: Object.freeze(embeddedDependencies)
   });
