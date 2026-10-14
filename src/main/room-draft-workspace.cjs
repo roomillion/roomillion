@@ -21,7 +21,17 @@ function createWorkspace(metadata, previous = null) {
   return { metadata: cleanMetadata, files: { ...(previous?.files || {}) }, fileRevisions: { ...knownFileRevisions(previous) }, revision: (previous?.revision || 0) + 1, updatedAt: new Date().toISOString() };
 }
 
-function writeFile(workspace, { file, content, expectedRevision, find }) {
+function prepareWriteArguments(args) {
+  // JSON tool arguments already carry structured JSON. Preserve that data
+  // rather than asking the model to regenerate it as an escaped string.
+  if (args && typeof args.file === "string" && /\.json$/i.test(args.file) && args.find === undefined && args.content !== null && typeof args.content === "object") {
+    return { ...args, content: JSON.stringify(args.content, null, 2) };
+  }
+  return args;
+}
+
+function writeFile(workspace, args) {
+  let { file, content, expectedRevision, find } = prepareWriteArguments(args);
   if (!workspace) throw new Error("先调用 begin_custom_room 设置房间名称、模块和权限");
   file = normalizedFile(file);
   const fileRevisions = knownFileRevisions(workspace);
@@ -102,4 +112,4 @@ function describeWorkspace(workspace, file) {
     ...(file ? { file, content: workspace.files[file] || "" } : {}) };
 }
 
-module.exports = { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace };
+module.exports = { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace, prepareWriteArguments };

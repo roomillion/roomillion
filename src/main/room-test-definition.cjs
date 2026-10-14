@@ -41,6 +41,8 @@ function normalizeRoomTestDefinition(input) {
   const files = [];
   let fileBytes = 0;
   if (input.mocks?.captureExports !== undefined && typeof input.mocks.captureExports !== "boolean") throw new Error("captureExports 必须是布尔值");
+  const exportDecisions = input.mocks?.exportDecisions === undefined ? [] : input.mocks.exportDecisions;
+  if (!Array.isArray(exportDecisions) || exportDecisions.length > 100 || exportDecisions.some(value => !["save", "cancel"].includes(value))) throw new Error("exportDecisions 必须是最多 100 项的 save/cancel 数组");
   if (input.mocks?.files !== undefined) {
     if (!Array.isArray(input.mocks.files) || input.mocks.files.length > 20) throw new Error("测试文件必须是最多 20 项的数组");
     const names = new Set();
@@ -56,7 +58,7 @@ function normalizeRoomTestDefinition(input) {
       files.push({ name: file.name, base64: bytes.toString("base64") });
     }
   }
-  return { version: 1, scenarios, mocks: { ai, files, captureExports: input.mocks?.captureExports === true } };
+  return { version: 1, scenarios, mocks: { ai, files, captureExports: input.mocks?.captureExports === true, exportDecisions: [...exportDecisions] } };
 }
 
 async function runDeclaredScenarios(webContents, definition) {
@@ -69,6 +71,9 @@ async function runDeclaredScenarios(webContents, definition) {
           // Reload the same installed room; its private database survives while JS memory does not.
           await webContents.loadURL(webContents.getURL());
           await webContents.executeJavaScript(`new Promise((resolve, reject) => {
+            globalThis.alert = () => {};
+            globalThis.confirm = () => true;
+            globalThis.prompt = () => '';
             const started = Date.now();
             const check = () => {
               const error = document.documentElement.dataset.roomError;
@@ -86,7 +91,16 @@ async function runDeclaredScenarios(webContents, definition) {
           const scenarioName = ${JSON.stringify(scenario.name)};
           const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
           if (action.type === 'wait') { await sleep(action.ms); return; }
-          const element = document.querySelector(action.selector);
+          const assertionDeadline = Date.now() + 5000;
+          let element = document.querySelector(action.selector);
+          if (action.type === 'assertExists' || action.type === 'assertText') {
+            while (!element && Date.now() < assertionDeadline) {
+              const roomError = document.documentElement.dataset.roomError;
+              if (roomError) throw new Error(roomError);
+              await sleep(50);
+              element = document.querySelector(action.selector);
+            }
+          }
           if (!element) throw new Error('测试场景“' + scenarioName + '”找不到元素：' + action.selector + '；当前页面：' + String(document.body.innerText || '').slice(-800));
           if (action.type === 'click') { for (let i = 0; i < (action.count || 1); i += 1) element.click(); await sleep(100); }
           if (action.type === 'input') {
@@ -95,7 +109,7 @@ async function runDeclaredScenarios(webContents, definition) {
             element.dispatchEvent(new Event('change', { bubbles: true }));
           }
           if (action.type === 'assertText') {
-            const deadline = Date.now() + 5000;
+            const deadline = assertionDeadline;
             let actual;
             // IPC-backed handlers are asynchronous; re-query because rendering may replace the node.
             while (true) {

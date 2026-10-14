@@ -281,6 +281,8 @@ test("room modification can inspect and page through only the installed program 
   assert.equal(remainingIndex.complete, true);
   const page = JSON.parse((await read.execute("read", { path: "app/app.js", offset: 0 }, new AbortController().signal)).content[0].text);
   assert.match(page.content, /THREE\.Scene/);
+  await inspect.execute("inspect-again", { pageSize: 1 }, new AbortController().signal);
+  assert.ok(session.currentRoomInspection.readFiles.includes("app/app.js"));
   assert.equal(JSON.stringify(page).includes(store.getDataRoot(built.room.id)), false);
   await assert.rejects(() => read.execute("bad", { path: "../../data/room.sqlite" }, new AbortController().signal), /没有该程序文件/);
   session.workflow = { phase: "clarifying", answered: true };
@@ -344,6 +346,8 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   const pi = await import("@earendil-works/pi-ai");
   const tools = service.createTools(session, { pi });
   const invoke = (name, params = {}) => tools.find((tool) => tool.name === name).execute(name, params, new AbortController().signal);
+  await invoke("read_custom_room", { file: "javascript" });
+  assert.match(session.customWorkspace.files.javascript, /speed=\.08/);
   await invoke("inspect_current_room");
   await invoke("read_current_room_file", { path: "app/app.js" });
   await invoke("patch_current_room_file", { path: "app/app.js", find: "speed=.08", replacement: "speed=.12", expectedRevision: 1 });
@@ -359,6 +363,10 @@ test("installed multi-file rooms can be patched, tested in a temporary copy and 
   assert.match(await fsp.readFile(await store.resolveProgramFile(built.room.id, "app/app.js"), "utf8"), /speed=\.12/);
   assert.deepEqual(store.getRoom(built.room.id).grantedPermissions.files, ["pick"]);
   assert.equal(session.programPatch, null);
+  assert.equal(session.customWorkspace, null);
+  const freshDraft = JSON.parse((await invoke("read_custom_room", { file: "javascript" })).content[0].text);
+  assert.match(freshDraft.content, /speed=\.12/);
+  assert.doesNotMatch(freshDraft.content, /speed=\.08/);
   const installedCopy = JSON.parse((await invoke("read_current_room_file", { path: "app/app.js" })).content[0].text);
   assert.equal(installedCopy.source, "installed");
   assert.equal(installedCopy.patchRevision, null);
@@ -619,6 +627,12 @@ test("implementation can delegate multiple read-only reviews to child Pi agents"
     constructor(options) { this.options = options; this.listeners = []; this.state = { messages: [] }; childTools = options.initialState.tools.map((tool) => tool.name); }
     subscribe(listener) { this.listeners.push(listener); }
     async prompt(task) {
+      const readDraft = this.options.initialState.tools.find(tool => tool.name === "read_custom_room");
+      const source = JSON.parse((await readDraft.execute("draft", { file: "javascript" })).content[0].text);
+      assert.match(source.content, /reviewEvidence/);
+      const search = this.options.initialState.tools.find(tool => tool.name === "search_custom_room");
+      const found = JSON.parse((await search.execute("search", { query: "reviewEvidence" })).content[0].text);
+      assert.equal(found.results[0].file, "javascript");
       const intermediate = { role: "assistant", content: [{ type: "toolCall", id: "inspect", name: "inspect_current_room", arguments: {} }], stopReason: "toolUse", timestamp: Date.now() };
       for (const listener of this.listeners) await listener({ type: "message_end", message: intermediate });
       childUsageWasNormalized = intermediate.usage?.totalTokens === 0;
@@ -630,12 +644,14 @@ test("implementation can delegate multiple read-only reviews to child Pi agents"
   t.after(() => service.dispose());
   const session = service.requireSession((await service.createSession()).id);
   session.workflow = { phase: "implementing", plan: { id: "plan" }, approvedPlanId: "plan" };
+  session.customWorkspace = require("../src/main/room-draft-workspace.cjs").createWorkspace({ name: "待审查草稿", description: "只读审查测试", hostModules: [], capabilities: {} });
+  session.customWorkspace.files.javascript = "const reviewEvidence = 1;";
   const pi = await import("@earendil-works/pi-ai");
   const runtime = { pi, model: { id: "test" }, streamFn: () => {}, agentModule: { Agent: ChildAgent }, harnessState: { subagentCount: 0 } };
   const tool = service.createTools(session, runtime).find((item) => item.name === "delegate_room_task");
   const invoke = () => tool.execute("delegate", { role: "代码审查", task: "检查当前实现可能遗漏的回归场景并给出证据" }, new AbortController().signal);
   assert.match((await invoke()).content[0].text, /修改点可行/);
-  assert.deepEqual(childTools.sort(), ["inspect_current_room", "inspect_room_capabilities", "inspect_source_project", "read_current_room_file", "read_source_project_file"].sort());
+  assert.deepEqual(childTools.sort(), ["inspect_current_room", "inspect_room_capabilities", "inspect_source_project", "read_current_room_file", "read_source_project_file", "read_custom_room", "search_custom_room"].sort());
   assert.equal(childUsageWasNormalized, true);
   assert.equal(session.subagents.at(-1).status, "complete");
   await invoke(); await invoke(); await invoke();
@@ -655,6 +671,7 @@ test("AI rooms require explicit test consent and use only the selected model whe
     getPublicProfile: (id = "builder") => profiles.get(id) || null,
     complete: async options => {
       calls.push(options);
+      if (options.maxTokens < 256) throw new Error("模拟思考阶段耗尽输出预算，正文为空");
       return { text: options.prompt.match(/ZB-[a-f0-9]+/)[0], usage: { input: 9, output: 2 }, model: "room-model" };
     }
   };
@@ -673,10 +690,19 @@ test("AI rooms require explicit test consent and use only the selected model whe
   spec.files.javascript += `\ndocument.getElementById("restart").addEventListener("dblclick",async()=>{await window.room.ai.generate("测试")});`;
   spec.files["room-tests.json"] = JSON.stringify({ version: 1, scenarios: [{ name: "重新开始", actions: [{ type: "click", selector: "#restart" }] }] });
   await saveCustomDraft(tools, spec);
-  const tested = await tools.find((tool) => tool.name === "test_custom_room").execute("test", {}, new AbortController().signal);
+  const controller = new AbortController();
+  const tested = await tools.find((tool) => tool.name === "test_custom_room").execute("test", {}, controller.signal);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].profileId, "room-test");
+  assert.equal(calls[0].signal, controller.signal);
   assert.equal(tested.details.aiTest.passed, true);
+  aiService.complete = async options => {
+    assert.equal(options.signal, controller.signal);
+    const pending = new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("模型请求已取消")), { once: true }));
+    controller.abort();
+    return pending;
+  };
+  await assert.rejects(service.runAuthorizedAiTest(session, controller.signal), /模型请求已取消/);
 });
 
 test("generated AI rooms use the verified builder model and preserve a later room choice", async t => {
@@ -1011,43 +1037,160 @@ test("interrupted model streams retry in-place with bounds, preserve tools, and 
   });
 });
 
-test("stream retry works with the installed Pi Agent API", async t => {
+test("Pi waits on question and plan cards without a redundant model request, including mixed tool batches", async t => {
   const pi = await import("@earendil-works/pi-ai");
   const agentModule = await import("@earendil-works/pi-agent-core");
-  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-real-pi-retry-"));
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-pi-cards-"));
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const roomStore = await new RoomStore(root).init();
-  let attempts = 0;
   const contexts = [];
   const streamFn = (_model, context) => {
     contexts.push(JSON.parse(JSON.stringify(context.messages)));
-    attempts += 1;
-    const failed = attempts === 1;
-    const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: [{ type: "text", text: failed ? "partial" : "recovered" }], stopReason: failed ? "error" : "stop", ...(failed ? { errorMessage: "Stream ended without finish_reason" } : {}) };
+    const index = contexts.length;
+    assert.ok(index <= 2, "waiting cards must not make a third model request");
+    const calls = index === 1
+      ? [{ name: "inspect_room_capabilities", arguments: {} }, { name: "ask_room_questions", arguments: { questions: [{ topic: "other", title: "只在电脑使用还是也要在安卓手机使用？", options: ["只用电脑", "电脑和安卓手机"] }] } }]
+      : [{ name: "inspect_room_capabilities", arguments: {} }, { name: "propose_room_plan", arguments: testPlan }];
+    const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: calls.map((call, i) => ({ type: "toolCall", id: `call-${index}-${i}`, ...call })), stopReason: "toolUse" };
     const stream = pi.createAssistantMessageEventStream();
-    stream.push(failed ? { type: "error", reason: "error", error: message } : { type: "done", reason: "stop", message });
+    stream.push({ type: "done", reason: "toolUse", message });
     stream.end();
     return stream;
   };
-  const service = await new ProductionRoomAgentService({ roomStore, gitService: {},
-    aiService: {
-      getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
-      createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn })
-    }, agentModuleLoader: async () => agentModule
-  }).init();
+  const service = await new ProductionRoomAgentService({ roomStore, aiService: {
+    getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
+    createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn })
+  }, agentModuleLoader: async () => agentModule }).init();
   t.after(() => service.dispose());
   const session = await service.createSession();
-  await service.send(session.id, { prompt: "保留上下文继续", runtime: { maxRetries: 1 } });
-  const result = await service.waitForIdle(session.id);
-  assert.equal(attempts, 2);
-  assert.equal(result.status, "idle");
-  assert.equal(result.error, "");
-  assert.equal(result.runs.at(-1).streamRetries, 1);
-  assert.equal(contexts[0][0].role, "system");
-  assert.match(contexts[0][0].content, /房间开发 Agent/);
-  assert.ok(contexts[0][0].toolsAdded.some(tool => tool.name === "inspect_room_capabilities"));
-  assert.deepEqual(contexts[1], contexts[0]);
-  assert.ok(result.messages.some(message => message.content === "recovered"));
+  await service.send(session.id, "创建翻译房间");
+  const asked = await service.waitForIdle(session.id);
+  assert.equal(contexts.length, 1, JSON.stringify({error: asked.error, steps: asked.steps}));
+  assert.equal(asked.status, "idle");
+  assert.equal(asked.error, "");
+  assert.equal(asked.workflow.questions.length, 1);
+  assert.equal(service.requireSession(session.id).agentMessages.at(-1).role, "toolResult");
+  await service.send(session.id, "只在电脑使用，其他细节按推荐答案");
+  const reviewed = await service.waitForIdle(session.id);
+  assert.equal(contexts.length, 2);
+  assert.equal(reviewed.status, "idle");
+  assert.equal(reviewed.error, "");
+  assert.equal(reviewed.workflow.phase, "review");
+  assert.equal(reviewed.workflow.approvedPlanId, null);
+  assert.ok(contexts[1].some(message => message.role === "toolResult" && message.toolName === "ask_room_questions"));
+  const restored = await new ProductionRoomAgentService({ roomStore, aiService: {} }).init();
+  t.after(() => restored.dispose());
+  assert.equal(restored.getSession(session.id).workflow.plan.id, reviewed.workflow.plan.id);
+});
+
+test("Pi card completion preserves queued user changes and retries a failed plan call", async t => {
+  const pi = await import("@earendil-works/pi-ai");
+  const agentModule = await import("@earendil-works/pi-agent-core");
+  for (const queued of [false, true]) await t.test(queued ? "queued change" : "failed call", async t => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-pi-card-resume-"));
+    t.after(() => fsp.rm(root, { recursive: true, force: true }));
+    const roomStore = await new RoomStore(root).init();
+    let requests = 0, queuedSend;
+    const streamFn = (_model, context) => {
+      requests += 1;
+      assert.ok(requests <= 2);
+      if (queued && requests === 2) assert.ok(context.messages.some(message => message.role === "user" && contentTextForTest(message.content).includes("加上清空按钮")));
+      const args = !queued && requests === 1 ? { ...testPlan, summary: "短" } : { ...testPlan, features: requests === 2 ? "保留翻译功能，加上清空按钮。" : testPlan.features };
+      const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: [{ type: "toolCall", id: `plan-${requests}`, name: "propose_room_plan", arguments: args }], stopReason: "toolUse" };
+      const stream = pi.createAssistantMessageEventStream();
+      stream.push({ type: "done", reason: "toolUse", message });
+      stream.end();
+      return stream;
+    };
+    const service = await new ProductionRoomAgentService({ roomStore, aiService: {
+      getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
+      createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn })
+    }, agentModuleLoader: async () => agentModule,
+    onEvent: event => {
+      if (queued && !queuedSend && event.type === "tool_finished" && event.step.toolName === "propose_room_plan" && event.step.status === "success") queuedSend = service.send(event.sessionId, "加上清空按钮");
+    } }).init();
+    t.after(() => service.dispose());
+    const session = await service.createSession();
+    await service.send(session.id, "创建简单翻译房间");
+    const reviewed = await service.waitForIdle(session.id);
+    if (queuedSend) assert.equal((await queuedSend).queued, true);
+    assert.equal(requests, 2, reviewed.error);
+    assert.equal(reviewed.error, "");
+    assert.equal(reviewed.workflow.phase, "review");
+    assert.match(reviewed.workflow.plan.features, /清空按钮/);
+    assert.equal(reviewed.workflow.approvedPlanId, null);
+  });
+});
+
+function contentTextForTest(content) {
+  return typeof content === "string" ? content : (content || []).filter(block => block.type === "text").map(block => block.text).join("\n");
+}
+
+test("installed Pi validates structured JSON after preparing file-write arguments", async t => {
+  const pi = await import("@earendil-works/pi-ai");
+  const { Agent } = await import("@earendil-works/pi-agent-core");
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-pi-json-write-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const service = await new RoomAgentService({ roomStore, aiService: { getPublicProfile: () => ({ model: "fake", hasSessionKey: true }) } }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  session.workflow = { phase: "implementing", plan: { ...testPlan, id: "approved" }, approvedPlanId: "approved" };
+  const content = { version: 1, mocks: { ai: [{ text: "你好" }] }, scenarios: [] };
+  let requests = 0;
+  const agent = new Agent({ initialState: { model: { id: "test" }, tools: service.createTools(session, { pi }).filter(tool => ["begin_custom_room", "write_custom_room_file"].includes(tool.name)) }, streamFn: () => {
+    const first = ++requests === 1;
+    const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: first ? [{ type: "toolCall", id: "begin", name: "begin_custom_room", arguments: { name: "测试房间", description: "测试 JSON 写入", capabilities: { database: false, ai: false, files: [], network: [] } } }, { type: "toolCall", id: "json", name: "write_custom_room_file", arguments: { file: "room-tests.json", content, expectedRevision: 1 } }] : [{ type: "text", text: "文件已保存" }], stopReason: first ? "toolUse" : "stop" };
+    const stream = pi.createAssistantMessageEventStream();
+    stream.push({ type: "done", reason: message.stopReason, message }); stream.end(); return stream;
+  } });
+  await agent.prompt("保存测试文件");
+  assert.ok(agent.state.messages.filter(message => message.role === "toolResult").every(message => message.isError === false));
+  assert.deepEqual(session.customWorkspace.metadata.hostModules, []);
+  assert.deepEqual(JSON.parse(session.customWorkspace.files["room-tests.json"]), content);
+});
+
+test("stream retry works with the installed Pi Agent API", async t => {
+  for (const errorMessage of ["Stream ended without finish_reason", "AI 单次请求超时（90 秒）；已保留此前完成的工具结果"]) {
+    await t.test(errorMessage, async t => {
+      const pi = await import("@earendil-works/pi-ai");
+      const agentModule = await import("@earendil-works/pi-agent-core");
+      const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-real-pi-retry-"));
+      t.after(() => fsp.rm(root, { recursive: true, force: true }));
+      const roomStore = await new RoomStore(root).init();
+      let attempts = 0;
+      const contexts = [];
+      const streamFn = (_model, context) => {
+        contexts.push(JSON.parse(JSON.stringify(context.messages)));
+        attempts += 1;
+        const failed = attempts === 1;
+        const message = { role: "assistant", api: "openai-completions", provider: "test", model: "test", timestamp: Date.now(), content: [{ type: "text", text: failed ? "partial" : "recovered" }], stopReason: failed ? "error" : "stop", ...(failed ? { errorMessage } : {}) };
+        const stream = pi.createAssistantMessageEventStream();
+        stream.push(failed ? { type: "error", reason: "error", error: message } : { type: "done", reason: "stop", message });
+        stream.end();
+        return stream;
+      };
+      const service = await new ProductionRoomAgentService({ roomStore, gitService: {},
+        aiService: {
+          getPublicProfile: () => ({ name: "Test", model: "test", hasSessionKey: true }),
+          createAgentRuntime: async () => ({ pi, model: { id: "test" }, streamFn })
+        }, agentModuleLoader: async () => agentModule
+      }).init();
+      t.after(() => service.dispose());
+      const session = await service.createSession();
+      await service.send(session.id, { prompt: "保留上下文继续", runtime: { maxRetries: 1 } });
+      const result = await service.waitForIdle(session.id);
+      assert.equal(attempts, 2);
+      assert.equal(result.status, "idle");
+      assert.equal(result.error, "");
+      assert.equal(result.runs.at(-1).streamRetries, 1);
+      assert.equal(contexts[0][0].role, "system");
+      assert.match(contexts[0][0].content, /房间开发 Agent/);
+      assert.ok(contexts[0][0].toolsAdded.some(tool => tool.name === "inspect_room_capabilities"));
+      assert.deepEqual(contexts[1], contexts[0]);
+      assert.ok(result.messages.some(message => message.content === "recovered"));
+    });
+  }
 });
 
 class CustomRoomFakeAgent extends FakeAgent {
@@ -1230,6 +1373,59 @@ test("feedback on an approved unfinished creation draft keeps its plan and imple
   assert.equal(session.workflow.approvedPlanId, "approved-plan");
   assert.match(session.latestUserGoal, /第三次向左/);
   await service.waitForIdle(session.id);
+});
+
+test("resume wording keeps an approved plan even when the first model request failed before any draft", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-resume-before-draft-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const service = await new RoomAgentService({ roomStore, aiService: { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) } }).init();
+  t.after(() => service.dispose());
+  const session = service.requireSession((await service.createSession()).id);
+  const policy = { enabled: true, profileId: "test" };
+  session.workflow = { phase: "review", plan: { ...testPlan, id: "approved", usesAi: true }, approvedPlanId: "approved", aiTestPolicy: policy };
+  let seen;
+  service.run = async (_session, prompt) => { seen = prompt; };
+  const prompt = "继续已确认方案，保留草稿和需求，修正错误、测试并安装。";
+  await service.send(session.id, prompt);
+  assert.equal(seen, prompt);
+  assert.equal(session.workflow.phase, "implementing");
+  assert.equal(session.workflow.plan.id, "approved");
+  assert.equal(session.workflow.approvedPlanId, "approved");
+  assert.equal(session.workflow.aiTestPolicy, policy);
+  assert.equal(session.customWorkspace ?? null, null);
+  await service.waitForIdle(session.id);
+  service.activeRuns.delete(session.id); // The stubbed run omits production cleanup.
+  session.workflow.phase = "review";
+  await service.send(session.id, "继续已确认方案，但增加联网搜索功能");
+  assert.equal(session.workflow.approvedPlanId, null);
+  assert.equal(session.workflow.plan, null);
+});
+
+test("restoring a legacy session discards a draft older than its installed program", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-legacy-stale-workspace-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const roomStore = await new RoomStore(root).init();
+  const { createCustomRoom } = require("../src/main/custom-room.cjs");
+  const built = await createCustomRoom({ spec: freeBilliardsSpec(), roomStore });
+  const aiService = { getPublicProfile: () => ({ id: "test", model: "test", hasSessionKey: true }) };
+  const service = await new RoomAgentService({ roomStore, aiService }).init();
+  const session = service.requireSession((await service.createSession({ roomId: built.room.id })).id);
+  session.customWorkspace = require("../src/main/room-draft-workspace.cjs").createWorkspace({ name: "旧草稿", description: "旧会话缓存", hostModules: [], capabilities: {} });
+  session.customWorkspace.files.javascript = "const staleProgram = true;";
+  session.customWorkspace.updatedAt = new Date(Date.parse(built.room.updatedAt) - 1000).toISOString();
+  await service.persist(session);
+  await service.dispose();
+  const restored = await new RoomAgentService({ roomStore, aiService }).init();
+  t.after(() => restored.dispose());
+  const current = restored.requireSession(session.id);
+  assert.equal(current.customWorkspace, null);
+  current.workflow.phase = "implementing";
+  const pi = await import("@earendil-works/pi-ai");
+  const read = restored.createTools(current, { pi }).find(tool => tool.name === "read_custom_room");
+  const result = JSON.parse((await read.execute("read", { file: "javascript" })).content[0].text);
+  assert.match(result.content, /speed=\.08/);
+  assert.doesNotMatch(result.content, /staleProgram/);
 });
 
 test("maintenance failures and restored legacy sessions never resurface an old approval plan", async (t) => {

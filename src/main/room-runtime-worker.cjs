@@ -45,6 +45,9 @@ function start(input, schemeRegistered = false) {
       testDefinition = normalizeRoomTestDefinition(payload?.files?.["room-tests.json"]);
       room = (await createCustomRoom({ spec: payload, roomStore: store })).room;
     }
+    const initialDataRoot = path.join(jobRoot, "initial-room-data");
+    await fsp.mkdir(initialDataRoot, { recursive: true });
+    await fsp.cp(store.getDataRoot(room.id), initialDataRoot, { recursive: true }).catch(error => { if (error.code !== "ENOENT") throw error; });
     database = await new RoomDatabaseService(store).init();
     blobs = new RoomBlobService(store);
     const jobs = new RoomJobService(store);
@@ -73,9 +76,17 @@ function start(input, schemeRegistered = false) {
     for (const method of ["create", "list", "upsert", "search", "remove", "drop"]) handle(`room:vector:${method}`, (...args) => vectors[method](room.id, ...args), ["database"]);
     const runtimeAiRole = room.grantedPermissions?.ai?.roles?.[0];
     const runtimeAiPermission = ["ai", runtimeAiRole];
-    const fixtureModels = testDefinition?.mocks?.files?.length ? [{ id: "mock-profile", label: "隔离视觉测试模型", model: "mock-model", providerName: "离线模拟", ready: true, hasCredential: true, supportsImages: true, input: ["text", "image"], contextWindow: 128000 }] : [];
+    const fixtureSupportsImages = room.grantedPermissions?.ai?.roles?.includes("vision") === true;
+    const fixtureModels = ["mock-profile", "mock-profile-alternative"].map((id, index) => ({ id, label: index ? "隔离备选模型" : fixtureSupportsImages ? "隔离视觉测试模型" : "隔离文本测试模型", model: index ? "mock-model-alternative" : "mock-model", providerName: "离线模拟", ready: true, hasCredential: true, supportsImages: fixtureSupportsImages, input: fixtureSupportsImages ? ["text", "image"] : ["text"], contextWindow: 128000 }));
+    let fixtureSelectedModel = null;
     const fixtureSlots = {};
-    handle("room:aiListModels", () => fixtureModels, runtimeAiPermission);
+    const fixtureSelection = () => ({ profileId: fixtureSelectedModel || fixtureModels[0].id, source: fixtureSelectedModel ? "room" : "default" });
+    const fixtureProfile = profileId => {
+      const profile = fixtureModels.find(item => item.id === profileId);
+      if (!profile) throw new Error("隔离测试指定的模型配置不存在");
+      return profile;
+    };
+    handle("room:aiListModels", () => fixtureModels.map(profile => ({ ...profile, isDefault: profile.id === fixtureModels[0].id, isSelected: profile.id === fixtureSelection().profileId })), runtimeAiPermission);
     const capabilityFixtures = Object.fromEntries([
       ["embedding", "mock-embedding"], ["rerank", "mock-rerank"], ["intuition", "mock-jev"]
     ].map(([kind, model]) => [kind, [model, `${model}-alternative`].map((id, index) => ({ id, label: index ? "隔离备选模型" : "隔离默认模型", model: id, ready: true, isDefault: index === 0 }))]));
@@ -120,10 +131,25 @@ function start(input, schemeRegistered = false) {
       }
       return { answers, model: profile.model, profileId: profile.id, usage: { inputTokens: null, outputTokens: null } };
     }, runtimeAiPermission);
-    handle("room:aiGetSelection", () => ({ profileId: null }), runtimeAiPermission);
+    handle("room:aiGetSelection", fixtureSelection, runtimeAiPermission);
+    handle("room:aiSelectModel", profileId => {
+      if (profileId) fixtureProfile(profileId);
+      fixtureSelectedModel = profileId || null;
+      return fixtureSelection();
+    }, runtimeAiPermission);
     handle("room:aiGetSlotDefinitions", () => room.requestedPermissions?.ai?.slots || {}, runtimeAiPermission);
     handle("room:aiGetSlots", () => ({ ...fixtureSlots }), runtimeAiPermission);
-    handle("room:aiSelectSlot", (slot, profileId) => { fixtureSlots[slot] = profileId; return { slot, profileId }; }, runtimeAiPermission);
+    handle("room:aiSelectSlot", (slot, profileId) => {
+      if (typeof slot !== "string" || !/^[a-z][a-z0-9-]{0,31}$/.test(slot)) throw new Error("模型槽位名称无效");
+      const definitions = room.requestedPermissions?.ai?.slots || {};
+      const definition = definitions[slot];
+      if (Object.keys(definitions).length && !definition) throw new Error(`房间没有声明模型槽位：${slot}`);
+      const profile = fixtureProfile(profileId);
+      if (definition?.requiresImages && !profile.supportsImages) throw new Error(`模型槽位 ${slot} 需要支持图片的模型`);
+      if (definition?.minimumContextWindow > profile.contextWindow) throw new Error(`模型槽位 ${slot} 需要更大的上下文`);
+      fixtureSlots[slot] = profileId;
+      return { slot, profileId };
+    }, runtimeAiPermission);
     handle("room:aiClearSlot", slot => { delete fixtureSlots[slot]; return { slot, profileId: null }; }, runtimeAiPermission);
     const aiMock = createRoomRuntimeAiMock(testDefinition?.mocks?.ai);
     const aiRequests = new RoomAiRequests();
@@ -190,6 +216,11 @@ function start(input, schemeRegistered = false) {
     handle("room:directoryWrite", (id, relativePath, content) => directoryFiles.write(room.id, id, relativePath, content), ["files", "directoryWrite"]);
     handle("room:directoryRevoke", id => directoryFiles.revoke(room.id, id));
     const captureExports = testDefinition?.mocks?.captureExports === true;
+    let exportDecisionIndex = 0;
+    const shouldCaptureExport = () => {
+      const decisions = testDefinition?.mocks?.exportDecisions || [];
+      return exportDecisionIndex < decisions.length ? decisions[exportDecisionIndex++] === "save" : captureExports;
+    };
     const exportRoot = path.join(jobRoot, "exports");
     const exportStreams = new Map();
     const recordExport = async (name, target) => {
@@ -220,7 +251,7 @@ function start(input, schemeRegistered = false) {
     };
     handle("room:exportText", async (suggestedName, content) => {
       if (typeof content !== "string") throw new Error("导出内容必须是文本");
-      if (!captureExports) return null; // Same result as canceling the production save dialog.
+      if (!shouldCaptureExport()) return null; // Same result as canceling the production save dialog.
       const { safeName, target } = await exportTarget(suggestedName);
       await fsp.writeFile(target, content, "utf8");
       await recordExport(safeName, target);
@@ -229,14 +260,14 @@ function start(input, schemeRegistered = false) {
     handle("room:exportBinary", async (suggestedName, content) => {
       if (!(content instanceof ArrayBuffer) && !ArrayBuffer.isView(content)) throw new Error("导出内容必须是 ArrayBuffer 或 Uint8Array");
       if (content.byteLength === 0) throw new Error("导出二进制内容不能为空");
-      if (!captureExports) return null;
+      if (!shouldCaptureExport()) return null;
       const { safeName, target } = await exportTarget(suggestedName);
       await fsp.writeFile(target, Buffer.from(content instanceof ArrayBuffer ? content : content.buffer, content.byteOffset || 0, content.byteLength));
       await recordExport(safeName, target);
       return target;
     }, ["files", "export"]);
     handle("room:exportBegin", async suggestedName => {
-      if (!captureExports) return null;
+      if (!shouldCaptureExport()) return null;
       const { safeName, target } = await exportTarget(suggestedName);
       const token = crypto.randomUUID();
       exportStreams.set(token, { safeName, target, handle: await fsp.open(target, "w"), bytes: 0 });
@@ -285,16 +316,20 @@ function start(input, schemeRegistered = false) {
     handle("room:jobGet", id => jobs.get(room.id, id), ["database"]);
     handle("room:jobTransition", (id, input) => jobs.transition(room.id, id, input), ["database"]);
     handle("room:jobRecover", () => jobs.recover(room.id), ["database"]);
-    const view = views.createView(room.id);
-    // This window is intentionally hidden. Chromium otherwise stretches short test waits
-    // to background timer intervals, letting streams finish before the cancel click.
-    view.webContents.setBackgroundThrottling(false);
-    view.webContents.session.webRequest.onBeforeRequest({ urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }, (_details, callback) => callback({ cancel: true }));
-    view.webContents.on("render-process-gone", (_event, details) => {
-      report.rendererCrashed = true;
-      report.rendererCrashReason = String(details?.reason || "unknown").slice(0, 100);
-      report.rendererExitCode = Number.isFinite(details?.exitCode) ? details.exitCode : null;
-    });
+    const createTestView = () => {
+      const view = views.createView(room.id);
+      // This window is intentionally hidden. Chromium otherwise stretches short test waits
+      // to background timer intervals, letting streams finish before the cancel click.
+      view.webContents.setBackgroundThrottling(false);
+      view.webContents.session.webRequest.onBeforeRequest({ urls: ["http://*/*", "https://*/*", "ws://*/*", "wss://*/*"] }, (_details, callback) => callback({ cancel: true }));
+      view.webContents.on("render-process-gone", (_event, details) => {
+        report.rendererCrashed = true;
+        report.rendererCrashReason = String(details?.reason || "unknown").slice(0, 100);
+        report.rendererExitCode = Number.isFinite(details?.exitCode) ? details.exitCode : null;
+      });
+      return view;
+    };
+    let view = createTestView();
     for (const phase of ["startup", "reload"]) {
       if (phase === "startup") await views.open(room.id);
       else { await database.closeRoom(room.id); await view.webContents.loadURL(`room://${room.id}/${room.entry}`); }
@@ -360,7 +395,35 @@ function start(input, schemeRegistered = false) {
       const interaction = await view.webContents.executeJavaScript(interactionScript);
       report.checks.push({ id: "interactions", ...interaction });
       if (interaction.passed && testDefinition) {
+        // The button sweep may save/delete rows, blobs or jobs. Business tests
+        // start from the installed seed, not the sweep's side effects or DOM.
+        views.destroyAll();
+        await database.closeRoom(room.id);
+        await blobs.dispose();
+        for (const stream of exportStreams.values()) await stream.handle.close().catch(() => {});
+        exportStreams.clear();
+        const dataRoot = store.getDataRoot(room.id);
+        if (!path.resolve(dataRoot).startsWith(path.resolve(jobRoot) + path.sep)) throw new Error("隔离数据重置路径无效");
+        await fsp.rm(dataRoot, { recursive: true, force: true });
+        await fsp.cp(initialDataRoot, dataRoot, { recursive: true });
+        fixtureSelectedModel = null;
+        for (const slot of Object.keys(fixtureSlots)) delete fixtureSlots[slot];
         aiMock.reset();
+        exportDecisionIndex = 0;
+        view = createTestView();
+        await views.open(room.id);
+        await view.webContents.executeJavaScript("globalThis.alert = () => {}; globalThis.confirm = () => true; globalThis.prompt = () => ''; void 0;");
+        await view.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+          const started = Date.now();
+          const check = () => {
+            const error = document.documentElement.dataset.roomError;
+            if (error) return reject(new Error(error));
+            if (document.documentElement.dataset.roomReady === 'true') return resolve();
+            if (Date.now() - started > 12000) return reject(new Error('业务场景初始化未完成'));
+            setTimeout(check, 50);
+          };
+          check();
+        })`);
         report.checks.push({ id: "declared-scenarios", ...(await runDeclaredScenarios(view.webContents, testDefinition)) });
       }
     }

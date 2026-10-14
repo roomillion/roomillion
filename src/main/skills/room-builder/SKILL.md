@@ -4,8 +4,8 @@
 
 ## 流程
 
-1. 首次创建先核对使用者、核心操作、数据方式和 AI/联网/文件/浏览器权限边界；用户已说清楚的内容不再提问。仅对影响方向的缺口提出 1–4 个问题，再提交一次方案等待确认。
-2. 已有房间的明确开发或修复直接实施。先读取相关代码，能合理判断的细节自行决定；只有真正阻塞的一个问题才询问，且不重复历史问题。
+1. 首次创建由 AI 根据任务决定要确认哪些基础信息：目标平台、主要输入与结果、数据保存/导出、AI/联网需求、个人或多人使用。平台未明确时通常先问电脑还是也要安卓手机/平板；用户已说清楚的内容不再提问。批量规模、中断恢复、文件覆盖、多人可见范围等只在相关任务中询问；合并 1–4 个关键问题，避免固定问卷。信息完整或用户让你决定时可直接提交一次方案等待确认；方案归纳目标平台、核心流程、数据方式与重要默认值，区分用户决定和你的假设，不让用户选择技术栈。
+2. 已有房间的明确开发或修复直接实施，沿用已有平台与需求答案，按新要求更新相关决定，不重问首次问卷或确认旧方案。先读取相关代码，能合理判断的细节自行决定；只有真正阻塞的一个问题才询问，且不重复历史问题。
 3. 新房间统一执行 `inspect_room_capabilities` → `begin_custom_room` → `write_custom_room_file` → `test_custom_room` → `install_custom_room`。
 4. 已有房间的小改动优先执行 `inspect_current_room` → `read_current_room_file` → `patch_current_room_file` → `test_current_room_patch` → `install_current_room_patch`。需要较大重构时可以载入自由房间工作区后分文件修改。
 5. 测试失败就读取错误、修改相关文件并重测，不重新询问已经明确的需求。
@@ -18,6 +18,8 @@
 - `css`：完整本地样式，适配不同窗口尺寸，不加载外部 URL。
 - `javascript`：入口 ES module。
 - 复杂功能继续创建 `modules/`、`views/`、`services/`、`assets/` 等安全相对路径文件，并用静态相对 import/export 组合。
+
+简单房间优先用三个入口文件和必要的 `room-tests.json` 完成明确需求，不为形式上的分层额外拆文件或加入未请求的功能。已有能力目录足够时不重复查询；不同文件可在一次模型回复中提交多个写入工具调用。根据写入结果局部修复错误，不重写已正确的文件。
 
 同一轮写入不同文件可以共用读取时的 `expectedRevision`；再次改写同一文件时使用工具返回的新 revision。
 
@@ -51,9 +53,13 @@
 
 `room-tests.json` 最小结构：`{"version":1,"mocks":{"ai":[{"text":"译文"}]},"scenarios":[{"name":"翻译","actions":[{"type":"input","selector":"#source","value":"Hello"},{"type":"click","selector":"#translate"},{"type":"wait","ms":300},{"type":"assertText","selector":"#result","value":"译文"}]}]}`。字段是 `actions/selector/value`，不要改成 `steps/target/contains`。 `mocks.ai` 按所有场景的 AI 调用顺序排列，每次调用提供一条响应；前置按钮巡检开始正式场景前会重置队列。
 
+所有 `scenarios` 按顺序共享当前页面和数据，`reload` 保留该时刻的数据；独立场景需自行准备输入，不能在前一场景清空后断言重载仍恢复更早的数据。默认导出模拟用户取消；成功导出可用 `mocks.captureExports:true`，需在同轮测试保存与取消时用 `mocks.exportDecisions:['save','cancel']` 按打开保存对话框的顺序指定。实际导出只写隔离临时目录，报告记录文件大小、PDF 页数等证据，不操作用户文件。
+
 可复用宿主能力优先通过 `capabilities.tools` 声明版本化工具 ID，再用 `room.tools.list()/call()` 调用。需要第三方 API 密钥时声明 `capabilities.credentials` 别名和匹配的精确网络源；房间只用 `room.credentials.list()` 查看状态，并给 `room.network` 传 `credentialAlias`，不要在源码、数据库或提示词中保存明文。
 
 需要联网时声明精确服务源并使用 `room.network`；需要网页交互时使用 `room.browser`；大文件和大导出使用分块接口。
+
+局域网使用 `room.multiplayer`：`create()` 返回的 `invitations` 为 `[{host,invitation}]` 对象数组，应复制单项 `.invitation`，不能拼接或把对象当字符串；主机 `role:'host'`，加入方 `role:'client'`。主机 `peers` 提供玩家名称和连接状态。玩家发送给 `host`，主机收到后按业务规则主动广播给其他玩家。隔离检查不打开真实连接，创建后需另测真实双端收发、离开和重连。
 
 ## 完成标准
 
@@ -61,3 +67,4 @@
 - `test_custom_room` 必须通过静态、需求契约、隔离启动、重载、基础按钮交互和声明式业务场景检查。
 - 只有 `install_custom_room` 成功后才报告房间完成。
 - 说明实际测试结果及仍需人工验证的外部能力，不夸大验证范围。
+- 按已确认的目标平台验证主要流程；手机界面兼顾触控、小屏和无键盘操作。同一 `.room` 包仍需核对各宿主的能力差异；桌面隔离测试不能代替安卓验收，未执行的平台测试明确列为待验证。

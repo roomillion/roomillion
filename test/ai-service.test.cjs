@@ -166,15 +166,16 @@ test("Pi AI adapter calls an OpenAI-compatible endpoint", async (t) => {
 });
 
 test("Agent runtime forwards configurable provider retries and defaults to two", async () => {
+  const pi = await import("@earendil-works/pi-ai");
   const service = new AiService(os.tmpdir());
   const profile = { id: "retry-profile", providerId: "custom-openai-compatible", name: "Retry", protocol: "openai-completions", baseUrl: "http://127.0.0.1:8000/v1", model: "retry-model" };
   service.profiles.set(profile.id, profile);
   service.sessionApiKeys.set(profile.id, "test-key");
   const seen = [];
   service.createRuntime = async () => ({
-    pi: {},
+    pi,
     model: { id: profile.model, maxTokens: 8192 },
-    models: { streamSimple: (_model, _context, options) => { seen.push(options.maxRetries); return {}; } }
+    models: { streamSimple: (_model, _context, options) => { seen.push(options.maxRetries); const stream = pi.createAssistantMessageEventStream(); stream.push({ type: "done", reason: "stop", message: { role: "assistant", content: [], stopReason: "stop" } }); stream.end(); return stream; } }
   });
   const defaultRuntime = await service.createAgentRuntime({ profileId: profile.id });
   defaultRuntime.streamFn(defaultRuntime.model, { messages: [] });
@@ -182,6 +183,37 @@ test("Agent runtime forwards configurable provider retries and defaults to two",
   tunedRuntime.streamFn(tunedRuntime.model, { messages: [] });
   assert.deepEqual(seen, [2, 4]);
   await assert.rejects(() => service.createAgentRuntime({ profileId: profile.id, maxRetries: 6 }), /0–5/);
+});
+
+test("configured AI timeout also aborts a stalled SSE body after response headers", async t => {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), "room-ai-stream-deadline-"));
+  t.after(() => fsp.rm(root, { recursive: true, force: true }));
+  const server = http.createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.write(`data: ${JSON.stringify({ id: "test", object: "chat.completion.chunk", created: 1, model: "test", choices: [{ index: 0, delta: { role: "assistant", content: "部分" }, finish_reason: null }] })}\n\n`);
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const service = await new AiService(root).init();
+  await service.saveProfile({ name: "受控测试", baseUrl: `http://127.0.0.1:${server.address().port}/v1`, model: "test", apiKey: "fake-key" });
+  const runtime = await service.createAgentRuntime({ timeoutMs: 100, maxRetries: 0 });
+  const started = Date.now();
+  const response = await runtime.streamFn(runtime.model, { messages: [{ role: "user", content: "测试", timestamp: 1 }] }).result();
+  assert.equal(response.stopReason, "error");
+  assert.match(response.errorMessage, /单次请求超时/);
+  assert.ok(Date.now() - started < 1500);
+  await assert.rejects(service.complete({ prompt: "测试", timeoutMs: 100, maxRetries: 0 }), /请求超时/);
+  const controller = new AbortController();
+  const cancellable = await service.createAgentRuntime({ timeoutMs: 3000, maxRetries: 0 });
+  const stream = cancellable.streamFn(cancellable.model, { messages: [{ role: "user", content: "测试取消", timestamp: 1 }] }, { signal: controller.signal });
+  const timer = setTimeout(() => controller.abort(), 50);
+  const cancelled = await stream.result();
+  clearTimeout(timer);
+  assert.equal(cancelled.stopReason, "aborted");
 });
 test("AI completion accepts room token requests above 4000 and follows the selected model limit", async () => {
   const service = new AiService(os.tmpdir());

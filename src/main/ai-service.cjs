@@ -222,6 +222,17 @@ function providerRequestOptions(profile, sessionId) {
   };
 }
 
+function requestDeadline(userSignal, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  timer.unref?.();
+  return {
+    signal: userSignal ? AbortSignal.any([userSignal, controller.signal]) : controller.signal,
+    expired: () => controller.signal.aborted && !userSignal?.aborted,
+    dispose: () => clearTimeout(timer)
+  };
+}
+
 class AiService {
   constructor(dataRoot, { secureStorage = null } = {}) {
     this.profilePath = path.join(dataRoot, "provider.json");
@@ -926,16 +937,51 @@ class AiService {
             return compatibilityPayload ? compatibilityPayload(upstream) : upstream;
           }
         : undefined;
-      return models.streamSimple(activeModel, context, {
-        ...options,
-        ...requestOptions,
-        headers: { ...options.headers, ...requestOptions.headers },
-        apiKey: this.sessionApiKeys.get(profile.id) || "local",
-        maxTokens: Math.min(Number(activeModel.maxTokens) || maxTokens, maxTokens),
-        timeoutMs,
-        maxRetries: Number(maxRetries),
-        ...(onPayload ? { onPayload } : {})
-      });
+      const deadline = requestDeadline(options.signal, Number(timeoutMs));
+      let upstream;
+      try {
+        upstream = models.streamSimple(activeModel, context, {
+          ...options,
+          ...requestOptions,
+          headers: { ...options.headers, ...requestOptions.headers },
+          apiKey: this.sessionApiKeys.get(profile.id) || "local",
+          maxTokens: Math.min(Number(activeModel.maxTokens) || maxTokens, maxTokens),
+          timeoutMs,
+          maxRetries: Number(maxRetries),
+          signal: deadline.signal,
+          ...(onPayload ? { onPayload } : {})
+        });
+      } catch (error) {
+        deadline.dispose();
+        throw error;
+      }
+      const output = pi.createAssistantMessageEventStream();
+      let ended = false;
+      const fail = message => {
+        if (ended) return;
+        ended = true;
+        output.push({ type: "error", reason: "error", error: { role: "assistant", content: [], api: activeModel.api, provider: activeModel.provider, model: activeModel.id, timestamp: Date.now(), stopReason: "error", errorMessage: message } });
+        output.end();
+      };
+      const abort = () => { if (deadline.expired()) fail(`AI 单次请求超时（${Math.ceil(Number(timeoutMs) / 1000)} 秒）；已保留此前完成的工具结果`); };
+      deadline.signal.addEventListener("abort", abort, { once: true });
+      if (deadline.signal.aborted) abort();
+      void (async () => {
+        try {
+          for await (const event of upstream) {
+            if (ended) break;
+            output.push(event);
+            if (event.type === "done" || event.type === "error") { ended = true; output.end(); break; }
+          }
+        } catch (error) {
+          fail(error.message || "AI 流式请求失败");
+        } finally {
+          deadline.dispose();
+          deadline.signal.removeEventListener("abort", abort);
+          if (!ended) { ended = true; output.end(); }
+        }
+      })();
+      return output;
     };
     return {
       pi,
@@ -1035,6 +1081,7 @@ class AiService {
         timestamp: Date.now()
       }]
     };
+    const deadline = requestDeadline(signal, effectiveTimeoutMs);
     const requestOptions = {
       ...providerRequestOptions(profile, sessionId),
       apiKey: this.sessionApiKeys.get(profile.id) || "local",
@@ -1042,22 +1089,27 @@ class AiService {
       temperature,
       timeoutMs: effectiveTimeoutMs,
       maxRetries: effectiveMaxRetries,
-      signal,
+      signal: deadline.signal,
       onPayload
     };
     let response;
-    if (typeof onTextDelta === "function") {
-      const stream = models.streamSimple(model, context, requestOptions);
-      for await (const event of stream) {
-        if (!signal?.aborted && event.type === "text_delta" && typeof event.delta === "string" && event.delta) {
-          try { onTextDelta(event.delta); } catch {}
+    try {
+      if (typeof onTextDelta === "function") {
+        const stream = models.streamSimple(model, context, requestOptions);
+        for await (const event of stream) {
+          if (!signal?.aborted && event.type === "text_delta" && typeof event.delta === "string" && event.delta) {
+            try { onTextDelta(event.delta); } catch {}
+          }
         }
+        response = await stream.result();
+      } else {
+        response = await models.completeSimple(model, context, requestOptions);
       }
-      response = await stream.result();
-    } else {
-      response = await models.completeSimple(model, context, requestOptions);
+    } finally {
+      deadline.dispose();
     }
     signal?.throwIfAborted();
+    if (deadline.expired()) throw new Error(`AI 请求超时（${Math.ceil(effectiveTimeoutMs / 1000)} 秒）`);
     if (response.stopReason === "error" || response.stopReason === "aborted") {
       throw new Error(response.errorMessage || "AI 请求失败");
     }

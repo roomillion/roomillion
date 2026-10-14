@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace } = require("../src/main/room-draft-workspace.cjs");
+const { createWorkspace, writeFile, deleteFile, moveFile, searchFiles, describeWorkspace, prepareWriteArguments } = require("../src/main/room-draft-workspace.cjs");
 const { compare, assertWorkbenchCompatible } = require("../src/main/workbench-compatibility.cjs");
 test("draft files persist independently, reject stale revisions and support exact local patches", () => {
   let draft = createWorkspace({ name: "测试房间", description: "测试分文件保存", hostModules: [], capabilities: {} });
@@ -25,6 +25,24 @@ test("draft files persist independently, reject stale revisions and support exac
   assert.equal(Object.hasOwn(files.files, "services/page.js"), false);
   assert.throws(() => deleteFile(files, { file: "javascript", expectedRevision: files.revision }), /入口文件/);
 });
+test("structured JSON writes preserve data while source, patch and path checks stay enforced", () => {
+  const draft = createWorkspace({ name: "翻译房间", description: "左右翻译", hostModules: [], capabilities: {} });
+  const content = { version: 1, mocks: { ai: [{ text: '你好，"世界"\n下一行' }] }, scenarios: [] };
+  const args = { file: "room-tests.json", content, expectedRevision: 1 };
+  const prepared = prepareWriteArguments(args);
+  assert.equal(typeof prepared.content, "string");
+  assert.equal(args.content, content);
+  assert.deepEqual(JSON.parse(prepared.content), content);
+  const updated = writeFile(draft, args);
+  assert.deepEqual(JSON.parse(updated.files["room-tests.json"]), content);
+  assert.throws(() => writeFile(updated, args), /草稿文件已更新/);
+  assert.throws(() => writeFile(draft, { ...args, file: "../secret.json" }), /只能写入/);
+  assert.throws(() => writeFile(draft, { ...args, file: "javascript" }), /原始文件文本/);
+  assert.throws(() => writeFile(updated, { ...args, expectedRevision: 2, find: "version" }), /原始文件文本/);
+  const array = prepareWriteArguments({ ...args, content: ["中文", null, 1] });
+  assert.deepEqual(JSON.parse(array.content), ["中文", null, 1]);
+});
+
 test("independent file writes in one tool batch accept the same starting revision", () => {
   let draft = createWorkspace({ name: "翻译房间", description: "左右翻译", hostModules: [], capabilities: {} });
   draft = writeFile(draft, { file: "html", content: "<main></main>", expectedRevision: 1 });

@@ -68,6 +68,22 @@ test("text assertion retries remain bounded and stop on room initialization erro
   assert.equal(broken.elapsed(), 0);
 });
 
+test("existence and text assertions wait for nodes created by asynchronous rendering", async () => {
+  const page = asynchronousPage("完成");
+  page.document.querySelector = () => page.elapsed() < 600 ? null : { textContent: "完成" };
+  const result = await runDeclaredScenarios(page.webContents, normalizeRoomTestDefinition({ version: 1, scenarios: [{ name: "动态元素", actions: [
+    { type: "assertExists", selector: "#row" }, { type: "assertText", selector: "#row", value: "完成" }
+  ] }] }));
+  assert.equal(result.passed, true, result.error);
+  assert.equal(page.elapsed(), 600);
+  const missing = asynchronousPage("");
+  missing.document.querySelector = () => null;
+  const failure = await runDeclaredScenarios(missing.webContents, normalizeRoomTestDefinition({ version: 1, scenarios: [{ actions: [{ type: "assertExists", selector: "#missing" }] }] }));
+  assert.equal(failure.passed, false);
+  assert.match(failure.error, /找不到元素/);
+  assert.equal(missing.elapsed(), 5000);
+});
+
 test("multi-round regression suites retain more than twenty scenarios", async () => {
   const scenarios = Array.from({ length: 25 }, (_, index) => ({ name: `回归 ${index + 1}`, actions: [{ type: "assertExists", selector: "#result" }] }));
   const definition = normalizeRoomTestDefinition({ version: 1, scenarios });
@@ -96,4 +112,6 @@ test("isolated export capture is explicit and type checked", () => {
   assert.equal(normalizeRoomTestDefinition(input).mocks.captureExports, false);
   assert.equal(normalizeRoomTestDefinition({ ...input, mocks: { captureExports: true } }).mocks.captureExports, true);
   assert.throws(() => normalizeRoomTestDefinition({ ...input, mocks: { captureExports: "yes" } }), /captureExports/);
+  assert.deepEqual(normalizeRoomTestDefinition({ ...input, mocks: { exportDecisions: ["save", "cancel"] } }).mocks.exportDecisions, ["save", "cancel"]);
+  for (const exportDecisions of [null, ["allow"], "save", Array(101).fill("save")]) assert.throws(() => normalizeRoomTestDefinition({ ...input, mocks: { exportDecisions } }), /exportDecisions/);
 });

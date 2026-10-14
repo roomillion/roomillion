@@ -11,6 +11,8 @@ test("runtime timeout includes declared waits and reloads with a bounded ceiling
   assert.equal(declaredRuntimeTimeout(definition), 62100);
   definition.scenarios[0].actions.push({ type: "assertText", selector: "#out", value: "完成" });
   assert.equal(declaredRuntimeTimeout(definition), 67100);
+  definition.scenarios[0].actions.push({ type: "assertExists", selector: "#row" });
+  assert.equal(declaredRuntimeTimeout(definition), 72100);
   definition.scenarios[0].actions = Array.from({ length: 100 }, () => ({ type: "wait", ms: 5000 }));
   assert.equal(declaredRuntimeTimeout(definition), 300000);
 });
@@ -62,6 +64,38 @@ document.getElementById('ocr').onclick=async()=>{try{const id=await room.storage
   const result = await validateRoomRuntime({ spec });
   assert.equal(result.passed, true, JSON.stringify(result));
   assert.ok(result.checks.find(check => check.id === "interactions")?.skipped.includes("识别"));
+});
+
+test("button smoke mutations do not leak into declared business scenarios", async () => {
+  const spec = { formatVersion: "room-app@1", kind: "custom", name: "巡检数据隔离回归", description: "巡检保存记录后业务场景仍从初始数据开始", hostModules: [], capabilities: { database: true }, files: {
+    html: '<main><button id="save">保存记录</button><button id="check">检查数据</button><output id="out"></output></main>', css: 'main{padding:20px}',
+    javascript: `document.getElementById('save').onclick=async()=>{if(!confirm('保存测试记录？'))return;await room.storage.set('smoke-row','巡检写入');document.getElementById('out').textContent='已保存';};document.getElementById('check').onclick=async()=>{document.getElementById('out').textContent=await room.storage.get('smoke-row')||'初始为空';};`,
+    "room-tests.json": JSON.stringify({version:1,scenarios:[{name:"从初始数据开始并保留场景内写入",actions:[{type:"click",selector:"#check"},{type:"assertText",selector:"#out",value:"初始为空"},{type:"click",selector:"#save"},{type:"reload"},{type:"click",selector:"#check"},{type:"assertText",selector:"#out",value:"巡检写入"},{type:"click",selector:"#save"},{type:"assertText",selector:"#out",value:"已保存"}]}]})
+  } };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+  assert.ok(result.checks.find(check => check.id === "interactions").tested.includes("保存记录"));
+});
+
+test("declared exports can save text, cancel binary and finish a streamed file in one suite", async () => {
+  const spec = { formatVersion: "room-app@1", kind: "custom", name: "导出对话框顺序回归", description: "成功、取消与流式导出使用真实临时文件", hostModules: [], capabilities: { files: ["export"] }, files: {
+    html: '<main><button id="text">导出文本</button><button id="binary">导出二进制</button><button id="stream">导出分块</button><output id="out"></output></main>', css: 'main{padding:20px}',
+    javascript: `const out=document.getElementById('out');document.getElementById('text').onclick=async()=>{out.textContent=await room.files.exportText('text.txt','中文')?'文本已保存':'已取消';};document.getElementById('binary').onclick=async()=>{out.textContent=await room.files.exportBinary('binary.bin',new Uint8Array([1,2]))?'二进制已保存':'已取消';};document.getElementById('stream').onclick=async()=>{const task=await room.files.beginExport('stream.bin');await room.files.writeExport(task.token,new Uint8Array([1,2]));await room.files.writeExport(task.token,new Uint8Array([3,4]));out.textContent=await room.files.finishExport(task.token)?'分块已保存':'已取消';};`,
+    "room-tests.json": JSON.stringify({version:1,mocks:{exportDecisions:["save","cancel","save"]},scenarios:[{name:"保存和取消顺序",actions:[{type:"click",selector:"#text"},{type:"assertText",selector:"#out",value:"文本已保存"},{type:"click",selector:"#binary"},{type:"assertText",selector:"#out",value:"已取消"},{type:"click",selector:"#stream"},{type:"assertText",selector:"#out",value:"分块已保存"}]}]})
+  } };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
+  assert.deepEqual(result.exports.map(item => [item.name, item.bytes]), [["text.txt", 6], ["stream.bin", 4]]);
+});
+
+test("text AI model discovery, default selection and switching work without file fixtures", async () => {
+  const spec = { formatVersion: "room-app@1", kind: "custom", name: "文本模型选择回归", description: "无文件样本的房间也可以测试模型选择与重载", hostModules: [], capabilities: { database: false, ai: { roles: ["general"], slots: { translator: { role: "general" } } } }, files: {
+    html: '<main><button id="check">检查模型</button><output id="out"></output></main>', css: 'main{padding:20px}',
+    javascript: `document.getElementById('check').onclick=async()=>{try{const models=await room.ai.listModels();if(models.length<2)throw Error('没有模拟模型');const current=await room.ai.getSelection();if(!models.some(m=>m.id===current.profileId))throw Error('无默认模型');const chosen=await room.ai.selectModel(models[1].id);if(chosen.profileId!==models[1].id)throw Error('未切换模型');const again=await room.ai.getSelection();if(again.profileId!==models[1].id)throw Error('未保存模型选择');await room.ai.selectSlot('translator',models[1].id);const slots=await room.ai.getSlots();if(slots.translator!==models[1].id)throw Error('未保存槽位');let rejected=false;try{await room.ai.selectModel('unknown')}catch{rejected=true}if(!rejected)throw Error('接受了不存在的模型');document.getElementById('out').textContent='模型可选且已切换';}catch(e){document.getElementById('out').textContent=e.message;}};`,
+    "room-tests.json": JSON.stringify({version:1,scenarios:[{name:"选择模型与重载",actions:[{type:"click",selector:"#check"},{type:"assertText",selector:"#out",value:"模型可选且已切换"},{type:"reload"},{type:"click",selector:"#check"},{type:"assertText",selector:"#out",value:"模型可选且已切换"}]}]})
+  } };
+  const result = await validateRoomRuntime({ spec });
+  assert.equal(result.passed, true, JSON.stringify(result));
 });
 
 test("isolated room runtime exposes embedding, rerank and Jev-shaped intuition contracts", async () => {
